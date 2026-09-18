@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Aalto",
+    "status": "Not started",
+    "characters": [
+      "Aalto",
+      "Verina",
+      "Encore"
+    ],
+    "echoes": {
+      "aalto": [],
+      "verina": [],
+      "encore": []
+    }
+  }
+]
