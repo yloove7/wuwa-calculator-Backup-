@@ -23,6 +23,7 @@ from src.wuwa_calculator.app.backend_adapter import (
     save_history_record,
 )
 from src.wuwa_calculator.app.styles import apply_glow
+from src.wuwa_calculator.utils.paths import get_asset_path
 from src.wuwa_calculator.storage.team_storage import load_teams
 from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 from src.wuwa_calculator.app.security_policy import allows_remote_content
@@ -76,7 +77,10 @@ class RotationForm(Card):
         super().__init__()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 14, 16, 16)
-        layout.addWidget(TitleLabel("Teste de rotação salvo"))
+        heading = QHBoxLayout()
+        heading.addWidget(TitleLabel("Teste de rotação salvo"))
+        heading.addStretch(1)
+        layout.addLayout(heading)
         fields = QHBoxLayout()
         self.team_box = QComboBox()
         self.team_box.addItems(["Equipe 1", "Fusion quickswap", "Glacio control"])
@@ -352,11 +356,32 @@ class _LegacyVideoPlayer(Card):
 class HistoryTab(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        root = QHBoxLayout(self)
-        root.setContentsMargins(18, 18, 18, 18)
+        self.setObjectName("historyPage")
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 16)
         root.setSpacing(12)
+
+        page_header = QHBoxLayout()
+        page_header.setContentsMargins(4, 0, 4, 0)
+        page_icon = QLabel("✦")
+        page_icon.setObjectName("historyPageIcon")
+        page_icon.setFixedWidth(36)
+        page_header.addWidget(page_icon)
+        page_titles = QVBoxLayout()
+        page_titles.setSpacing(0)
+        page_title = QLabel("Histórico de Rotação")
+        page_title.setObjectName("historyPageTitle")
+        page_subtitle = QLabel("Confira e analise suas últimas rotações e resultados.")
+        page_subtitle.setObjectName("historyPageSubtitle")
+        page_titles.addWidget(page_title)
+        page_titles.addWidget(page_subtitle)
+        page_header.addLayout(page_titles)
+        page_header.addStretch(1)
+        root.addLayout(page_header)
+
         splitter = QSplitter()
-        root.addWidget(splitter)
+        splitter.setObjectName("historyColumns")
+        root.addWidget(splitter, 1)
 
         left = QWidget()
         left_layout = QVBoxLayout(left)
@@ -366,7 +391,14 @@ class HistoryTab(QWidget):
         team_summary.setObjectName("historyTeamSummary")
         team_layout = QVBoxLayout(team_summary)
         team_layout.setContentsMargins(14, 12, 14, 12)
-        team_layout.addWidget(TitleLabel("Equipe ativa"))
+        team_heading = QHBoxLayout()
+        team_heading.addWidget(TitleLabel("Equipe ativa"))
+        team_heading.addStretch(1)
+        edit_team_button = QPushButton("✎  Editar")
+        edit_team_button.setObjectName("historyEditButton")
+        edit_team_button.setFixedHeight(26)
+        team_heading.addWidget(edit_team_button)
+        team_layout.addLayout(team_heading)
         self.team_summary_label = QLabel("Selecione uma equipe para visualizar a composição")
         self.team_summary_label.setObjectName("historyTeamMembers")
         self.team_summary_label.setWordWrap(True)
@@ -394,8 +426,20 @@ class HistoryTab(QWidget):
             block_layout.addWidget(label)
             quick_layout.addWidget(block)
         left_layout.addWidget(quick)
+        banner_preview = QLabel()
+        banner_preview.setObjectName("historyBannerPreview")
+        banner_preview.setMinimumHeight(190)
+        banner_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        banner_preview.setScaledContents(False)
+        banner_pixmap = QPixmap(str(get_asset_path("app_background_reference.png")))
+        if not banner_pixmap.isNull():
+            banner_preview.setPixmap(banner_pixmap.scaled(
+                560, 230,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            ))
+        left_layout.addWidget(banner_preview, 1)
         self.rotation_form_widget = RotationForm(self)
-        left_layout.addStretch(1)
         left_layout.addWidget(self.rotation_form_widget)
         splitter.addWidget(left)
 
@@ -404,9 +448,21 @@ class HistoryTab(QWidget):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(12)
         analytics = Card()
+        analytics.setObjectName("historyAnalysisPanel")
         analytics_layout = QVBoxLayout(analytics)
         analytics_layout.setContentsMargins(16, 14, 16, 16)
-        analytics_layout.addWidget(TitleLabel("Análise de Dano"))
+        analytics_heading = QHBoxLayout()
+        analytics_heading.addWidget(TitleLabel("Análise de Dano"))
+        analytics_heading.addStretch(1)
+        general_button = QPushButton("Geral")
+        general_button.setObjectName("historyViewActive")
+        per_second_button = QPushButton("Por Segundo")
+        per_second_button.setObjectName("historyViewButton")
+        general_button.setFixedHeight(26)
+        per_second_button.setFixedHeight(26)
+        analytics_heading.addWidget(general_button)
+        analytics_heading.addWidget(per_second_button)
+        analytics_layout.addLayout(analytics_heading)
         metrics = QHBoxLayout()
         self.metrics: dict[str, MetricCard] = {}
         for key, title in (("theoretical", "Teórico"), ("practical", "Prático"), ("accuracy", "Taxa de Acerto"), ("delta", "Delta")):
@@ -418,21 +474,40 @@ class HistoryTab(QWidget):
         right_layout.addWidget(analytics)
 
         audit = Card()
+        audit.setObjectName("historyAuditPanel")
         audit_layout = QVBoxLayout(audit)
         audit_layout.setContentsMargins(16, 14, 16, 16)
-        audit_layout.addWidget(TitleLabel("Auditoria de Habilidades | calculado versus jogabilidade"))
-        self.audit_table = DataTable(("Personagem / Habilidade", "Tipo", "Não-crítico", "Crítico", "Esperado", "Prático", "Delta"))
+        audit_heading = QHBoxLayout()
+        audit_heading.addWidget(TitleLabel("Auditoria de Habilidades | calculado versus jogabilidade"))
+        audit_heading.addStretch(1)
+        audit_layout.addLayout(audit_heading)
+        self.audit_table = DataTable(("Imagem / Hábil", "Tipo", "Não-crítico", "Crítico", "Esperado", "Prático", "Delta"))
         self.audit_table.setObjectName("historyAuditTable")
         self.audit_table.setAlternatingRowColors(True)
         self.audit_table.setItemDelegateForColumn(4, DamageBarDelegate(self.audit_table))
         self.audit_table.setItemDelegateForColumn(5, DamageBarDelegate(self.audit_table))
+        self.audit_table.setColumnHidden(6, True)
         audit_layout.addWidget(self.audit_table, 1)
+        self.audit_empty_label = QLabel("▤\n\nNenhum dado disponível\nRealize um teste de rotação para ver os resultados aqui.")
+        self.audit_empty_label.setObjectName("historyEmptyState")
+        self.audit_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.audit_empty_label.setWordWrap(True)
+        audit_layout.addWidget(self.audit_empty_label, 1)
         right_layout.addWidget(audit, 1)
 
         saved = Card()
+        saved.setObjectName("historySavedPanel")
         saved_layout = QVBoxLayout(saved)
         saved_layout.setContentsMargins(16, 14, 16, 16)
-        saved_layout.addWidget(TitleLabel("Comparação salva"))
+        saved_heading = QHBoxLayout()
+        saved_heading.addWidget(TitleLabel("Comparação salva"))
+        saved_heading.addStretch(1)
+        search_history = QLineEdit()
+        search_history.setObjectName("historySearch")
+        search_history.setPlaceholderText("⌕  Buscar...")
+        search_history.setFixedWidth(138)
+        saved_heading.addWidget(search_history)
+        saved_layout.addLayout(saved_heading)
         self.saved_table = DataTable(("ID", "Equipe", "Rotação", "Dano total", "Data"))
         self.saved_table.setObjectName("historySavedTable")
         self.saved_table.setAlternatingRowColors(True)
@@ -441,6 +516,8 @@ class HistoryTab(QWidget):
         right_layout.addWidget(saved, 1)
         splitter.addWidget(right)
         splitter.setSizes([620, 720])
+        splitter.setStretchFactor(0, 4)
+        splitter.setStretchFactor(1, 6)
         self.rotation_form = self.rotation_form_widget
         self.team_network = QNetworkAccessManager(self)
         self.team_image_replies: dict[str, object] = {}
@@ -448,6 +525,12 @@ class HistoryTab(QWidget):
         self.refresh_team_names()
         self.refresh_team_summary()
         self.refresh_history()
+        self._update_audit_empty_state()
+
+    def _update_audit_empty_state(self) -> None:
+        has_rows = self.audit_table.rowCount() > 0
+        self.audit_table.setVisible(has_rows)
+        self.audit_empty_label.setVisible(not has_rows)
 
     def refresh_team_names(self) -> None:
         names = [str(team.get("name", "Equipe sem nome")) for team in load_teams()]
@@ -547,6 +630,7 @@ class HistoryTab(QWidget):
             "--",
             "--",
         ]])
+        self._update_audit_empty_state()
         self.rotation_form.status_label.setText("Resultado calculado e pronto para salvar.")
 
     def import_history(self) -> None:
@@ -591,6 +675,7 @@ class HistoryTab(QWidget):
         self.current_result = None
         skills = record.get("skills", [])
         self.audit_table.replace_rows(self.skill_rows(skills) if isinstance(skills, list) else [])
+        self._update_audit_empty_state()
 
     @staticmethod
     def skill_rows(skills: list[object]) -> list[list[str]]:

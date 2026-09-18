@@ -65,6 +65,25 @@ class RotationStepResult:
     dps: float
 
 
+def _formula_damage(
+    attack_total: float,
+    skill_modifier: float,
+    damage_bonus: float,
+    critical_multiplier: float,
+    defense_factor: float,
+    resistance_factor: float,
+) -> float:
+    """Apply the shared damage formula using normalized multipliers."""
+    return (
+        max(0.0, attack_total)
+        * max(0.0, skill_modifier)
+        * (1.0 + max(0.0, damage_bonus))
+        * max(0.0, critical_multiplier)
+        * max(0.0, defense_factor)
+        * max(0.0, resistance_factor)
+    )
+
+
 def calculate_rotation_step(
     parameters: RotationParameters,
     step: RotationStep,
@@ -77,12 +96,18 @@ def calculate_rotation_step(
         max(0.0, parameters.elemental_bonus)
         + max(0.0, parameters.team_damage_bonus)
         + max(0.0, step.damage_bonus)
+        + max(0.0, parameters.vulnerability_bonus)
     ) / 100.0
     defense_factor = max(0.0, parameters.defense_factor)
     resistance_factor = max(0.0, parameters.resistance_factor)
-    vulnerability_multiplier = 1.0 + max(0.0, parameters.vulnerability_bonus) / 100.0
-    non_critical = attack_total * max(0.0, step.skill_modifier) / 100.0
-    non_critical *= (1.0 + total_bonus) * defense_factor * resistance_factor * vulnerability_multiplier
+    non_critical = _formula_damage(
+        attack_total,
+        max(0.0, step.skill_modifier) / 100.0,
+        total_bonus,
+        1.0,
+        defense_factor,
+        resistance_factor,
+    )
     crit_multiplier = max(1.0, 1.0 + max(0.0, parameters.crit_damage) / 100.0)
     crit_rate = max(0.0, min(100.0, parameters.crit_rate)) / 100.0
     average_damage = non_critical * ((1.0 - crit_rate) + crit_rate * crit_multiplier)
@@ -133,16 +158,16 @@ def calculate_damage(
     attack_total = max(0.0, attack)
     skill_modifier = max(0.0, scaling) / 100.0
     damage_bonus = max(0.0, flat_bonus) / 100.0
-    bonus_multiplier = 1.0 + damage_bonus
     defense_factor = max(0.0, 1.0 - max(0.0, enemy_defense) / 100.0)
     resistance_factor = max(0.0, 1.0 - max(0.0, resistance_reduction) / 100.0)
 
-    non_critical_per_hit = (
-        attack_total
-        * skill_modifier
-        * bonus_multiplier
-        * defense_factor
-        * resistance_factor
+    non_critical_per_hit = _formula_damage(
+        attack_total,
+        skill_modifier,
+        damage_bonus,
+        1.0,
+        defense_factor,
+        resistance_factor,
     )
     crit_rate_fraction = max(0.0, min(1.0, crit_rate / 100.0))
     crit_multiplier = max(1.0, 1.0 + max(0.0, crit_damage) / 100.0)
@@ -185,13 +210,13 @@ def calculate_manual_damage(
     duration: float,
 ) -> ManualDamageResult:
     """Apply the character-tab formula using manually entered build values."""
-    damage_per_hit = (
-        max(0.0, attack_total)
-        * max(0.0, skill_modifier) / 100.0
-        * (1.0 + max(0.0, damage_bonus) / 100.0)
-        * max(0.0, crit_multiplier)
-        * max(0.0, defense_factor)
-        * max(0.0, resistance_factor)
+    damage_per_hit = _formula_damage(
+        attack_total,
+        max(0.0, skill_modifier) / 100.0,
+        max(0.0, damage_bonus) / 100.0,
+        max(0.0, crit_multiplier),
+        defense_factor,
+        resistance_factor,
     )
     total_damage = damage_per_hit * max(1, int(hits)) * max(1, int(casts))
     return ManualDamageResult(

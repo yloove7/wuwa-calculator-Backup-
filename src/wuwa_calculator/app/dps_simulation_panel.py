@@ -154,6 +154,13 @@ class CvDamageAnalysisWorker(QObject):
             if item_width > 100 or item_height > 80 or item_width / max(1, item_height) > 4:
                 continue
             components.append((x, y, item_width, item_height, area))
+        try:
+            from src.wuwa_calculator.native import group_damage_components
+        except ImportError:
+            group_damage_components = None
+        if group_damage_components is not None:
+            return group_damage_components(components, width, height)
+
         components.sort(key=lambda item: (item[1], item[0]))
         groups: list[list[tuple[int, int, int, int, float]]] = []
         for component in components:

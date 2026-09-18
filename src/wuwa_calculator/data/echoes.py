@@ -11,7 +11,7 @@ ECHOES_DB: dict[str, dict[str, object]] = {
         "icon": "🔥",
         "image": "https://rackoon.com.br/images/wuwa/echoes/inferno-rider.webp",
     },
-    "fiery_phoenix": {
+    "Crownless": {
         "name": "Crownless",
         "cost": 4,
         "element": "Havoc",

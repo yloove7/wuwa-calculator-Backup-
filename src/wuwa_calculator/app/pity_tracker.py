@@ -214,12 +214,13 @@ class _ConveneBannerCard(QFrame):
     ) -> None:
         super().__init__(parent)
         self.setObjectName("conveneBannerCard")
-        self.setFixedHeight(82)
+        self.setMinimumHeight(78)
+        self.setMaximumHeight(86)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 9, 10, 9)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(12)
         backdrop = (
             "#2A1945" if accent == "#A855F7"
             else "#302817" if accent == "#EAB308"
@@ -239,7 +240,7 @@ class _ConveneBannerCard(QFrame):
         self.overlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         overlay_layout = QVBoxLayout(self.overlay)
         overlay_layout.setContentsMargins(0, 0, 0, 0)
-        overlay_layout.setSpacing(0)
+        overlay_layout.setSpacing(1)
         parts = title.split(" - ", 1)
         category = parts[1] if len(parts) == 2 else title
         name = parts[0] if len(parts) == 2 else "Standard Convene"
@@ -253,6 +254,7 @@ class _ConveneBannerCard(QFrame):
         self.pity_label = QLabel("-- / 80", self.overlay)
         self.pity_label.setObjectName("conveneBannerPity")
         overlay_layout.addWidget(self.pity_label)
+        overlay_layout.addStretch(1)
         self.badge = QLabel(self.overlay)
         self.badge.setObjectName("conveneBannerBadge")
         self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -302,6 +304,11 @@ class PityTrackerWidget(QFrame):
         self._pulse_value = 0.0
         self._palette_accent = "#A855F7"
         self._build_large_banner_ui()
+        tracker_shadow = QGraphicsDropShadowEffect(self)
+        tracker_shadow.setBlurRadius(24)
+        tracker_shadow.setOffset(0, 6)
+        tracker_shadow.setColor(QColor(0, 0, 0, 150))
+        self.setGraphicsEffect(tracker_shadow)
         self.apply_wallpaper_palette(*wallpaper_palette())
         self._load_visual_assets()
         self._pulse_animation = QPropertyAnimation(self, b"pulseValue", self)
@@ -312,24 +319,31 @@ class PityTrackerWidget(QFrame):
 
     def _build_large_banner_ui(self) -> None:
         self.setStyleSheet(
-            "QFrame#pityTracker { background: #0F1118; border: 1px solid #292D38; border-radius: 16px; }"
-            "QFrame#conveneBannerCard { background: #161822; border: 1px solid #2B2F3B; border-radius: 12px; }"
-            "QLabel#conveneBannerCategory { font-size: 9px; font-weight: 700; }"
-            "QLabel#conveneBannerTitle { color: #F5F3FA; font-size: 16px; font-weight: 700; }"
-            "QLabel#conveneBannerPity { color: #C8A8FF; font-size: 18px; font-weight: 700; }"
-            "QLabel#conveneBannerBadge { color: #B995FF; background: transparent; border: 1px solid #3B2859; border-radius: 16px; padding: 3px 8px; font-size: 9px; font-weight: 700; }"
-            "QLabel#pityHeader { color: #D7D4DD; font-size: 13px; font-weight: 700; letter-spacing: 1px; }"
-            "QLabel#pityOnline { color: #70C987; font-size: 10px; }"
-            "QLabel#pityMeta { color: #A6A4AF; font-size: 9px; }"
-            "QLabel#pityStatIcon { color: #C4C0CD; font-size: 18px; }"
-            "QLabel#pityStatValue { color: #C4C0CD; font-size: 10px; }"
-            "QPushButton#pityIconButton { color: #D9D7DF; background: transparent; border: 0; font-size: 21px; padding: 0; }"
-            "QPushButton#pityIconButton:hover { color: #B995FF; }"
-            "QPushButton#pityFooter { color: #B995FF; background: #171A22; border: 1px solid #2D303A; border-radius: 10px; padding: 8px; font-size: 11px; font-weight: 700; }"
-            "QPushButton#pityFooter:hover { background: #20202D; border-color: #8D61D4; }"
+            "QFrame#pityTracker { background-color: rgba(18, 22, 30, 224); "
+            "border: 1px solid rgba(80, 160, 240, 64); border-radius: 16px; }"
+            "QFrame#conveneBannerCard { background-color: rgba(12, 15, 22, 166); "
+            "border: 1px solid rgba(255, 255, 255, 20); border-radius: 10px; }"
+            "QLabel#conveneBannerCategory { color: #73D7F2; font-size: 9px; font-weight: 800; }"
+            "QLabel#conveneBannerTitle { color: #FFFFFF; font-size: 13px; font-weight: 800; }"
+            "QLabel#conveneBannerPity { color: #73D7F2; font-size: 18px; font-weight: 800; }"
+            "QLabel#conveneBannerBadge { color: #D7F6FF; background: rgba(12, 28, 42, 150); "
+            "border: 1px solid rgba(80, 190, 235, 100); border-radius: 10px; padding: 3px 8px; "
+            "font-size: 9px; font-weight: 700; }"
+            "QLabel#pityHeader { color: #F5F7FA; font-size: 12px; font-weight: 900; letter-spacing: 1px; }"
+            "QLabel#pityOnline { color: #6FE0B0; font-size: 9px; font-weight: 800; }"
+            "QLabel#pityMeta { color: #AAB6C4; font-size: 9px; }"
+            "QLabel#pityStatIcon { color: #B9D8E6; font-size: 17px; }"
+            "QLabel#pityStatValue { color: #D6E8F0; font-size: 10px; font-weight: 700; }"
+            "QPushButton#pityIconButton { color: #D9EEF5; background: transparent; border: 0; "
+            "font-size: 19px; padding: 0; }"
+            "QPushButton#pityIconButton:hover { color: #73E5FF; }"
+            "QPushButton#pityFooter { color: #E5F7FC; background: rgba(12, 28, 42, 170); "
+            "border: 1px solid rgba(80, 190, 235, 110); border-radius: 16px; padding: 7px 12px; "
+            "font-size: 10px; font-weight: 800; }"
+            "QPushButton#pityFooter:hover { background: rgba(28, 75, 98, 190); border-color: #73E5FF; }"
         )
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 13, 14, 13)
+        root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(8)
 
         header = QHBoxLayout()
@@ -343,13 +357,13 @@ class PityTrackerWidget(QFrame):
         header.addStretch(1)
         sync_button = QPushButton("↻")
         sync_button.setObjectName("pityIconButton")
-        sync_button.setFixedSize(28, 28)
+        sync_button.setFixedSize(24, 24)
         sync_button.setToolTip("Sync Log")
         sync_button.clicked.connect(self._request_sync)
         self.sync_button = sync_button
         history_button = QPushButton("•••")
         history_button.setObjectName("pityIconButton")
-        history_button.setFixedSize(28, 28)
+        history_button.setFixedSize(24, 24)
         history_button.setToolTip("Histórico completo")
         history_button.clicked.connect(self.view_history_clicked)
         header.addWidget(sync_button)
@@ -386,11 +400,12 @@ class PityTrackerWidget(QFrame):
         self.footer_stats = QLabel()
         self.footer_stats.hide()
         stats = QHBoxLayout()
-        stats.setSpacing(0)
+        stats.setSpacing(8)
         stat_values = (("◷", "Last Update", "--"), ("◇", "Total de Giros", "--"), ("✧", "Next Pity Milestone", "--"))
         for index, (icon, label, value) in enumerate(stat_values):
             column = QVBoxLayout()
-            column.setSpacing(0)
+            column.setSpacing(1)
+            column.setContentsMargins(0, 0, 0, 0)
             icon_label = QLabel(icon)
             icon_label.setObjectName("pityStatIcon")
             column.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignLeft)
@@ -410,7 +425,7 @@ class PityTrackerWidget(QFrame):
             if index < 2:
                 separator = QFrame()
                 separator.setFrameShape(QFrame.Shape.VLine)
-                separator.setStyleSheet("color: #343741;")
+                separator.setStyleSheet("color: rgba(150, 190, 210, 70);")
                 stats.addWidget(separator)
         root.addLayout(stats)
         footer_button = QPushButton("Ver Histórico Completo  >")
@@ -431,17 +446,32 @@ class PityTrackerWidget(QFrame):
         """Apply wallpaper-derived colors to every tracker surface."""
         accent = theme_accent or accent
         self._palette_accent = accent
+        panel_color = QColor(panel)
+        surface_color = QColor(surface)
+        border_color = QColor(border)
+        panel_rgba = (
+            f"rgba({panel_color.red()}, {panel_color.green()}, "
+            f"{panel_color.blue()}, 224)"
+        )
+        surface_rgba = (
+            f"rgba({surface_color.red()}, {surface_color.green()}, "
+            f"{surface_color.blue()}, 166)"
+        )
+        border_rgba = (
+            f"rgba({border_color.red()}, {border_color.green()}, "
+            f"{border_color.blue()}, 64)"
+        )
         self.setStyleSheet(
             self.styleSheet()
-            + f"QFrame#pityTracker {{ background: {panel}; border-color: {border}; }}"
-            f"QFrame#conveneBannerCard {{ background: {surface}; border-color: {border}; }}"
+            + f"QFrame#pityTracker {{ background: {panel_rgba}; border-color: {border_rgba}; }}"
+            f"QFrame#conveneBannerCard {{ background: {surface_rgba}; border-color: {border_rgba}; }}"
             f"QLabel#conveneBannerCategory, QLabel#conveneBannerPity, "
             f"QLabel#conveneBannerBadge, QPushButton#pityIconButton, "
             f"QPushButton#pityFooter, QLabel#pityOnline {{ color: {accent}; }}"
             f"QLabel#pityMeta {{ color: {muted}; }}"
             f"QLabel#pityStatValue {{ color: {muted}; }}"
-            f"QLabel#conveneBannerBadge {{ border-color: {border}; }}"
-            f"QPushButton#pityFooter {{ background: {surface}; border-color: {border}; }}"
+            f"QLabel#conveneBannerBadge {{ border-color: {border_rgba}; }}"
+            f"QPushButton#pityFooter {{ background: {surface_rgba}; border-color: {border_rgba}; }}"
         )
         self.resonator_card.category_label.setStyleSheet(f"color: {accent};")
         self.weapon_card.category_label.setStyleSheet(f"color: {accent};")

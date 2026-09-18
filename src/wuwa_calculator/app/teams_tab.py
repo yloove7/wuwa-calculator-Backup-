@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from copy import deepcopy
+from dataclasses import dataclass, field
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -56,6 +57,83 @@ def normalize_character(value: object) -> str:
         ),
         "",
     )
+
+
+@dataclass
+class EchoItem:
+    name: str
+    set_name: str
+
+
+@dataclass
+class CharacterEquip:
+    char_name: str
+    echoes: list[EchoItem] = field(default_factory=list)
+
+
+class EchoSynergyEngine:
+    SET_BUFFS = {
+        "Freezing Frost": {"2P": "+10% Glacio DMG", "5P": "+10% Glacio DMG após usar Basic/Heavy Attack (Stack até 3x)"},
+        "Molten Rift": {"2P": "+10% Fusion DMG", "5P": "+15% Fusion DMG por 15s ao usar Resonance Skill"},
+        "Sierra Gale": {"2P": "+10% Aero DMG", "5P": "+15% Aero DMG por 15s ao usar Intro Skill"},
+        "Moonlit Clouds": {"2P": "+10% Energy Regen", "5P": "+22.5% ATK para o próximo personagem ao usar Outro Skill"},
+        "Rejuvenating Glow": {"2P": "+10% Healing Effect", "5P": "+15% ATK para toda a equipe ao curar aliados"},
+        "Void Thunder": {"2P": "+10% Electro DMG", "5P": "+15% Electro DMG por 15s ao usar Heavy Attack ou Resonance Skill"},
+        "Sun-sinking Eclipse": {"2P": "+10% Havoc DMG", "5P": "+7.5% Havoc DMG após usar Basic Attack ou Heavy Attack (Stack até 4x)"},
+        "Celestial Light": {"2P": "+10% Spectro DMG", "5P": "+30% Spectro DMG por 15s ao usar Resonance Skill"},
+        "Lingering Tune": {"2P": "+10% ATK", "5P": "+1.5% ATK a cada segundo em campo (Stack até 4x) + 60% DMG no Outro Skill"},
+    }
+
+    @classmethod
+    def calculate_character_sets(cls, char_equip: CharacterEquip) -> dict[str, dict[str, str]]:
+        sets_count: dict[str, set[str]] = {}
+        for echo in char_equip.echoes:
+            if echo is None or not getattr(echo, "set_name", "") or not getattr(echo, "name", ""):
+                continue
+            sets_count.setdefault(echo.set_name, set()).add(echo.name)
+
+        active_bonuses: dict[str, dict[str, str]] = {}
+        for set_name, unique_names in sets_count.items():
+            count = len(unique_names)
+            buff_info = cls.SET_BUFFS.get(set_name, {})
+            if count >= 5:
+                active_bonuses[set_name] = {
+                    "tier": "5P (Completo)",
+                    "effect": f"2P: {buff_info.get('2P', 'Ativo')} | 5P: {buff_info.get('5P', 'Ativo')}",
+                }
+            elif count >= 2:
+                active_bonuses[set_name] = {
+                    "tier": "2P (Parcial)",
+                    "effect": f"2P: {buff_info.get('2P', 'Ativo')}",
+                }
+        return active_bonuses
+
+    @classmethod
+    def build_synergy_ui_text(cls, team: list[CharacterEquip]) -> str:
+        lines = ["<b>Sinergia de Equipamento</b><br>"]
+        has_any_bonus = False
+        for char in team:
+            if not char.char_name:
+                continue
+            lines.append(f"<b>• {char.char_name}:</b>")
+            bonuses = cls.calculate_character_sets(char)
+            if not bonuses:
+                lines.append("&nbsp;&nbsp;<span style='color: #888;'>Nenhum bônus de Set ativo (mínimo 2 peças únicas)</span>")
+            else:
+                has_any_bonus = True
+                for set_name, data in bonuses.items():
+                    color = "#4CAF50" if "5P" in data["tier"] else "#2196F3"
+                    lines.append(f"&nbsp;&nbsp;<span style='color: {color};'>✓ {set_name} [{data['tier']}]</span>")
+                    lines.append(f"&nbsp;&nbsp;&nbsp;&nbsp;<small style='color: #AAA;'>{data['effect']}</small>")
+            lines.append("")
+
+        if not has_any_bonus:
+            return (
+                "<b>Sinergia</b><br><br>"
+                "<b>Status de Sets:</b> Nenhum ativo<br><br>"
+                "<i>Equipe 2 ou 5 Echoes com nomes diferentes pertencentes ao mesmo Set para ativar bônus.</i>"
+            )
+        return "<br>".join(lines)
 
 
 class CharacterPicker(QDialog):
@@ -533,7 +611,9 @@ class TeamsTab(QWidget):
             card = TeamCardWidget(str(team.get("name", "Equipe sem nome")), members)
             card.set_selected(index == self.selected_team_index)
             card.clicked.connect(lambda team_index=index: self.load_selected_team(team_index))
-            self.team_cards_layout.insertWidget(index, card)
+            self.team_cards_layout.insertWidget(
+                max(0, self.team_cards_layout.count() - 1), card
+            )
             for badge, member in zip(card.badges, members[:3]):
                 self._load_badge_image(member.get("char_icon", ""), badge, "char")
                 self._load_badge_image(member.get("weapon_icon", ""), badge, "weapon")
@@ -784,17 +864,28 @@ class TeamsTab(QWidget):
             self.team_bonus.setText("Bônus de equipe: aguardando composição")
             self.sonata_summary.setText("Sonatas: nenhuma ativa")
             return
+
+        team_data: list[CharacterEquip] = []
+        for character_id in self._current_characters():
+            echo_ids = self.echoes_by_character.get(character_id, [])
+            echo_items: list[EchoItem] = []
+            for echo_id in echo_ids:
+                echo_entry = ECHOES_DB.get(str(echo_id))
+                if not isinstance(echo_entry, dict):
+                    continue
+                echo_items.append(EchoItem(
+                    name=str(echo_entry.get("name", str(echo_id))),
+                    set_name=str(echo_entry.get("sonata", echo_entry.get("set_name", ""))),
+                ))
+            team_data.append(CharacterEquip(char_name=display_name(character_id), echoes=echo_items))
+
         self.active_elements.setText("\n".join(f"{element}: {count}" for element, count in elements.items()))
         repeated = [element for element, count in elements.items() if count >= 2]
         bonus = "Afinidade elemental: " + ", ".join(repeated) if repeated else "Mistura elemental variada"
         self.team_bonus.setText(f"{bonus}\n{len(self._current_characters())}/3 slots ocupados")
-        sonatas: dict[str, int] = {}
-        for echoes in self.echoes_by_character.values():
-            for echo_id in echoes:
-                sonata = str(ECHOES_DB[echo_id]["sonata"])
-                sonatas[sonata] = sonatas.get(sonata, 0) + 1
-        active = [f"{sonata}: {count}/5 (5 peças)" if count >= 5 else f"{sonata}: {count}/2 (2 peças)" for sonata, count in sonatas.items() if count >= 2]
-        self.sonata_summary.setText("Sonatas: " + ("\n".join(active) if active else "nenhum conjunto ativo"))
+
+        synergy_html = EchoSynergyEngine.build_synergy_ui_text(team_data)
+        self.sonata_summary.setText(synergy_html)
 
     def save_team(self) -> None:
         name = self.name_entry.text().strip() or "Equipe sem nome"

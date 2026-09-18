@@ -579,7 +579,7 @@ class HomeTab(QWidget):
             banner_start=starts_at,
             element=str(data.get("element", "")) or None,
         )
-        self.banner_container.insertWidget(1, self.banner_card)
+        self.banner_container.addWidget(self.banner_card)
         print("[HomeTab] Banner card criado e inserido no layout")
 
     def _clear_banner_worker(self) -> None:

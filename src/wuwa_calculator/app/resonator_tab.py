@@ -35,6 +35,8 @@ from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 from src.wuwa_calculator.data.characters_kits import CHARACTER_KITS_DB, MANUAL_CHARACTER_KITS
 from src.wuwa_calculator.data.characters_quotes import CHARACTER_QUOTES
 from src.wuwa_calculator.data.characters_stats import CHARACTER_STATS_DB
+from src.wuwa_calculator.data.echoes import ECHOES_DB
+from src.wuwa_calculator.data.echo_images import ECHO_IMAGE_OVERRIDES
 from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 from src.wuwa_calculator.data.weapons import MANUAL_WEAPONS, _LOCAL_KIT_WEAPON_NAMES
 from src.wuwa_calculator.app.security_policy import allows_local_image, allows_remote_content
@@ -198,13 +200,75 @@ class ResonatorTab(QWidget):
         self.controls.addTab(supports, "Equipe Suportes")
 
         build = QWidget()
-        build_layout = QFormLayout(build)
+        build_layout = QVBoxLayout(build)
+        build_layout.setContentsMargins(4, 4, 4, 4)
+        build_layout.setSpacing(8)
+        echo_heading = QLabel("Echoes importados")
+        echo_heading.setObjectName("echoSectionHeading")
+        build_layout.addWidget(echo_heading)
+        self.echo_scroll = QScrollArea()
+        self.echo_scroll.setObjectName("echoScrollArea")
+        self.echo_scroll.setWidgetResizable(True)
+        self.echo_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.echo_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        echo_container = QWidget()
+        self.echo_preview_layout = QGridLayout(echo_container)
+        self.echo_preview_layout.setContentsMargins(4, 4, 4, 4)
+        self.echo_preview_layout.setHorizontalSpacing(6)
+        self.echo_preview_layout.setVerticalSpacing(4)
+        self.echo_scroll.setWidget(echo_container)
+        build_layout.addWidget(self.echo_scroll, 1)
+        self.echo_preview_slots: list[QLabel] = []
+        self.echo_preview_meta: list[QLabel] = []
+        self.echo_preview_details: list[QLabel] = []
+        for index in range(5):
+            card = QFrame()
+            card.setObjectName("echoPreviewFrame")
+            card.setMinimumHeight(198)
+            card.setMaximumHeight(220)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(6, 10, 6, 10)
+            card_layout.setSpacing(2)
+            image = QLabel("◇")
+            image.setObjectName("echoPreview")
+            image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            image.setFixedSize(76, 76)
+            meta = QLabel("--")
+            meta.setObjectName("echoPreviewMeta")
+            meta.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            meta.setWordWrap(True)
+            meta.setMinimumHeight(34)
+            meta.setMaximumHeight(34)
+            details = QLabel("Cost: --\nSet: --\nMain: --\nSub-stats: --")
+            details.setObjectName("echoPreviewDetails")
+            details.setTextFormat(Qt.TextFormat.RichText)
+            details.setWordWrap(True)
+            details.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            card_layout.addWidget(image, 0, Qt.AlignmentFlag.AlignHCenter)
+            card_layout.addWidget(meta, 0, Qt.AlignmentFlag.AlignHCenter)
+            card_layout.addWidget(details)
+            self.echo_preview_slots.append(image)
+            self.echo_preview_meta.append(meta)
+            self.echo_preview_details.append(details)
+            self.echo_preview_layout.addWidget(card, index // 2, index % 2)
+        self.echo_preview_layout.setColumnStretch(0, 1)
+        self.echo_preview_layout.setColumnStretch(1, 1)
+        echo_summary = QFrame()
+        echo_summary.setObjectName("echoSummaryFrame")
+        summary_layout = QHBoxLayout(echo_summary)
+        summary_layout.setContentsMargins(8, 6, 8, 6)
+        self.echo_totals_label = QLabel("Atributos somados\n--")
+        self.echo_totals_label.setObjectName("echoSummaryText")
+        self.echo_sets_label = QLabel("Efeitos de conjunto ativos\n--")
+        self.echo_sets_label.setObjectName("echoSummaryText")
+        summary_layout.addWidget(self.echo_totals_label, 1)
+        summary_layout.addWidget(self.echo_sets_label, 1)
+        build_layout.addWidget(echo_summary, 0)
         self.echoes_entry = QLineEdit("Nenhum Echo configurado")
         self.echoes_bonus_entry = QLineEdit("0%")
         self.echoes_passive_entry = QLineEdit("Nenhuma passiva de Echo configurada")
-        build_layout.addRow(QLabel("Echos equipados"), self.echoes_entry)
-        build_layout.addRow(QLabel("Bônus dos Echos"), self.echoes_bonus_entry)
-        build_layout.addRow(QLabel("Passivas dos Echos"), self.echoes_passive_entry)
+        self.echoes_entry.hide()
         self.controls.addTab(build, "Build Echos")
 
         markers = QWidget()
@@ -225,6 +289,7 @@ class ResonatorTab(QWidget):
         for index in range(self.controls.count()):
             tab_button = QPushButton(self.controls.tabText(index))
             tab_button.setObjectName("resonatorTabButton")
+            apply_glow(tab_button, blur=12, opacity=68)
             tab_button.clicked.connect(
                 lambda _checked=False, tab_index=index: self.controls.setCurrentIndex(tab_index)
             )
@@ -303,8 +368,8 @@ class ResonatorTab(QWidget):
         formula_layout = QVBoxLayout(formula_box)
         formula_layout.setContentsMargins(12, 8, 12, 8)
         formula = QLabel(
-            "Dano = (ATK Total x Mod. Habilidade) x (1 + soma dos bônus) "
-            "x Mult. Crítico x Fator de Defesa x Fator de Resistência"
+            "Dano = (ATK Total × Mod. Habilidade) × (1 + ∑ Bônus de Dano) × "
+            "Mult. Crítico × Fator de Defesa × Fator de Resistência"
         )
         formula.setObjectName("damageFormula")
         formula.setWordWrap(True)
@@ -412,8 +477,8 @@ class ResonatorTab(QWidget):
         weapon_passive = self.weapon_passive_text or kit_passive
         self.damage_details.setText(
             "<b>Modelo utilizado</b><br>"
-            "Dano = (ATK Total x Mod. Habilidade) x (1 + soma dos bônus) x "
-            "Mult. Crítico x Fator de Defesa x Fator de Resistência<br><br>"
+            "Dano = (ATK Total × Mod. Habilidade) × (1 + ∑ Bônus de Dano) × "
+            "Mult. Crítico × Fator de Defesa × Fator de Resistência<br><br>"
             f"<b>Composição usada</b><br>Personagem: {escape(self.character_name.text())} "
             f"(ID: {escape(self.current_id)})<br>"
             f"Elemento: {escape(self.element_box.currentText())}<br>"
@@ -474,7 +539,11 @@ class ResonatorTab(QWidget):
         self._load_image(str(fallback.get("char", "")), self.character_image, "Sem imagem")
         self._load_image(str(fallback.get("weapon", "")), self.weapon_image, "Sem imagem")
 
-    def apply_imported_stats(self, stats: dict[str, float]) -> None:
+    def apply_imported_stats(
+        self,
+        stats: dict[str, float],
+        echoes: list[dict[str, object]] | None = None,
+    ) -> None:
         """Aplica na aba os atributos reconhecidos de uma imagem."""
         field_map = {
             "hp": "Base HP",
@@ -494,6 +563,120 @@ class ResonatorTab(QWidget):
         attack = stats.get("atk")
         if attack is not None and "attack_total" in self.damage_fields:
             self.damage_fields["attack_total"].setValue(attack)
+        if echoes:
+            names = [str(echo.get("name", "Echo")) for echo in echoes]
+            self.echoes_entry.setText(", ".join(names))
+            attributes = [
+                str(attribute)
+                for echo in echoes
+                for attribute in (
+                    echo.get("attributes", [])
+                    if isinstance(echo.get("attributes", []), list)
+                    else []
+                )
+            ]
+            self.echoes_bonus_entry.setText(", ".join(
+                attribute for attribute in attributes if "%" in attribute
+            ) or "Nenhum bônus identificado")
+            self.echoes_passive_entry.setText(", ".join(
+                attribute for attribute in attributes if "%" not in attribute
+            ) or "Nenhuma passiva identificada")
+            self._render_imported_echoes(echoes)
+            self._update_echo_summary(echoes)
+
+    def _update_echo_summary(self, echoes: list[dict[str, object]]) -> None:
+        totals: dict[str, float] = {}
+        units: dict[str, str] = {}
+        sets: dict[str, int] = {}
+        for echo in echoes:
+            set_bonus = str(echo.get("set_bonus", "")).strip()
+            if set_bonus and set_bonus != "--":
+                sets[set_bonus] = sets.get(set_bonus, 0) + 1
+            sub_stats = echo.get("sub_stats", [])
+            lines = sub_stats if isinstance(sub_stats, list) else []
+            for line in lines:
+                clean_line = re.sub(r"[x×]\s*(?=\d)", "", str(line), flags=re.IGNORECASE)
+                match = re.match(
+                    r"(Crit Rate|Crit DMG|Energy Regen|Heavy Attack|Skill DMG|"
+                    r"Liberation DMG|Elemental DMG|ATK|HP|DEF)\s*\+?\s*"
+                    r"(-?[\d.,]+)\s*(%)?$",
+                    clean_line.strip(),
+                    re.IGNORECASE,
+                )
+                if not match:
+                    continue
+                label = re.sub(r"\s+", " ", match.group(1)).strip()
+                try:
+                    raw_value = match.group(2).replace(",", ".")
+                    value = float(raw_value)
+                except ValueError:
+                    continue
+                totals[label] = totals.get(label, 0.0) + value
+                units[label] = "%" if match.group(3) else ""
+        totals_text = "; ".join(
+            f"{label} +{value:g}{units.get(label, '')}"
+            for label, value in totals.items()
+        ) or "--"
+        sets_text = "; ".join(
+            f"{count}/5 {name}" for name, count in sets.items()
+        ) or "--"
+        self.echo_totals_label.setText("Atributos somados\n" + totals_text)
+        self.echo_sets_label.setText("Efeitos de conjunto ativos\n" + sets_text)
+
+    def _render_imported_echoes(self, echoes: list[dict[str, object]]) -> None:
+        for slot, meta, details in zip(
+            self.echo_preview_slots,
+            self.echo_preview_meta,
+            self.echo_preview_details,
+        ):
+            slot.clear()
+            slot.setText("◇")
+            slot.setToolTip("Nenhum Echo reconhecido")
+            meta.setText("--")
+            details.setText("Cost: --<br>Set: --<br><b>Main: --</b><br>Sub-stats:<br>--")
+        for index, echo in enumerate(echoes[:len(self.echo_preview_slots)]):
+            echo_name = str(echo.get("name", "Echo"))
+            slot = self.echo_preview_slots[index]
+            meta = self.echo_preview_meta[index]
+            details = self.echo_preview_details[index]
+            attributes = echo.get("attributes", [])
+            attribute_lines = [str(attribute) for attribute in attributes] if isinstance(attributes, list) else []
+            meta.setText(echo_name)
+            main_stat = str(echo.get("main_stat", attribute_lines[0] if attribute_lines else "--"))
+            sub_stats = echo.get("sub_stats", attribute_lines[1:])
+            sub_stat_lines = [str(attribute) for attribute in sub_stats] if isinstance(sub_stats, list) else []
+            cost = echo.get("cost", "--")
+            set_bonus = str(echo.get("set_bonus", "--"))
+            sub_stats_markup = "<br>".join(
+                f"• {html.escape(value)}" for value in sub_stat_lines
+            ) or "--"
+            details.setText(
+                f"<span style='color:#00F2FE'>Cost: {cost or '--'}  |  "
+                f"Set: {html.escape(set_bonus)}</span><br>"
+                f"<span style='color:#FFFFFF; font-weight:800'>Main: "
+                f"{html.escape(main_stat)}</span><br>"
+                f"Sub-stats:<br>{sub_stats_markup}"
+            )
+            match = next(
+                (
+                    (echo_id, data) for echo_id, data in ECHOES_DB.items()
+                    if isinstance(data, dict)
+                    and str(data.get("name", "")).casefold() == str(echo_name).casefold()
+                ),
+                None,
+            )
+            if match is None:
+                slot.setText("◇")
+                slot.setToolTip(f"{echo_name}\n" + "\n".join(attribute_lines))
+                continue
+            echo_id, echo_data = match
+            slot.setText(str(echo_data.get("icon", "◇")))
+            slot.setToolTip(
+                f"{echo_name} | {echo_data.get('element', '--')} | {echo_data.get('sonata', '--')}\n"
+                + "\n".join(attribute_lines)
+            )
+            image_source = ECHO_IMAGE_OVERRIDES.get(echo_id) or str(echo_data.get("image", ""))
+            self._load_image(image_source, slot, str(echo_data.get("icon", "◇")))
 
     @staticmethod
     def _clean_display_text(text: str) -> str:

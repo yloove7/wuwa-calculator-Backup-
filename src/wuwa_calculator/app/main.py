@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
+import subprocess
 import sys
 import os
 import re
@@ -9,22 +13,29 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg=false")
+os.environ.setdefault(
+    "QT_LOGGING_RULES",
+    "qt.multimedia.ffmpeg=false;qt.network.ssl.warning=false;"
+    "qt.core.qiodevice.warning=false",
+)
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PySide6.QtCore import (
-    QObject, QPropertyAnimation, QRect, QSettings, Qt, QThread, QTimer, QUrl, Signal,
+    QAbstractAnimation, QObject, QPropertyAnimation, QPoint, QRect, QSettings, Qt, QThread,
+    QEasingCurve, QTimer, QUrl, Signal,
 )
 from PySide6.QtGui import (
-    QDesktopServices, QIcon, QPixmap, QResizeEvent, QPainter, QPainterPath
+    QBrush, QColor, QDesktopServices, QIcon, QImage, QImageReader, QPainter, QPainterPath, QPen,
+    QPixmap, QResizeEvent,
     )
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog,
-    QFormLayout, QFrame, QHBoxLayout, QFileDialog,
+    QFormLayout, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
+    QGridLayout, QHBoxLayout, QFileDialog,
     QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QProgressBar, QPushButton, QSlider, QTabWidget, QToolButton, QVBoxLayout,
+    QPushButton, QSlider, QTabWidget, QToolButton, QVBoxLayout,
     QWidget,
     QMenu,
 )
@@ -36,6 +47,8 @@ from src.wuwa_calculator.app.styles import (
     application_qss,
     apply_glow,
     refresh_glows,
+    ThemeConfig,
+    theme_config,
     wallpaper_palette,
 )
 from src.wuwa_calculator.utils.paths import get_asset_path
@@ -126,9 +139,10 @@ class SettingsTab(QWidget):
 
         self.accent_box = QComboBox()
         self.accent_box.addItems([
-            "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta",
+            "Auto Wallpaper", "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta",
             "Verde Aurora", "Azul Abissal", "Rosa Prisma", "Laranja Solar",
-            "Turquesa Maré", "Lima Resonância",
+            "Turquesa Maré", "Lima Resonância", "Gelo Lunar", "Âmbar Nebulosa",
+            "Coral Resonante", "Índigo Profundo", "Prata Sônica", "Verde Vórtice",
         ])
         appearance_form.addRow("Cor do tema", self.accent_box)
 
@@ -204,7 +218,7 @@ class SettingsTab(QWidget):
             settings.value("background", True, type=bool))
 
         self.opacity_slider.setValue(settings.value("interface_opacity", 85, type=int))
-        accent = settings.value("accent_theme", "Ciano Tethys", type=str)
+        accent = settings.value("accent_theme", "Auto Wallpaper", type=str)
         index = self.accent_box.findText(accent)
         self.accent_box.setCurrentIndex(max(0, index))
         self.confirm_exit_box.setChecked(
@@ -309,7 +323,7 @@ class SettingsTab(QWidget):
         self.preferences.clear()
         self.background_box.setChecked(True)
         self.opacity_slider.setValue(85)
-        self.accent_box.setCurrentText("Ciano Tethys")
+        self.accent_box.setCurrentText("Auto Wallpaper")
         self.confirm_exit_box.setChecked(True)
         self._reset_wallpaper()
         window = self.host or self.window()
@@ -574,6 +588,7 @@ class ImageCharacterMismatchError(ValueError):
 
 
 class ImageImportWorker(QObject):
+    preview_ready = Signal(QImage)
     progress = Signal(int)
     status = Signal(str)
     finished = Signal(dict)
@@ -586,27 +601,68 @@ class ImageImportWorker(QObject):
 
     def run(self) -> None:
         try:
-            self.status.emit(
-                "Baixando componentes para identificar atributos..."
-            )
+            reader = QImageReader(self.path)
+            reader.setAutoTransform(True)
+            preview = reader.read()
+            if not preview.isNull():
+                preview = preview.scaled(
+                    1200,
+                    900,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+                self.preview_ready.emit(preview)
+            self.status.emit("Iniciando leitor isolado da build card...")
             self.progress.emit(15)
-            from src.wuwa_calculator.utils.ocr import (  # pylint: disable=import-outside-toplevel
-                extract_image_data,
+            project_root = str(Path(__file__).resolve().parents[3])
+            command = [
+                sys.executable,
+                "-m",
+                "src.wuwa_calculator.utils.ocr_process",
+                self.path,
+            ]
+            creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            process = subprocess.Popen(
+                command,
+                cwd=project_root,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
             )
-
-            self.progress.emit(35)
-            self.status.emit("Carregando dados de status e atributos...")
-            self.progress.emit(50)
-            self.status.emit("Aplicando leitura de kits e habilidades...")
-            self.progress.emit(70)
-            stats, detected_id = extract_image_data(self.path)
+            result: dict[str, object] | None = None
+            if process.stdout is not None:
+                for raw_line in process.stdout:
+                    line = raw_line.rstrip()
+                    prefix, separator, payload = line.partition("\t")
+                    if not separator:
+                        continue
+                    if prefix == "STATUS":
+                        self.status.emit(payload)
+                    elif prefix == "RESULT":
+                        parsed = json.loads(payload)
+                        if isinstance(parsed, dict):
+                            result = parsed
+            return_code = process.wait()
+            if return_code != 0 or result is None:
+                error_text = "Leitor OCR encerrou sem resultado."
+                raise RuntimeError(error_text)
+            stats = result.get("stats", {})
+            detected_id = result.get("character_id")
+            echoes = result.get("echoes", [])
             if detected_id is not None and detected_id != self.target_id:
                 raise ImageCharacterMismatchError(
                     detected_id, self.target_id
                 )
             self.status.emit("Finalizando atributos, bônus e status...")
             self.progress.emit(100)
-            self.finished.emit({"stats": stats, "character_id": detected_id})
+            self.finished.emit({
+                "stats": stats,
+                "character_id": detected_id,
+                "echoes": echoes if isinstance(echoes, list) else [],
+            })
         except Exception as error:  # pylint: disable=broad-except
             self.failed.emit(error)
 
@@ -763,7 +819,7 @@ class WuwaQtWindow(QMainWindow):
         background = self.preferences.value("background", True, type=bool)
         wallpaper = self.preferences.value("wallpaper", "", type=str)
         interface_opacity = self.preferences.value("interface_opacity", 85, type=int)
-        accent_theme = self.preferences.value("accent_theme", "Ciano Tethys", type=str)
+        accent_theme = self.preferences.value("accent_theme", "Auto Wallpaper", type=str)
         app = QApplication.instance()
 
         if app is not None:
@@ -846,14 +902,7 @@ class WuwaQtWindow(QMainWindow):
         button.setObjectName("nav")
         if element:
             button.setProperty("element", element)
-            background, border, text, hover = ELEMENT_NAV_COLORS.get(
-                element, ELEMENT_NAV_COLORS["Spectro"]
-            )
-            button.setStyleSheet(
-                f"QPushButton {{ background: {background}; color: {text}; "
-                f"border: 1px solid {border}; border-radius: 7px; padding: 10px; }}"
-                f"QPushButton:hover {{ background: {hover}; border: 1px solid {border}; }}"
-            )
+        apply_glow(button, blur=12, opacity=72)
         if tab_index is not None:
             button.clicked.connect(
                 lambda: self._select_main_tab(tab_index, label))
@@ -868,6 +917,12 @@ class WuwaQtWindow(QMainWindow):
         AboutDialog(self).exec()
 
     def open_import_dialog(self) -> None:
+        if getattr(self, "_import_dialog", None) is not None:
+            dialog = self._import_dialog
+            if dialog.isVisible():
+                dialog.raise_()
+                dialog.activateWindow()
+                return
         character_tab = self.tabs.currentWidget()
         if not isinstance(character_tab, ResonatorTab):
             QMessageBox.information(
@@ -876,7 +931,20 @@ class WuwaQtWindow(QMainWindow):
                 "Carregue uma ID de personagem antes de importar a imagem.",
             )
             return
-        ImportDialog(self, character_tab).exec()
+        dialog = CustomImportPopup(self, character_tab)
+        dialog.setWindowModality(Qt.WindowModality.NonModal)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        dialog.finished.connect(self._clear_import_dialog)
+        self._import_dialog = dialog
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _clear_import_dialog(self, _result: int) -> None:
+        dialog = getattr(self, "_import_dialog", None)
+        if dialog is not None:
+            dialog.deleteLater()
+        self._import_dialog = None
     
     def _select_main_tab(self, index: int, label: str) -> None:
         self.tabs.setCurrentIndex(index)
@@ -953,15 +1021,8 @@ class WuwaQtWindow(QMainWindow):
         button.setObjectName("nav")
         if element:
             button.setProperty("element", element)
-            background, border, text, hover = ELEMENT_NAV_COLORS.get(
-                element, ELEMENT_NAV_COLORS["Spectro"]
-            )
-            button.setStyleSheet(
-                f"QPushButton {{ background: {background}; color: {text}; "
-                f"border: 1px solid {border}; border-radius: 7px; padding: 10px; "
-                f"padding-right: 32px; }}"
-                f"QPushButton:hover {{ background: {hover}; border: 1px solid {border}; }}"
-            )
+        button.setProperty("sidebarCharacter", True)
+        apply_glow(button, blur=12, opacity=72)
         row_layout.addWidget(button)
         self.sidebar_buttons[label] = button
         button.clicked.connect(
@@ -1086,28 +1147,166 @@ class WuwaQtWindow(QMainWindow):
         self.character_status.clear()
 
 
-class ImportDialog(QDialog):
-    def __init__(self, parent: QWidget, character_tab: ResonatorTab):
+class AdaptiveStatusSpinner(QWidget):
+    def __init__(self, color: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.color = QColor(color)
+        self.angle = 0
+        self._active = False
+        self._state = "idle"
+        self.setMinimumSize(72, 72)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._advance)
+
+    def set_color(self, color: str) -> None:
+        self.color = QColor(color)
+        self.update()
+
+    def set_active(self, active: bool) -> None:
+        self._active = active
+        self._state = "loading" if active else self._state
+        if active:
+            self._timer.start(40)
+        else:
+            self._timer.stop()
+        self.update()
+
+    def set_state(self, state: str) -> None:
+        self._state = state
+        self.set_active(state == "loading")
+
+    def _advance(self) -> None:
+        self.angle = (self.angle + 8) % 360
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        center = self.rect().center()
+        radius = min(self.width(), self.height()) // 2 - 10
+        pen = QPen(QColor(self.color), 5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        if self._state == "success":
+            check = QPainterPath()
+            check.moveTo(center.x() - radius * 0.58, center.y())
+            check.lineTo(center.x() - radius * 0.12, center.y() + radius * 0.42)
+            check.lineTo(center.x() + radius * 0.68, center.y() - radius * 0.48)
+            painter.drawPath(check)
+        elif self._state == "error":
+            painter.drawLine(
+                center.x() - radius * 0.42,
+                center.y() - radius * 0.42,
+                center.x() + radius * 0.42,
+                center.y() + radius * 0.42,
+            )
+            painter.drawLine(
+                center.x() + radius * 0.42,
+                center.y() - radius * 0.42,
+                center.x() - radius * 0.42,
+                center.y() + radius * 0.42,
+            )
+        elif self._state == "loading":
+            painter.drawArc(
+                center.x() - radius,
+                center.y() - radius,
+                radius * 2,
+                radius * 2,
+                (90 - self.angle) * 16,
+                -275 * 16,
+            )
+        painter.setPen(QPen(QColor(self.color), 1))
+        painter.drawEllipse(center, 3, 3)
+
+
+class AdaptiveDataGrid(QFrame):
+    def __init__(self, theme: ThemeConfig, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._theme = theme
+        self.setObjectName("ocrGrid")
+
+    def set_theme(self, theme: ThemeConfig) -> None:
+        self._theme = theme
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        width, height = self.width(), self.height()
+        horizon = int(height * 0.47)
+        neon = QColor(self._theme.primary_neon_color)
+        painter.fillRect(self.rect(), QColor(self._theme.panel_bg_color))
+        glow = QColor(neon)
+        glow.setAlpha(24)
+        painter.fillRect(0, horizon - 34, width, 68, glow)
+        grid_color = QColor(neon)
+        grid_color.setAlpha(48)
+        painter.setPen(QPen(grid_color, 1))
+        vanishing_x = width // 2
+        for index in range(-12, 13):
+            bottom_x = vanishing_x + index * max(26, width // 10)
+            painter.drawLine(vanishing_x, horizon, bottom_x, height)
+        for distance in range(1, 10):
+            progress = distance / 10.0
+            y = horizon + int((height - horizon) * (progress ** 1.65))
+            painter.drawLine(0, y, width, y)
+        for distance in range(1, 6):
+            progress = distance / 6.0
+            y = horizon - int(horizon * (progress ** 0.85))
+            painter.drawLine(0, y, width, y)
+        horizon_color = QColor(neon)
+        horizon_color.setAlpha(155)
+        painter.setPen(QPen(horizon_color, 2))
+        painter.drawLine(0, horizon, width, horizon)
+        painter.end()
+
+
+class CustomImportPopup(QDialog):
+    def __init__(
+        self,
+        parent: QWidget,
+        character_tab: ResonatorTab,
+        theme: ThemeConfig | None = None,
+        wallpaper_path: str | None = None,
+    ):
         super().__init__(parent)
         self.character_tab = character_tab
         self.pending_stats: dict[str, float] = {}
+        self.pending_echoes: list[str] = []
+        self._theme = theme or self._theme_from_parent(parent)
+        self.wallpaper_path = wallpaper_path
 
         self.setObjectName("ocrImportDialog")
         self.setWindowTitle("Importar Dados")
-        self.resize(860, 620)
+        self.resize(820, 680)
+        self._wallpaper_label = QLabel(self)
+        self._wallpaper_label.setObjectName("ocrWallpaper")
+        self._wallpaper_label.lower()
+        self._wallpaper_opacity = QGraphicsOpacityEffect(self._wallpaper_label)
+        self._wallpaper_opacity.setOpacity(0.30)
+        self._wallpaper_label.setGraphicsEffect(self._wallpaper_opacity)
+        self.apply_theme(self._theme)
+        if wallpaper_path:
+            self.set_custom_wallpaper(wallpaper_path)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 16)
         layout.setSpacing(12)
 
         heading = QHBoxLayout()
-        title = QLabel("IMPORTAR DADOS")
+        self.title_icon = QLabel("◇")
+        self.title_icon.setObjectName("ocrTitleIcon")
+        heading.addWidget(self.title_icon)
+        character_name = self.character_tab.character_name.text().strip() or "Resonador"
+        title = QLabel(f"Importar Dados  ·  {character_name}")
         title.setObjectName("ocrDialogTitle")
         heading.addWidget(title)
         heading.addStretch(1)
-        protocol = QLabel("OCR // DATA EXTRACTION")
-        protocol.setObjectName("ocrDialogProtocol")
-        heading.addWidget(protocol)
+        self.protocol_label = QLabel("PRÉVIA PRONTA")
+        self.protocol_label.setObjectName("ocrDialogProtocol")
+        heading.addWidget(self.protocol_label)
         layout.addLayout(heading)
 
         content = QHBoxLayout()
@@ -1118,38 +1317,48 @@ class ImportDialog(QDialog):
         scan_layout = QVBoxLayout(scan_panel)
         scan_layout.setContentsMargins(12, 12, 12, 12)
         scan_layout.setSpacing(8)
-        scan_label = QLabel("ÁREA DE ESCANEAMENTO // DATA GRID")
+        scan_label = QLabel("GRADE DE LEITURA")
         scan_label.setObjectName("ocrSectionLabel")
         scan_layout.addWidget(scan_label)
 
-        self.scan_grid = QFrame()
-        self.scan_grid.setObjectName("ocrGrid")
+        self.scan_grid = AdaptiveDataGrid(self._theme)
         grid_layout = QVBoxLayout(self.scan_grid)
         grid_layout.setContentsMargins(18, 18, 18, 18)
         grid_layout.addStretch(1)
-        grid_hint = QLabel("Aguardando imagem\n\nArraste ou selecione uma screenshot de atributos")
-        grid_hint.setObjectName("ocrGridHint")
-        grid_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        grid_hint.setWordWrap(True)
-        grid_layout.addWidget(grid_hint)
+        self.grid_hint = QLabel("Aguardando imagem\n\nArraste ou selecione uma screenshot de atributos")
+        self.grid_hint.setObjectName("ocrGridHint")
+        self.grid_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.grid_hint.setWordWrap(True)
+        grid_layout.addWidget(self.grid_hint)
+        self.image_preview = QLabel()
+        self.image_preview.setObjectName("ocrImagePreview")
+        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_preview.setFixedHeight(320)
+        self.image_preview.setVisible(True)
+        grid_layout.addWidget(self.image_preview, 1)
         grid_layout.addStretch(1)
         self.select_button = QPushButton("↑  Selecionar imagem")
         self.select_button.setObjectName("ocrSelectButton")
+        self.select_button.setFixedHeight(38)
         self.select_button.clicked.connect(self.select_image)
-        grid_layout.addWidget(self.select_button, 0, Qt.AlignmentFlag.AlignHCenter)
         self.scan_line = QFrame(self.scan_grid)
         self.scan_line.setObjectName("ocrScanLine")
+        self.scan_line.setFixedHeight(2)
         self.scan_line.setGeometry(0, 4, 1, 2)
-        self.scan_animation = QPropertyAnimation(self.scan_line, b"geometry", self)
-        self.scan_animation.setDuration(1800)
+        self.scan_animation = QPropertyAnimation(self.scan_line, b"pos", self)
+        self.scan_animation.setDuration(4800)
         self.scan_animation.setLoopCount(-1)
-        self.scan_animation.setStartValue(QRect(8, 8, 1, 2))
-        self.scan_animation.setEndValue(QRect(8, 248, 1, 2))
+        self.scan_animation.setEasingCurve(QEasingCurve.Type.Linear)
+        self.scan_animation.setStartValue(QPoint(8, 8))
+        self.scan_animation.setEndValue(QPoint(8, 8))
         scan_layout.addWidget(self.scan_grid, 1)
+        scan_layout.addWidget(self.select_button)
         content.addWidget(scan_panel, 3)
+        QTimer.singleShot(0, self._configure_scan_line)
 
         status_panel = QFrame()
         status_panel.setObjectName("ocrStatusPanel")
+        status_panel.setProperty("interactive", True)
         status_layout = QVBoxLayout(status_panel)
         status_layout.setContentsMargins(14, 14, 14, 14)
         status_layout.setSpacing(10)
@@ -1166,15 +1375,19 @@ class ImportDialog(QDialog):
         self.character_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = self.character_tab.character_image.pixmap()
         if pixmap is not None and not pixmap.isNull():
-            self.character_preview.setPixmap(pixmap.scaled(
+            preview_pixmap = pixmap.scaled(
                 78, 96, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.character_preview.setPixmap(preview_pixmap)
+            self.title_icon.setPixmap(preview_pixmap.scaled(
+                28, 34, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             ))
         else:
             self.character_preview.setText("◇")
         character_layout.addWidget(self.character_preview)
         identity = QVBoxLayout()
-        character_name = self.character_tab.character_name.text().strip() or "Resonador"
         name_label = QLabel(character_name)
         name_label.setObjectName("ocrCharacterName")
         level_label = QLabel("NÍVEL 80  //  BUILD ATIVA")
@@ -1184,15 +1397,43 @@ class ImportDialog(QDialog):
         identity.addStretch(1)
         character_layout.addLayout(identity, 1)
         status_layout.addWidget(character_card)
-        self.status_ring = QLabel("◌")
+        self.status_ring = AdaptiveStatusSpinner(self._theme.primary_neon_color)
         self.status_ring.setObjectName("ocrStatusRing")
-        self.status_ring.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_glow = QGraphicsDropShadowEffect(self.status_ring)
+        status_glow.setBlurRadius(22)
+        status_glow.setOffset(0, 0)
+        status_glow.setColor(QColor(self._theme.primary_neon_color))
+        self.status_ring.setGraphicsEffect(status_glow)
         status_layout.addWidget(self.status_ring)
         self.status_label = QLabel("Aguardando imagem")
         self.status_label.setObjectName("ocrStatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
         status_layout.addWidget(self.status_label)
+        self.live_telemetry = QLabel("Pronto para receber uma build card")
+        self.live_telemetry.setObjectName("ocrLiveTelemetry")
+        self.live_telemetry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.live_telemetry.setWordWrap(True)
+        status_layout.addWidget(self.live_telemetry)
+        self.status_items: dict[str, QLabel] = {}
+        self.status_texts: dict[str, QLabel] = {}
+        for key, label in (
+            ("waiting", "Aguardando imagem"),
+            ("scanning", "Analisando dados"),
+            ("detected", "Dados detectados"),
+            ("error", "Erro de leitura"),
+        ):
+            status_row = QHBoxLayout()
+            dot = QLabel("●")
+            dot.setObjectName("ocrStatusDot")
+            dot.setProperty("state", key)
+            status_text = QLabel(label)
+            status_text.setObjectName("ocrStatusItem")
+            status_row.addWidget(dot)
+            status_row.addWidget(status_text, 1)
+            status_layout.addLayout(status_row)
+            self.status_items[key] = dot
+            self.status_texts[key] = status_text
         status_layout.addStretch(1)
         content.addWidget(status_panel, 2)
         layout.addLayout(content, 1)
@@ -1201,21 +1442,27 @@ class ImportDialog(QDialog):
         preview_panel.setObjectName("ocrPreviewPanel")
         preview_layout = QVBoxLayout(preview_panel)
         preview_layout.setContentsMargins(12, 8, 12, 8)
-        preview_title = QLabel("PRÉ-VISUALIZAÇÃO DOS DADOS DETECTADOS")
+        preview_title = QLabel("Pré-visualização dos dados detectados")
         preview_title.setObjectName("ocrSectionLabel")
         preview_layout.addWidget(preview_title)
-        self.preview_label = QLabel("ATK: ----    CRIT: --%    LEVEL: --\nAguardando leitura do OCR...")
+        self.preview_label = QLabel("Aguardando leitura do OCR...")
         self.preview_label.setObjectName("ocrPreviewText")
         preview_layout.addWidget(self.preview_label)
+        self.stats_grid = QGridLayout()
+        self.stats_grid.setContentsMargins(0, 2, 0, 2)
+        self.stats_grid.setHorizontalSpacing(8)
+        self.stats_grid.setVerticalSpacing(8)
+        preview_layout.addLayout(self.stats_grid)
+        self.echo_preview_title = QLabel("Echoes detectados na build card")
+        self.echo_preview_title.setObjectName("ocrSectionLabel")
+        self.echo_preview_title.setVisible(False)
+        preview_layout.addWidget(self.echo_preview_title)
+        self.echo_preview_grid = QGridLayout()
+        self.echo_preview_grid.setContentsMargins(0, 2, 0, 2)
+        self.echo_preview_grid.setHorizontalSpacing(8)
+        self.echo_preview_grid.setVerticalSpacing(8)
+        preview_layout.addLayout(self.echo_preview_grid)
         layout.addWidget(preview_panel)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setObjectName("ocrProgress")
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.hide()
-        layout.addWidget(self.progress_bar)
 
         actions = QHBoxLayout()
         actions.addStretch(1)
@@ -1232,10 +1479,223 @@ class ImportDialog(QDialog):
 
         self.ocr_thread: QThread | None = None
         self.ocr_worker: ImageImportWorker | None = None
+        self._source_pixmap = QPixmap()
+        self.apply_theme(self._theme)
+        self._set_status_phase("waiting")
+
+    @staticmethod
+    def _theme_from_parent(parent: QWidget | None) -> ThemeConfig:
+        settings = QSettings("Tethys", "Tethys")
+        return theme_config(
+            settings.value("wallpaper", "", type=str),
+            settings.value("interface_opacity", 85, type=int),
+            settings.value("accent_theme", "Auto Wallpaper", type=str),
+        )
+
+    @property
+    def theme(self) -> ThemeConfig:
+        return self._theme
+
+    def apply_theme(self, theme: ThemeConfig) -> None:
+        self._theme = theme
+        self.setStyleSheet(f"""
+            QDialog#ocrImportDialog {{ background: {theme.panel_bg_color_with_alpha}; color: {theme.text_color}; border: 1px solid {theme.secondary_neon_color}; }}
+            QLabel#ocrWallpaper {{ background: transparent; }}
+            QLabel#ocrDialogTitle {{ color: {theme.primary_neon_color}; }}
+            QLabel#ocrTitleIcon {{ color: {theme.secondary_neon_color}; font-size: 24px; }}
+            QLabel#ocrDialogProtocol, QLabel#ocrSectionLabel {{ color: {theme.primary_neon_color}; }}
+            QFrame#ocrScanPanel, QFrame#ocrStatusPanel {{ background: {theme.panel_bg_color_with_alpha}; border-color: {theme.secondary_neon_color}; }}
+            QFrame#ocrGrid {{ border-color: {theme.primary_neon_color}; background: {theme.panel_bg_color_with_alpha}; }}
+            QLabel#ocrImagePreview {{ background: {theme.panel_bg_color_with_alpha}; border: 1px solid {theme.secondary_neon_color}; border-radius: 4px; }}
+            QFrame#ocrScanLine {{ background: {theme.primary_neon_color}; }}
+            QPushButton#ocrSelectButton, QPushButton#ocrConfirmButton {{ background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 {theme.button_gradient_start}, stop: 1 {theme.button_gradient_end}); color: {theme.text_color}; border-color: {theme.secondary_neon_color}; }}
+            QPushButton#ocrSelectButton:hover, QPushButton#ocrConfirmButton:hover {{ border-color: {theme.primary_neon_color}; }}
+            QPushButton#ocrCancelButton {{ background: {theme.panel_bg_color_with_alpha}; color: {theme.muted_text_color}; border-color: {theme.secondary_neon_color}; }}
+            QFrame#ocrCharacterCard, QFrame#ocrPreviewPanel {{ background: {theme.panel_bg_color_with_alpha}; border-color: {theme.secondary_neon_color}; }}
+            QLabel#ocrCharacterName, QLabel#ocrStatusLabel {{ color: {theme.text_color}; }}
+            QLabel#ocrCharacterMeta, QLabel#ocrPreviewText {{ color: {theme.secondary_neon_color}; }}
+            QFrame#ocrStatCard {{ background: {theme.panel_bg_color_with_alpha}; border: 1px solid {theme.secondary_neon_color}; border-radius: 5px; }}
+            QLabel#ocrStatName {{ color: {theme.secondary_neon_color}; font-size: 9px; font-weight: 800; }}
+            QLabel#ocrStatValue {{ color: {theme.text_color}; font-size: 15px; font-weight: 900; }}
+            QFrame#ocrEchoCard {{ background: {theme.panel_bg_color_with_alpha}; border: 1px solid {theme.secondary_neon_color}; border-radius: 5px; }}
+            QLabel#ocrEchoName {{ color: {theme.secondary_neon_color}; font-size: 10px; font-weight: 900; }}
+            QLabel#ocrEchoDetails {{ color: {theme.text_color}; font-size: 8px; }}
+                    QLabel#ocrStatusItem {{ color: {theme.muted_text_color}; padding: 2px 4px; border-radius: 3px; }}
+                    QLabel#ocrStatusItem[active="true"] {{ color: {theme.text_color}; background: {theme.panel_bg_color_with_alpha}; font-weight: 800; }}
+                    QLabel#ocrStatusItem[complete="true"] {{ color: {theme.primary_neon_color}; }}
+            QLabel#ocrLiveTelemetry {{ color: {theme.secondary_neon_color}; font-size: 10px; font-weight: 800; padding: 6px; border: 1px solid {theme.secondary_neon_color}; border-radius: 5px; }}
+            QLabel#ocrStatusDot {{ color: {theme.muted_text_color}; font-size: 11px; }}
+            QLabel#ocrStatusDot[state="scanning"], QLabel#ocrStatusDot[state="detected"] {{ color: {theme.primary_neon_color}; }}
+            QLabel#ocrStatusDot[state="error"] {{ color: {theme.secondary_neon_color}; }}
+            QLabel#ocrStatusDot[active="false"] {{ color: {theme.muted_text_color}; }}
+        """)
+        if not hasattr(self, "status_ring"):
+            return
+        self.status_ring.set_color(theme.primary_neon_color)
+        self.scan_grid.set_theme(theme)
+        status_effect = self.status_ring.graphicsEffect()
+        if isinstance(status_effect, QGraphicsDropShadowEffect):
+            status_effect.setColor(QColor(theme.primary_neon_color))
+        for widget, color, blur in (
+            (self.select_button, theme.secondary_neon_color, 18),
+            (self.confirm_button, theme.secondary_neon_color, 18),
+        ):
+            effect = QGraphicsDropShadowEffect(widget)
+            effect.setBlurRadius(blur)
+            effect.setOffset(0, 0)
+            effect.setColor(QColor(color))
+            widget.setGraphicsEffect(effect)
+        scan_effect = QGraphicsDropShadowEffect(self.scan_line)
+        scan_effect.setBlurRadius(14)
+        scan_effect.setOffset(0, 0)
+        scan_effect.setColor(QColor(theme.primary_neon_color))
+        self.scan_line.setGraphicsEffect(scan_effect)
+
+    def set_custom_wallpaper(self, path: str | None) -> None:
+        self.wallpaper_path = path or None
+        if not path:
+            self._wallpaper_label.clear()
+            return
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            self._wallpaper_label.clear()
+            return
+        self._wallpaper_label.setPixmap(pixmap)
+        self._wallpaper_label.setScaledContents(True)
+        self._wallpaper_label.setGeometry(self.rect())
+        self._wallpaper_label.lower()
+
+    def _set_source_preview(self, image: QImage) -> None:
+        self._source_pixmap = QPixmap.fromImage(image)
+        if self._source_pixmap.isNull():
+            return
+        self.grid_hint.hide()
+        self._refresh_source_preview()
+
+    def _refresh_source_preview(self) -> None:
+        if self._source_pixmap.isNull() or self.image_preview.size().isEmpty():
+            return
+        self.image_preview.setPixmap(self._source_pixmap.scaled(
+            self.image_preview.contentsRect().size(),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._wallpaper_label.setGeometry(self.rect())
+        self._refresh_source_preview()
+        self._configure_scan_line()
+
+    def _configure_scan_line(self) -> None:
+        if not hasattr(self, "scan_grid") or not hasattr(self, "scan_line"):
+            return
+        width = max(1, self.scan_grid.width() - 16)
+        y = max(8, self.scan_grid.height() // 2)
+        self.scan_line.setFixedWidth(width)
+        self.scan_line.move(8, y)
+        bottom_y = max(8, self.scan_grid.height() - 8)
+        self.scan_animation.setStartValue(QPoint(8, 8))
+        self.scan_animation.setKeyValueAt(0.5, QPoint(8, bottom_y))
+        self.scan_animation.setEndValue(QPoint(8, 8))
+        scanning = self.ocr_thread is not None and self.ocr_thread.isRunning()
+        if scanning and self.scan_animation.state() != QAbstractAnimation.State.Running:
+            self.scan_animation.start()
+        elif not scanning:
+            self.scan_animation.stop()
+
+    def _render_stats_preview(self, stats: dict[str, float]) -> None:
+        percentage_stats = {
+            "crit_rate",
+            "crit_dmg",
+            "energy_regen",
+            "elemental_dmg",
+            "heavy_atk_dmg",
+            "liberation_dmg",
+            "skill_dmg",
+        }
+        while self.stats_grid.count():
+            item = self.stats_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        for index, (key, value) in enumerate(stats.items()):
+            card = QFrame()
+            card.setObjectName("ocrStatCard")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 6, 10, 6)
+            card_layout.setSpacing(1)
+            label = QLabel(key.replace("_", " ").title())
+            label.setObjectName("ocrStatName")
+            suffix = "%" if key in percentage_stats else ""
+            value_label = QLabel(f"{value:g}{suffix}")
+            value_label.setObjectName("ocrStatValue")
+            card_layout.addWidget(label)
+            card_layout.addWidget(value_label)
+            self.stats_grid.addWidget(card, index // 4, index % 4)
+
+    def _render_echoes_preview(self, echoes: list[dict[str, object]]) -> None:
+        while self.echo_preview_grid.count():
+            item = self.echo_preview_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.echo_preview_title.setVisible(bool(echoes))
+        for index, echo in enumerate(echoes):
+            card = QFrame()
+            card.setObjectName("ocrEchoCard")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(8, 6, 8, 6)
+            card_layout.setSpacing(3)
+            name = QLabel(str(echo.get("name", "Echo")))
+            name.setObjectName("ocrEchoName")
+            name.setWordWrap(True)
+            attributes = echo.get("attributes", [])
+            attribute_lines = [str(value) for value in attributes] if isinstance(attributes, list) else []
+            main_stat = str(echo.get("main_stat", attribute_lines[0] if attribute_lines else "--"))
+            sub_stats = echo.get("sub_stats", attribute_lines[1:])
+            sub_stat_lines = [str(value) for value in sub_stats] if isinstance(sub_stats, list) else []
+            cost = echo.get("cost", "--")
+            set_bonus = str(echo.get("set_bonus", "--"))
+            details = QLabel(
+                f"Cost: {cost or '--'}\n"
+                f"Set: {set_bonus}\n"
+                f"Main: {main_stat}\n"
+                "Sub-stats: " + ("; ".join(sub_stat_lines) or "--")
+            )
+            details.setObjectName("ocrEchoDetails")
+            details.setWordWrap(True)
+            card_layout.addWidget(name)
+            card_layout.addWidget(details)
+            self.echo_preview_grid.addWidget(card, index // 2, index % 2)
+
+    def _set_status_phase(self, phase: str) -> None:
+        phase_order = ("waiting", "scanning", "detected", "error")
+        current_index = phase_order.index(phase) if phase in phase_order else 0
+        if hasattr(self, "status_ring"):
+            state = {
+                "waiting": "idle",
+                "scanning": "loading",
+                "detected": "success",
+                "error": "error",
+            }.get(phase, "idle")
+            self.status_ring.set_state(state)
+        for key, dot in self.status_items.items():
+            dot.setProperty("active", "true" if key == phase else "false")
+            dot.setProperty("complete", "true" if key in phase_order[:current_index] else "false")
+            dot.style().unpolish(dot)
+            dot.style().polish(dot)
+            status_text = self.status_texts[key]
+            status_text.setProperty("active", "true" if key == phase else "false")
+            status_text.setProperty("complete", "true" if key in phase_order[:current_index] else "false")
+            status_text.style().unpolish(status_text)
+            status_text.style().polish(status_text)
 
     def _set_scan_status(self, message: str) -> None:
         self.status_label.setText(message)
-        self.status_ring.setText("◉")
+        self.protocol_label.setText("PROCESSANDO")
+        self._set_status_phase("scanning")
+        self.live_telemetry.setText(message)
 
     def select_image(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -1249,41 +1709,50 @@ class ImportDialog(QDialog):
             return
 
         self.select_button.setEnabled(False)
-        self.progress_bar.setValue(0)
-        self.progress_bar.show()
         self.confirm_button.setEnabled(False)
         self.pending_stats = {}
-        self.preview_label.setText("ATK: ----    CRIT: --%    LEVEL: --\nProcessando leitura da imagem...")
+        self.pending_echoes = []
+        self.status_texts["detected"].setText("Dados detectados")
+        self.status_texts["error"].setText("Erro de leitura")
+        self.preview_label.setText("Processando leitura da imagem...")
+        self.preview_label.show()
+        self.protocol_label.setText("PROCESSANDO")
         self._set_scan_status("Escaneando...")
-        scan_width = max(1, self.scan_grid.width() - 16)
-        self.scan_animation.setStartValue(QRect(8, 8, scan_width, 2))
-        self.scan_animation.setEndValue(QRect(8, max(8, self.scan_grid.height() - 8), scan_width, 2))
-        self.scan_animation.start()
+        self._configure_scan_line()
 
         self.ocr_thread = QThread(self)
         self.ocr_worker = ImageImportWorker(path, self.character_tab.current_id)
         self.ocr_worker.moveToThread(self.ocr_thread)
         self.ocr_thread.started.connect(self.ocr_worker.run)
-        self.ocr_worker.progress.connect(self.progress_bar.setValue)
+        self.ocr_worker.preview_ready.connect(self._set_source_preview)
         self.ocr_worker.status.connect(self._set_scan_status)
         self.ocr_worker.finished.connect(self._import_finished)
         self.ocr_worker.failed.connect(self._import_failed)
         self.ocr_worker.finished.connect(self.ocr_thread.quit)
         self.ocr_worker.failed.connect(self.ocr_thread.quit)
         self.ocr_thread.finished.connect(self._clear_import_worker)
-        self.ocr_thread.start()
+        self.ocr_thread.start(QThread.Priority.LowPriority)
+        self._configure_scan_line()
 
     def _import_finished(self, result: dict) -> None:
         self.select_button.setEnabled(True)
-        self.scan_animation.stop()
         stats = result.get("stats", {})
-        if stats:
+        if stats or self.pending_echoes:
             self.pending_stats = stats
-            self.status_ring.setText("◉")
-            self.status_label.setText("Dados detectados")
-            preview = "    ".join(
-                f"{key.upper()}: {value:g}" for key, value in stats.items())
-            self.preview_label.setText(preview)
+            echoes = result.get("echoes", [])
+            self.pending_echoes = echoes if isinstance(echoes, list) else []
+            self.status_texts["detected"].setText("Leitura concluída")
+            self._set_status_phase("detected")
+            self.status_label.setText("Confira os dados e confirme a importação.")
+            self.protocol_label.setText("PRÉVIA PRONTA")
+            echo_count = len(echoes) if isinstance(echoes, list) else 0
+            self.live_telemetry.setText(
+                f"Leitura concluída: {len(stats)} atributos e {echo_count} Echo(s) encontrados"
+            )
+            self._render_stats_preview(stats)
+            self._render_echoes_preview(
+                [echo for echo in self.pending_echoes if isinstance(echo, dict)]
+            )
             self.confirm_button.setEnabled(True)
             return
 
@@ -1292,13 +1761,16 @@ class ImportDialog(QDialog):
             "Verifique se a screenshot contém os atributos do personagem."
         )
         self.status_label.setText(message)
+        self.status_texts["error"].setText("Erro de leitura")
+        self._set_status_phase("error")
+        self.live_telemetry.setText("Nenhum atributo confiável foi localizado")
         QMessageBox.critical(self, "Nenhum dado encontrado", message)
 
     def confirm_import(self) -> None:
-        if not self.pending_stats:
+        if not self.pending_stats and not self.pending_echoes:
             return
-        self.character_tab.apply_imported_stats(self.pending_stats)
-        self.status_ring.setText("★")
+        self.character_tab.apply_imported_stats(self.pending_stats, self.pending_echoes)
+        self._set_status_phase("detected")
         self.status_label.setText("Importado com sucesso (5 estrelas)")
         self.accept()
 
@@ -1341,7 +1813,10 @@ class ImportDialog(QDialog):
 
         print(f"[Importação] {type(error).__name__}: {error}")
         self.scan_animation.stop()
-        self.status_ring.setText("×")
+        self._set_status_phase("error")
+        self.live_telemetry.setText("Falha na leitura da build card")
+        self.status_texts["error"].setText("Erro de leitura")
+        self.protocol_label.setText("ERRO DE LEITURA")
         self.status_label.setText(message)
         QMessageBox.critical(self, title, message)
 
@@ -1353,6 +1828,25 @@ class ImportDialog(QDialog):
         self.ocr_worker = None
         self.ocr_thread = None
 
+    def reject(self) -> None:
+        if self.ocr_thread is not None and self.ocr_thread.isRunning():
+            self.status_label.setText("Aguarde: a importação ainda está em andamento.")
+            self.live_telemetry.setText("O processamento continua em segundo plano")
+            return
+        super().reject()
+
+    def closeEvent(self, event) -> None:
+        if self.ocr_thread is not None and self.ocr_thread.isRunning():
+            self.status_label.setText("Aguarde: a importação ainda está em andamento.")
+            self.live_telemetry.setText("O processamento continua em segundo plano")
+            event.ignore()
+            return
+        super().closeEvent(event)
+
+
+# Compatibility name for integrations that imported the previous dialog.
+ImportDialog = CustomImportPopup
+
 
 def main() -> int:
     app = QApplication(sys.argv)
@@ -1361,7 +1855,7 @@ def main() -> int:
     background = settings.value("background", True, type=bool)
     wallpaper = settings.value("wallpaper", "", type=str)
     interface_opacity = settings.value("interface_opacity", 85, type=int)
-    accent_theme = settings.value("accent_theme", "Ciano Tethys", type=str)
+    accent_theme = settings.value("accent_theme", "Auto Wallpaper", type=str)
     app.setStyleSheet(application_qss(
         show_background=background,
         wallpaper=wallpaper,

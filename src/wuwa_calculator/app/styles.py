@@ -1,11 +1,13 @@
 """Global visual system for the PySide6 application."""
 
+from dataclasses import dataclass
+
 # * EDITAVEL: altere cores globais e regras QSS aqui; o wallpaper gera uma paleta complementar.
 # ! Nao use #RRGGBBAA no QColor: _with_alpha produz o formato Qt #AARRGGBB.
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtWidgets import QGraphicsDropShadowEffect, QWidget
+from PySide6.QtWidgets import QAbstractButton, QGraphicsDropShadowEffect, QWidget
 
 from src.wuwa_calculator.utils.paths import get_asset_path
 
@@ -19,6 +21,27 @@ ACCENT = "#A855F7"
 GOLD = "#FFD76A"
 CURRENT_GLOW_COLOR = ACCENT
 DEFAULT_WALLPAPER = f"url({get_asset_path('app_background_reference.png').as_posix()})"
+
+
+@dataclass(frozen=True)
+class ThemeConfig:
+    """Resolved colors consumed by adaptive widgets such as import popups."""
+
+    primary_neon_color: str
+    secondary_neon_color: str
+    panel_bg_color: str
+    panel_bg_color_with_alpha: str
+    button_gradient_start: str
+    button_gradient_end: str
+    text_color: str
+    muted_text_color: str
+
+
+def _blend(color: str, target: str, amount: float) -> str:
+    source_rgb = tuple(int(color[index:index + 2], 16) for index in (1, 3, 5))
+    target_rgb = tuple(int(target[index:index + 2], 16) for index in (1, 3, 5))
+    mixed = tuple(round(source + (destination - source) * amount) for source, destination in zip(source_rgb, target_rgb))
+    return "#%02X%02X%02X" % mixed
 
 
 def _with_alpha(color: str, opacity: int) -> str:
@@ -81,6 +104,8 @@ def refresh_glows(root: QWidget) -> None:
                 float(widget.property("_glow_blur")),
                 int(widget.property("_glow_opacity")),
             )
+        elif isinstance(widget, QAbstractButton):
+            apply_glow(widget, blur=14.0, opacity=68)
 
 
 def _wallpaper_palette(wallpaper: str) -> tuple[str, str, str, str, str]:
@@ -100,31 +125,31 @@ def _wallpaper_palette(wallpaper: str) -> tuple[str, str, str, str, str]:
     count = max(1, sample.width() * sample.height())
     average = QColor(red // count, green // count, blue // count)
     hue = average.hue() if average.hue() >= 0 else 195
-    saturation = max(90, average.saturation())
+    saturation = average.saturation()
     value = average.value()
     surface = QColor.fromHsv(
         hue,
-        min(175, saturation),
+        min(95, saturation),
         max(24, min(78, value // 3 + 12)),
     )
     panel = QColor.fromHsv(
         (hue + 8) % 360,
-        min(160, saturation),
+        min(105, saturation),
         max(32, min(96, value // 4 + 20)),
     )
     border = QColor.fromHsv(
         hue,
-        min(210, saturation + 25),
+        min(135, saturation + 18),
         max(135, min(220, value + 55)),
     )
     accent = QColor.fromHsv(
-        (hue + 150) % 360,
-        max(165, saturation),
-        245,
+        (hue + 24) % 360,
+        min(180, max(45, saturation + 15)),
+        max(190, min(245, value + 45)),
     )
     muted = QColor.fromHsv(
         hue,
-        max(45, min(120, saturation // 2)),
+        min(70, saturation // 2),
         210,
     )
     return surface.name(), panel.name(), border.name(), accent.name(), muted.name()
@@ -137,6 +162,7 @@ def wallpaper_palette(wallpaper: str = "") -> tuple[str, str, str, str, str]:
 
 def _accent_preset(name: str) -> str:
     return {
+        "Auto Wallpaper": "#6FEAFF",
         "Ciano Tethys": "#6FEAFF",
         "Dourado Sol": "#FFD76A",
         "Roxo Nécro": "#B78CFF",
@@ -147,12 +173,40 @@ def _accent_preset(name: str) -> str:
         "Laranja Solar": "#FFAD66",
         "Turquesa Maré": "#55E6D0",
         "Lima Resonância": "#D2F26B",
+        "Gelo Lunar": "#B9E8FF",
+        "Âmbar Nebulosa": "#F4C56A",
+        "Coral Resonante": "#FF8D78",
+        "Índigo Profundo": "#8D9BFF",
+        "Prata Sônica": "#D7E1EA",
+        "Verde Vórtice": "#78E6A4",
     }.get(name, "#6FEAFF")
 
 
 def accent_preset(name: str) -> str:
     """Return the configured interface accent color."""
     return _accent_preset(name)
+
+
+def theme_config(
+    wallpaper: str = "",
+    interface_opacity: int = 85,
+    accent_theme: str = "Ciano Tethys",
+) -> ThemeConfig:
+    """Resolve the current Tethys palette for adaptive custom widgets."""
+    _surface, panel, _wallpaper_border, wallpaper_accent, muted = _wallpaper_palette(wallpaper)
+    primary = wallpaper_accent if accent_theme == "Auto Wallpaper" else _accent_preset(accent_theme)
+    secondary = wallpaper_accent
+    panel_alpha = max(125, min(190, round(70 + interface_opacity * 0.95)))
+    return ThemeConfig(
+        primary_neon_color=primary,
+        secondary_neon_color=secondary,
+        panel_bg_color=panel,
+        panel_bg_color_with_alpha=_rgba(panel, panel_alpha),
+        button_gradient_start=_blend(primary, "#FFFFFF", 0.18),
+        button_gradient_end=_blend(secondary, panel, 0.45),
+        text_color=TEXT,
+        muted_text_color=muted,
+    )
 
 
 def application_qss(
@@ -166,7 +220,7 @@ def application_qss(
     surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = (
         _wallpaper_palette(wallpaper) if show_background else (BG, CARD, BORDER, ACCENT, MUTED)
     )
-    selected_accent = _accent_preset(accent_theme)
+    selected_accent = wallpaper_accent if accent_theme == "Auto Wallpaper" else _accent_preset(accent_theme)
     CURRENT_GLOW_COLOR = selected_accent
     neon_border = _rgba(selected_accent, 185)
     neon_soft = _rgba(selected_accent, 75)
@@ -240,8 +294,6 @@ def application_qss(
     QLabel#ocrStatusLabel {{ color: #DCEEFF; font-size: 12px; font-weight: 800; }}
     QFrame#ocrPreviewPanel {{ background: rgba(13, 17, 29, 210); border: 1px solid rgba(255, 215, 106, 105); border-radius: 8px; }}
     QLabel#ocrPreviewText {{ color: #FFD76A; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; font-weight: 800; padding: 4px; }}
-    QProgressBar#ocrProgress {{ background: rgba(7, 15, 28, 220); border: 1px solid rgba(111, 234, 255, 100); border-radius: 4px; text-align: center; color: #DDFBFF; min-height: 12px; }}
-    QProgressBar#ocrProgress::chunk {{ background: #6FEAFF; border-radius: 3px; }}
     QLabel#frequencyProtocolTitle {{ color: #6FEAFF; font-size: 12px; font-weight: 800; letter-spacing: 1px; }}
     QLabel#frequencyProtocolSubtitle {{ color: #8A99AD; font-size: 9px; margin-top: 4px; }}
     QLabel#frequencyProtocolBadge {{ color: #00D9FF; font-family: "Bahnschrift", "Segoe UI", sans-serif; font-size: 11px; border: 1px solid rgba(0, 217, 255, 76); border-radius: 5px; padding: 4px 10px; min-height: 28px; white-space: nowrap; }}
@@ -424,12 +476,13 @@ def application_qss(
     }}
     QPushButton#resonatorTabButton:hover {{
         background: {wallpaper_surface};
-        border-color: {wallpaper_accent};
+        border: 2px solid {wallpaper_accent};
+        color: {TEXT};
     }}
     QPushButton#resonatorTabButton[active="true"] {{
         background: {wallpaper_surface};
-        color: {wallpaper_accent};
-        border: 1px solid {wallpaper_accent};
+        color: {TEXT};
+        border: 2px solid {wallpaper_accent};
         font-weight: 800;
     }}
     QFrame#skillCard {{ background: #171E38; border: 1px solid #323D70; border-radius: 8px; }}
@@ -461,7 +514,7 @@ def application_qss(
     }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border: 1px solid rgba(217, 70, 239, 180); }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border: 1px solid {selected_accent}; background: rgba(26, 21, 46, 235); }}
-    QComboBox QAbstractItemView {{ background: {CARD}; color: {TEXT}; border: 1px solid {ACCENT}; selection-background-color: {HEADER}; }}
+    QComboBox QAbstractItemView {{ background: {wallpaper_panel}; color: {TEXT}; border: 1px solid {wallpaper_border}; selection-background-color: {wallpaper_surface}; }}
     QPushButton {{
         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
             stop: 0 #3A2861, stop: 1 {HEADER});
@@ -511,8 +564,6 @@ def application_qss(
     QSlider::groove:horizontal {{ height: 6px; background: {BG}; border: 1px solid {BORDER}; border-radius: 3px; }}
     QSlider::sub-page:horizontal {{ background: {HEADER}; border-radius: 3px; }}
     QSlider::handle:horizontal {{ width: 16px; margin: -6px 0; background: {TEXT}; border: 2px solid {BORDER}; border-radius: 8px; }}
-    QProgressBar {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 4px; text-align: center; color: {TEXT}; }}
-    QProgressBar::chunk {{ background: {HEADER}; border-radius: 3px; }}
     QSplitter::handle {{ background: {BORDER}; width: 1px; }}
     QFrame#card {{ background: {wallpaper_panel}; border-color: {neon_soft}; }}
     QFrame#appHeader {{ border-color: {neon_border}; }}
@@ -606,8 +657,13 @@ def application_qss(
     QFrame#card, QFrame#appHeader {{ background-color: {wallpaper_panel}; border-color: {neon_soft}; }}
     QFrame#upcomingBannersSection, QFrame#upcomingBannerCard, QFrame#upcomingBannerPastCard {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
     QFrame#bannerTimeline, QFrame#bannerImageContainer, QFrame#bannerHud {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
-    QPushButton#nav, QPushButton#navActive {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
-    QPushButton#nav:hover, QPushButton#navActive:hover {{ background-color: {wallpaper_surface}; border-color: {wallpaper_accent}; }}
+    QPushButton#nav, QPushButton#navActive {{ background-color: {wallpaper_panel}; color: {TEXT}; border: 1px solid {wallpaper_border}; }}
+    QPushButton#nav:hover {{ background-color: {wallpaper_surface}; color: {TEXT}; border: 2px solid {selected_accent}; }}
+    QPushButton#navActive {{ background-color: {neon_soft}; color: {TEXT}; border: 1px solid {selected_accent}; font-weight: 800; }}
+    QPushButton#navActive:hover {{ background-color: {neon_border}; color: #FFFFFF; border: 2px solid {selected_accent}; }}
+    QPushButton#nav[sidebarCharacter="true"], QPushButton#navActive[sidebarCharacter="true"] {{ padding-right: 32px; }}
+    QToolButton#tabClose {{ color: {wallpaper_muted}; background: transparent; border: 1px solid transparent; border-radius: 4px; }}
+    QToolButton#tabClose:hover {{ color: {TEXT}; background: {neon_soft}; border: 2px solid {selected_accent}; }}
     QTabWidget#mainTabs, QTabWidget#mainTabs::pane {{ background: transparent; }}
     QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{ background: transparent; }}
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit {{ background-color: {wallpaper_panel}; color: {TEXT}; border-color: {wallpaper_border}; }}
@@ -620,7 +676,7 @@ def application_qss(
     QTabBar::tab {{ background-color: {wallpaper_panel}; color: {wallpaper_muted}; border-color: {wallpaper_border}; }}
     QTabBar::tab:selected {{ background-color: {wallpaper_surface}; border-color: {wallpaper_accent}; }}
     QScrollBar:vertical, QScrollBar:horizontal {{ background-color: {wallpaper_surface}; }}
-    QProgressBar, QSlider::groove:horizontal {{ background-color: {wallpaper_surface}; border-color: {wallpaper_border}; }}
+    QSlider::groove:horizontal {{ background-color: {wallpaper_surface}; border-color: {wallpaper_border}; }}
     QLabel#title, QLabel#bannerName, QLabel#bannerQuote, QLabel#bannerSubtitle,
     QLabel#damageInputLabel, QLabel#damageFormula, QLabel#muted, QLabel#eyebrow,
     QLabel#skillTitle, QLabel#skillNumber, QLabel#historyTeamMembers {{
@@ -648,5 +704,202 @@ def application_qss(
     QTabWidget#mainTabs QLabel#bannerBadge[element="Spectro"] {{ color: #FFF8D6; }}
     QFrame#card, QFrame#appHeader, QFrame#sidebar, QFrame#upcomingBannersSection {{
         background-color: {wallpaper_panel};
+    }}
+    /* Final adaptive layer: surfaces and interaction states follow the wallpaper. */
+    QPushButton {{
+        background: {wallpaper_panel};
+        color: {TEXT};
+        border: 1px solid {wallpaper_border};
+    }}
+    QPushButton:hover {{
+        background: {wallpaper_surface};
+        color: {TEXT};
+        border: 2px solid {wallpaper_accent};
+    }}
+    QPushButton:pressed {{
+        background: {wallpaper_accent};
+        color: #FFFFFF;
+        border: 2px solid {wallpaper_accent};
+    }}
+    QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit {{
+        background: {wallpaper_panel};
+        color: {TEXT};
+        border: 1px solid {wallpaper_border};
+    }}
+    QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QTextEdit:hover,
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus {{
+        background: {wallpaper_surface};
+        border: 2px solid {wallpaper_accent};
+    }}
+    QComboBox QAbstractItemView {{
+        background: {wallpaper_panel};
+        color: {TEXT};
+        border: 1px solid {wallpaper_accent};
+        selection-background-color: {wallpaper_surface};
+        selection-color: {TEXT};
+    }}
+    QTabBar::tab:hover, QTabBar::tab:selected {{
+        background: {wallpaper_surface};
+        color: {TEXT};
+        border: 2px solid {wallpaper_accent};
+    }}
+    QSlider::groove:horizontal {{
+        background: {wallpaper_surface};
+        border: 1px solid {wallpaper_border};
+    }}
+    QSlider::sub-page:horizontal {{ background: {wallpaper_accent}; }}
+    QSlider::handle:horizontal {{ background: {TEXT}; border: 2px solid {wallpaper_accent}; }}
+    QTableWidget, QTreeWidget, QListWidget {{
+        background: {wallpaper_panel};
+        alternate-background-color: {wallpaper_surface};
+        color: {TEXT};
+        border: 1px solid {wallpaper_border};
+        gridline-color: {wallpaper_border};
+    }}
+    QWidget#historyPage {{ background: transparent; }}
+    QLabel#historyPageIcon {{ color: {selected_accent}; font-size: 30px; font-weight: 900; }}
+    QLabel#historyPageTitle {{ color: #F4F7FF; font-size: 20px; font-weight: 900; }}
+    QLabel#historyPageSubtitle {{ color: #9BAAC0; font-size: 10px; }}
+    QFrame#historyTeamSummary, QFrame#historyQuickMetrics,
+    QFrame#historyAnalysisPanel, QFrame#historyAuditPanel, QFrame#historySavedPanel,
+    QFrame#historyQuickMetric, QFrame#historyStatCard,
+    QFrame#historyAuditTable, QFrame#historySavedTable {{
+        background-color: rgba(14, 18, 27, 218);
+        border: 1px solid rgba(255, 255, 255, 20);
+        border-radius: 12px;
+    }}
+    QFrame#historyTeamSummary, QFrame#historyAnalysisPanel,
+    QFrame#historyAuditPanel, QFrame#historySavedPanel, QFrame#historyQuickMetric,
+    QFrame#historyStatCard {{ border-color: rgba(90, 150, 235, 58); }}
+    QPushButton#historyEditButton, QPushButton#historyViewButton,
+    QPushButton#historyViewActive {{
+        color: #D8E7FF;
+        background: rgba(16, 28, 48, 180);
+        border: 1px solid rgba(95, 157, 235, 90);
+        border-radius: 13px;
+        padding: 3px 10px;
+        font-size: 9px;
+        font-weight: 800;
+    }}
+    QPushButton#historyViewActive {{
+        color: #FFFFFF;
+        background: {selected_accent};
+        border-color: {selected_accent};
+    }}
+    QPushButton#historyEditButton:hover, QPushButton#historyViewButton:hover {{
+        border-color: {selected_accent}; color: #FFFFFF;
+    }}
+    QLabel#historyBannerPreview {{
+        background: rgba(11, 22, 37, 145);
+        border: 1px solid rgba(100, 170, 240, 82);
+        border-radius: 12px;
+        padding: 0;
+    }}
+    QLabel#historyEmptyState {{
+        color: #9BAAC0;
+        background: rgba(7, 15, 26, 145);
+        border: 1px solid rgba(90, 150, 235, 45);
+        border-radius: 10px;
+        font-size: 10px;
+        padding: 18px;
+    }}
+    QLabel#echoPreview {{
+        color: {wallpaper_accent};
+        background: {wallpaper_panel};
+        border: 1px solid {wallpaper_border};
+        border-radius: 8px;
+        font-size: 34px;
+    }}
+    QLabel#echoSectionHeading {{
+        color: {TEXT};
+        font-size: 13px;
+        font-weight: 800;
+        padding: 4px 8px;
+    }}
+    QScrollArea#echoScrollArea {{
+        background: transparent;
+        border: 0;
+    }}
+    QScrollArea#echoScrollArea > QWidget > QWidget {{
+        background: transparent;
+    }}
+    QScrollArea#echoScrollArea QScrollBar:vertical {{
+        background: rgba(10, 16, 28, 120);
+        border: 0;
+        width: 8px;
+        margin: 2px 0;
+    }}
+    QScrollArea#echoScrollArea QScrollBar::handle:vertical {{
+        background: rgba(120, 150, 230, 150);
+        border: 1px solid rgba(180, 200, 255, 110);
+        border-radius: 4px;
+        min-height: 28px;
+    }}
+    QScrollArea#echoScrollArea QScrollBar::handle:vertical:hover {{
+        background: {wallpaper_accent};
+    }}
+    QScrollArea#echoScrollArea QScrollBar::add-line:vertical,
+    QScrollArea#echoScrollArea QScrollBar::sub-line:vertical {{
+        height: 0;
+        background: transparent;
+        border: 0;
+    }}
+    QFrame#echoPreviewFrame {{
+        background: {wallpaper_panel};
+        border: 1px solid {wallpaper_border};
+        border-radius: 8px;
+        padding: 6px 10px;
+        margin: 2px;
+        min-height: 198px;
+    }}
+    QLabel#echoPreviewMeta {{
+        color: #FFFFFF;
+        font-size: 13px;
+        font-weight: 800;
+        background: transparent;
+    }}
+    QLabel#echoPreviewDetails {{
+        color: #D1D5DB;
+        font-size: 11px;
+        line-height: 1.3;
+        background: transparent;
+    }}
+    QFrame#echoSummaryFrame {{
+        background: {wallpaper_panel};
+        border: 1px solid {wallpaper_border};
+        border-radius: 8px;
+    }}
+    QLabel#echoSummaryText {{
+        color: #D1D5DB;
+        font-size: 13px;
+        font-weight: 800;
+        background: transparent;
+    }}
+    QLineEdit#historySearch {{
+        color: #DCEBFF;
+        background: rgba(7, 15, 28, 175);
+        border: 1px solid rgba(90, 150, 235, 90);
+        border-radius: 12px;
+        padding: 5px 10px;
+        font-size: 9px;
+    }}
+    QLineEdit#historySearch:focus {{ border-color: {selected_accent}; }}
+    QTableWidget#historyAuditTable, QTableWidget#historySavedTable {{
+        background: rgba(7, 15, 26, 150);
+        alternate-background-color: rgba(16, 30, 48, 150);
+        border: 1px solid rgba(90, 150, 235, 70);
+        border-radius: 9px;
+        gridline-color: rgba(100, 150, 210, 40);
+        selection-background-color: rgba(110, 75, 230, 130);
+    }}
+    QTableWidget#historyAuditTable QHeaderView::section,
+    QTableWidget#historySavedTable QHeaderView::section {{
+        color: #C8D8ED;
+        background: rgba(15, 28, 46, 210);
+        border: 0;
+        border-right: 1px solid rgba(100, 150, 210, 42);
+        padding: 7px;
+        font-size: 9px;
+        font-weight: 800;
     }}
     """
