@@ -1,8 +1,11 @@
 import tempfile
+import json
 import unittest
 from pathlib import Path
 
 from src.wuwa_calculator.storage.history_storage import (
+    export_rotation_history,
+    import_rotation_history,
     load_rotation_history,
     save_rotation_test,
 )
@@ -37,6 +40,32 @@ class PathsAndStorageTests(unittest.TestCase):
             )
 
             self.assertEqual(load_rotation_history(path), [record])
+
+    def test_history_import_and_export_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            source = root / "source.json"
+            destination = root / "history.json"
+            exported = root / "exported.json"
+            source.write_text(json.dumps({
+                "teams": [{"name": "Imported team"}],
+                "rotations": [{"team": "Imported team", "rotation": "Burst", "damage": 250}],
+            }), encoding="utf-8")
+
+            imported = import_rotation_history(source, destination)
+            export_rotation_history(destination, exported)
+
+            self.assertEqual(len(imported), 1)
+            self.assertEqual(load_rotation_history(exported)[0]["damage"], 250.0)
+
+    def test_history_import_rejects_invalid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            source = Path(temporary_directory) / "invalid.json"
+            destination = Path(temporary_directory) / "history.json"
+            source.write_text("not json", encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                import_rotation_history(source, destination)
 
 
 if __name__ == "__main__":

@@ -631,6 +631,8 @@ class PityTrackerWidget(QFrame):
         target: _BannerArtLabel,
     ) -> None:
         try:
+            if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
+                return
             pixmap = QPixmap()
             pixmap.loadFromData(bytes(reply.readAll()))
             if not pixmap.isNull():
@@ -664,6 +666,8 @@ class PityTrackerWidget(QFrame):
         border_color: str | None,
     ) -> None:
         try:
+            if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
+                return
             pixmap = QPixmap()
             pixmap.loadFromData(bytes(reply.readAll()))
             if not pixmap.isNull():

@@ -10,9 +10,31 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.wuwa_calculator.utils.paths import get_user_data_path
+from src.wuwa_calculator.utils.paths import get_legacy_data_path, get_user_data_path
 
 ROTATION_HISTORY_FILE = get_user_data_path("rotation_history.json")
+
+
+def _migrate_legacy_history(path: Path) -> None:
+    legacy_path = get_legacy_data_path("rotation_history.json")
+    if path != ROTATION_HISTORY_FILE or not legacy_path.exists():
+        return
+    try:
+        current = read_json_file(path, None)
+        legacy = read_json_file(legacy_path, None)
+        current_has_data = isinstance(current, dict) and any(
+            isinstance(current.get(key), list) and current.get(key)
+            for key in ("teams", "rotations", "comparisons")
+        )
+        legacy_has_data = isinstance(legacy, dict) and any(
+            isinstance(legacy.get(key), list) and legacy.get(key)
+            for key in ("teams", "rotations", "comparisons")
+        )
+        if not current_has_data and legacy_has_data:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(legacy, ensure_ascii=False, indent=2), encoding="utf-8")
+    except (OSError, json.JSONDecodeError):
+        return
 
 
 def read_json_file(path: Path, default: object) -> object:
@@ -32,6 +54,7 @@ def empty_rotation_document() -> dict[str, object]:
 
 
 def load_rotation_document(path: Path = ROTATION_HISTORY_FILE) -> dict[str, object]:
+    _migrate_legacy_history(path)
     stored = read_json_file(path, None)
     document = empty_rotation_document()
     if isinstance(stored, list):

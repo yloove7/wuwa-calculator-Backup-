@@ -179,7 +179,7 @@ class CvDamageAnalysisWorker(QObject):
                 continue
             filled_area = sum(item[4] for item in group)
             density = min(1.0, filled_area / max(1, group_width * group_height))
-            estimated_damage = int(min(9_999_999, max(100, group_width * group_height * (1.0 + density))))
+            estimated_damage = int(min(9_999_999_999, max(100, group_width * group_height * (1.0 + density))))
             events.append((estimated_damage, int(width * 0.10 + (left + right) / 2), int(height * 0.05 + (top + bottom) / 2)))
         return events
 

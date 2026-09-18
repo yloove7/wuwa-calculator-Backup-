@@ -1,68 +1,45 @@
-RELATORIO INICIAL DE PROBLEMAS
+RELATORIO ATUAL DE PROBLEMAS
 Projeto: Wuwa Calculator / Tethys System
 Data: 2026-09-18
 
 Objetivo
 -------
-Registrar os problemas encontrados, em ordem de prioridade, e o estado das correcoes aplicadas.
+Registrar somente problemas ou verificacoes ainda pendentes no estado atual do projeto.
+Os itens resolvidos foram separados em RELATORIOS_RESOLVIDOS.txt.
 
-1. RESOLVIDO: validate_data.py nao executava
-------------------------------------------------
-Arquivo: validate_data.py
-
-Problema confirmado:
-- O script tenta importar "src.data.characters_elements" e "src.data.characters_quotes".
-- A estrutura atual do projeto usa "src.wuwa_calculator.data".
-- Ao executar "python validate_data.py", ocorre:
-  ModuleNotFoundError: No module named 'src.data'
-
-Correcao aplicada:
-- Imports ajustados para "src.wuwa_calculator.data".
-- A raiz do projeto foi adicionada ao sys.path antes dos imports.
-- O script agora valida 62 personagens sem dados faltantes.
-
-2. RESOLVIDO: locais de armazenamento inconsistentes
-------------------------------------------------------------------------
-Arquivo: README.md
-
-Correcao aplicada:
-- O diretorio oficial passou a ser "src/wuwa_calculator/storage/user_data/".
-- Teams, historico e cache de banner usam o helper central de caminhos.
-- README.md e README.txt foram atualizados com os caminhos reais.
-
-3. RESOLVIDO: caminhos de assets dependentes do contexto de execucao
----------------------------------------------
-Arquivo principal envolvido: src/wuwa_calculator/app/main.py
-
-Correcao aplicada:
-- Criado "src/wuwa_calculator/utils/paths.py" com "get_asset_path".
-- Wallpaper, icone de fechamento, paleta, politica de imagens locais e gerador de icones usam a raiz real do projeto.
-- A resolucao nao depende mais do diretorio atual do terminal.
-
-4. PENDENTE: cobertura de testes automatizados
--------------------------------------------------
-Problema identificado no levantamento:
-- A pasta test/ contem apenas "__init__.py"; nao havia testes existentes para corrigir ou marcar com skip.
-- Ainda faltam testes unitarios para storage, calculos de DPS, parse de JSON e utilitarios.
+1. PENDENTE: validacao real do motor OCR e da analise de video
+----------------------------------------------------------------
+Estado:
+- O modulo OCR agora carrega PaddleOCR somente quando uma imagem e analisada.
+- Parsers OCR de numeros, atributos e personagem possuem testes unitarios.
+- O player QtMultimedia e o worker de video possuem smoke tests controlados.
+- Ainda nao foi executada uma imagem real pelo PaddleOCR.
+- Ainda nao foi reproduzido um video real nem executada uma analise OpenCV completa.
 
 Impacto:
-- Falhas de runtime podem permanecer ocultas mesmo com os arquivos compilando.
-- Os fluxos de maior risco (importacao/exportacao, multimidia/OCR, persistencia e calculos) ainda precisam de verificacoes especificas.
+- Ainda nao e possivel afirmar que modelos PaddleOCR, codecs, audio, video e deteccao de dano funcionam de ponta a ponta neste ambiente.
+- Essa verificacao exige arquivos reais de imagem/video e execucao manual controlada.
 
-5. PENDENTE: validacao funcional da aplicacao
---------------------------------------------------
-Observacao:
-- O import do launcher "main" passou sem iniciar a interface.
-- A compilacao de "main.py", "src" e "validate_data.py" passou.
-- A aplicacao grafica, os fluxos de personagens, equipes, historico, multimidia e DPS ainda nao foram executados neste levantamento.
+2. PENDENTE: validacao manual dos fluxos completos da GUI
+------------------------------------------------------------
+Estado:
+- Componentes visuais podem ser construidos em Qt offscreen sem falha.
+- O banner e o player possuem smoke tests sem rede e sem video real.
+- Ainda nao foram percorridos manualmente Home, Teams, Historico, dialogs, importacao/exportacao pela interface e multimidia dentro da janela principal.
 
 Impacto:
-- Ainda nao e possivel afirmar que os recursos descritos no README funcionam de ponta a ponta.
-- Esta etapa deve acontecer depois que os problemas acima forem revisados e priorizados.
+- Sinais, navegacao entre abas, dialogs, carregamento de dados e interacoes completas continuam sem validacao manual ponta a ponta.
+- A aplicacao principal nao foi iniciada automaticamente nesta verificacao.
 
-CHECAGENS REALIZADAS APOS AS ALTERACOES
---------------------
-- "python validate_data.py": passou; 62 personagens, sem faltas em Elements, Quotes, Images, URLs e Weapons.
-- "python -m compileall -q main.py src validate_data.py": passou sem saida.
-- Caminhos centralizados confirmados para a raiz, Assets e storage/user_data.
+CHECAGENS ATUAIS
+----------------
+- validate_data.py: passou; 62 personagens sem faltas.
+- unittest discover: passou; 13 testes.
+- compileall de main.py, src, validate_data.py e test: passou.
+- Importacao do launcher sem iniciar a GUI: passou.
+- Smoke tests PySide6 offscreen: passaram; banner e player.
+- Parsers OCR sem carregar PaddleOCR: passaram; numeros, atributos e personagem.
+- Migracao de dados legados: passou; 3 equipes, 1 rotacao e cache de banner no storage oficial.
+- Catalogo de banners: Qingxiao encontrado e imagem carregada com HTTP 200.
+- Diagnosticos dos modulos alterados: nenhum erro.
 - Nenhum teste em loop foi executado em segundo plano via Pylance MCP.

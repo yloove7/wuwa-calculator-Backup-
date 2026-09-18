@@ -26,6 +26,15 @@ def _with_alpha(color: str, opacity: int) -> str:
     return f"#{alpha:02X}{color.lstrip('#')}"
 
 
+def _rgba(color: str, opacity: int) -> str:
+    """Represent a hex color as translucent Qt stylesheet color."""
+    red = int(color[1:3], 16)
+    green = int(color[3:5], 16)
+    blue = int(color[5:7], 16)
+    alpha = max(0, min(255, opacity))
+    return f"rgba({red}, {green}, {blue}, {alpha})"
+
+
 def apply_glow(widget: QWidget, blur: float = 24.0, opacity: int = 180) -> None:
     widget.setProperty("_glow_mode", "global")
     widget.setProperty("_glow_blur", blur)
@@ -90,30 +99,33 @@ def _wallpaper_palette(wallpaper: str) -> tuple[str, str, str, str, str]:
             blue += color.blue()
     count = max(1, sample.width() * sample.height())
     average = QColor(red // count, green // count, blue // count)
-    surface = QColor(
-        max(20, average.red() // 3),
-        max(20, average.green() // 3),
-        max(24, average.blue() // 3),
+    hue = average.hue() if average.hue() >= 0 else 195
+    saturation = max(90, average.saturation())
+    value = average.value()
+    surface = QColor.fromHsv(
+        hue,
+        min(175, saturation),
+        max(24, min(78, value // 3 + 12)),
     )
-    panel = QColor(
-        max(28, average.red() // 4 + 10),
-        max(28, average.green() // 4 + 10),
-        max(32, average.blue() // 4 + 12),
+    panel = QColor.fromHsv(
+        (hue + 8) % 360,
+        min(160, saturation),
+        max(32, min(96, value // 4 + 20)),
     )
-    border = QColor(
-        min(255, average.red() + 55),
-        min(255, average.green() + 55),
-        min(255, average.blue() + 55),
+    border = QColor.fromHsv(
+        hue,
+        min(210, saturation + 25),
+        max(135, min(220, value + 55)),
     )
-    accent = QColor(
-        min(255, average.red() + 105),
-        min(255, average.green() + 105),
-        min(255, average.blue() + 105),
+    accent = QColor.fromHsv(
+        (hue + 150) % 360,
+        max(165, saturation),
+        245,
     )
-    muted = QColor(
-        min(235, max(150, average.red() + 95)),
-        min(235, max(150, average.green() + 95)),
-        min(235, max(150, average.blue() + 95)),
+    muted = QColor.fromHsv(
+        hue,
+        max(45, min(120, saturation // 2)),
+        210,
     )
     return surface.name(), panel.name(), border.name(), accent.name(), muted.name()
 
@@ -129,6 +141,12 @@ def _accent_preset(name: str) -> str:
         "Dourado Sol": "#FFD76A",
         "Roxo Nécro": "#B78CFF",
         "Vermelho Alerta": "#FF6B6B",
+        "Verde Aurora": "#74F2B2",
+        "Azul Abissal": "#73B7FF",
+        "Rosa Prisma": "#FF8FC7",
+        "Laranja Solar": "#FFAD66",
+        "Turquesa Maré": "#55E6D0",
+        "Lima Resonância": "#D2F26B",
     }.get(name, "#6FEAFF")
 
 
@@ -145,13 +163,17 @@ def application_qss(
 ) -> str:
     global CURRENT_GLOW_COLOR
     background_rule = f"background-color: {BG};"
-    wallpaper_surface, wallpaper_panel, wallpaper_border, wallpaper_accent, wallpaper_muted = (
+    surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = (
         _wallpaper_palette(wallpaper) if show_background else (BG, CARD, BORDER, ACCENT, MUTED)
     )
     selected_accent = _accent_preset(accent_theme)
     CURRENT_GLOW_COLOR = selected_accent
+    neon_border = _rgba(selected_accent, 185)
+    neon_soft = _rgba(selected_accent, 75)
     # Acrylic stays translucent while the setting changes its material intensity.
-    panel_alpha = max(150, min(225, round(112 + interface_opacity * 1.13)))
+    panel_alpha = max(125, min(190, round(70 + interface_opacity * 0.95)))
+    wallpaper_panel = _rgba(panel_color, panel_alpha)
+    wallpaper_surface = _rgba(surface_color, min(215, panel_alpha + 18))
     return f"""
     QMainWindow {{
         {background_rule}
@@ -181,10 +203,10 @@ def application_qss(
     QPushButton#nav[element="Spectro"]:hover, QPushButton#navActive[element="Spectro"]:hover {{ background: #87702D; }}
     QFrame#card {{
         background: rgba(15, 20, 40, {panel_alpha});
-        border: 1px solid rgba(168, 85, 247, 155);
+        border: 1px solid {neon_soft};
         border-radius: 12px;
     }}
-    QFrame#appHeader {{ background: rgba(13, 17, 34, {panel_alpha}); border: 1px solid rgba(57, 64, 113, 180); border-radius: 10px; }}
+    QFrame#appHeader {{ background: rgba(13, 17, 34, {panel_alpha}); border: 1px solid {neon_border}; border-radius: 10px; }}
     QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{ background: transparent; border: 0; }}
     QFrame#videoSurface {{ background: rgba(11, 13, 18, 235); border: 1px solid rgba(0, 217, 255, 70); border-radius: 8px; }}
     QFrame#mediaToolbar {{ background: rgba(8, 14, 27, 235); border: 1px solid rgba(0, 217, 255, 90); border-radius: 7px; }}
@@ -196,6 +218,30 @@ def application_qss(
     QLabel#mediaTimeLabel, QLabel#mediaControlLabel {{ color: #B7DCE5; font-size: 10px; font-weight: 700; }}
     QSlider#playerProgress {{ min-height: 14px; }}
     QFrame#frequencyProtocolBar {{ background: rgba(11, 13, 18, 220); border: 1px solid rgba(0, 217, 255, 70); border-radius: 7px; }}
+    QDialog#ocrImportDialog {{ background: rgba(5, 7, 13, 238); border: 1px solid rgba(255, 215, 106, 150); color: #F2F0FF; }}
+    QLabel#ocrDialogTitle {{ color: #FFD76A; font-size: 18px; font-weight: 900; letter-spacing: 2px; }}
+    QLabel#ocrDialogProtocol {{ color: #6FEAFF; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 10px; font-weight: 800; }}
+    QFrame#ocrScanPanel, QFrame#ocrStatusPanel {{ background: rgba(8, 14, 27, 190); border: 1px solid rgba(0, 217, 255, 80); border-radius: 10px; }}
+    QFrame#ocrGrid {{ background-color: rgba(7, 17, 32, 220); border: 1px solid rgba(111, 234, 255, 110); border-radius: 7px; background-image: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 transparent, stop: 0.49 transparent, stop: 0.5 rgba(111, 234, 255, 35), stop: 0.51 transparent, stop: 1 transparent); }}
+    QFrame#ocrGrid {{ background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 rgba(11, 34, 58, 225), stop: 0.5 rgba(5, 15, 29, 225), stop: 1 rgba(11, 34, 58, 225)); }}
+    QFrame#ocrScanLine {{ background: #6FEAFF; border: 0; min-height: 2px; max-height: 2px; }}
+    QLabel#ocrSectionLabel {{ color: #6FEAFF; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 10px; font-weight: 900; letter-spacing: 1px; }}
+    QLabel#ocrGridHint {{ color: #7895AA; font-size: 11px; line-height: 1.4; }}
+    QPushButton#ocrSelectButton, QPushButton#ocrConfirmButton {{ background: rgba(51, 40, 85, 225); color: #FFF8D6; border: 1px solid #FFD76A; border-radius: 6px; padding: 10px 16px; font-weight: 900; }}
+    QPushButton#ocrSelectButton:hover, QPushButton#ocrConfirmButton:hover {{ background: rgba(91, 66, 132, 235); border-color: #FFFFFF; color: #FFFFFF; }}
+    QPushButton#ocrSelectButton:disabled {{ color: #718091; border-color: #394458; background: rgba(21, 28, 42, 220); }}
+    QPushButton#ocrCancelButton {{ background: rgba(18, 25, 39, 220); color: #B7C6D6; border: 1px solid rgba(111, 234, 255, 100); border-radius: 6px; padding: 10px 16px; font-weight: 800; }}
+    QPushButton#ocrCancelButton:hover {{ color: #FFFFFF; border-color: #6FEAFF; background: rgba(24, 61, 78, 230); }}
+    QFrame#ocrCharacterCard {{ background: rgba(23, 29, 49, 220); border: 1px solid rgba(255, 215, 106, 120); border-radius: 7px; }}
+    QLabel#ocrCharacterPreview {{ background: rgba(5, 10, 19, 180); border: 1px solid rgba(111, 234, 255, 100); border-radius: 5px; color: #6FEAFF; font-size: 28px; }}
+    QLabel#ocrCharacterName {{ color: #FFFFFF; font-size: 16px; font-weight: 900; }}
+    QLabel#ocrCharacterMeta {{ color: #FFD76A; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 9px; font-weight: 800; }}
+    QLabel#ocrStatusRing {{ color: #6FEAFF; font-size: 46px; font-weight: 300; min-height: 64px; }}
+    QLabel#ocrStatusLabel {{ color: #DCEEFF; font-size: 12px; font-weight: 800; }}
+    QFrame#ocrPreviewPanel {{ background: rgba(13, 17, 29, 210); border: 1px solid rgba(255, 215, 106, 105); border-radius: 8px; }}
+    QLabel#ocrPreviewText {{ color: #FFD76A; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; font-weight: 800; padding: 4px; }}
+    QProgressBar#ocrProgress {{ background: rgba(7, 15, 28, 220); border: 1px solid rgba(111, 234, 255, 100); border-radius: 4px; text-align: center; color: #DDFBFF; min-height: 12px; }}
+    QProgressBar#ocrProgress::chunk {{ background: #6FEAFF; border-radius: 3px; }}
     QLabel#frequencyProtocolTitle {{ color: #6FEAFF; font-size: 12px; font-weight: 800; letter-spacing: 1px; }}
     QLabel#frequencyProtocolSubtitle {{ color: #8A99AD; font-size: 9px; margin-top: 4px; }}
     QLabel#frequencyProtocolBadge {{ color: #00D9FF; font-family: "Bahnschrift", "Segoe UI", sans-serif; font-size: 11px; border: 1px solid rgba(0, 217, 255, 76); border-radius: 5px; padding: 4px 10px; min-height: 28px; white-space: nowrap; }}
@@ -209,8 +255,8 @@ def application_qss(
     QFrame#eventRow[active="true"] {{ background: rgba(72, 32, 154, 215); border-color: #B77CFF; }}
     QLabel#eventTimestamp {{ color: #C7C8EA; font-size: 11px; font-weight: 800; }}
     QLabel#eventIcon {{ color: #B77CFF; background: rgba(35, 38, 65, 210); border: 1px solid #6547A8; border-radius: 12px; font-size: 13px; }}
-    QLabel#eventTitle {{ color: #F2F0FF; font-size: 11px; font-weight: 800; }}
-    QLabel#eventDescription {{ color: #A8A8D5; font-size: 9px; }}
+    QLabel#eventTitle {{ color: #F2F0FF; font-size: 11px; font-weight: 800; min-height: 13px; }}
+    QLabel#eventDescription {{ color: #A8A8D5; font-size: 9px; min-height: 12px; }}
     QLabel#eventCategory {{ color: #6FEAFF; font-size: 8px; font-weight: 900; }}
     QFrame#eventRow[category="Ultimate"] QLabel#eventCategory {{ color: #C084FC; }}
     QFrame#eventRow[category="Buff"] QLabel#eventCategory {{ color: #FFD76A; }}
@@ -414,7 +460,7 @@ def application_qss(
         selection-background-color: {BORDER};
     }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border: 1px solid rgba(217, 70, 239, 180); }}
-    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border: 1px solid {ACCENT}; background: rgba(26, 21, 46, 235); }}
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border: 1px solid {selected_accent}; background: rgba(26, 21, 46, 235); }}
     QComboBox QAbstractItemView {{ background: {CARD}; color: {TEXT}; border: 1px solid {ACCENT}; selection-background-color: {HEADER}; }}
     QPushButton {{
         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -427,8 +473,8 @@ def application_qss(
     }}
     QPushButton:hover {{ background: #4B3278; color: #FFFFFF; border: 1px solid {ACCENT}; }}
     QPushButton:pressed {{ background: #24163D; border: 1px solid {GOLD}; }}
-    QPushButton#primaryAction {{ background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #6D3FA5, stop: 1 #2F2355); border: 1px solid {ACCENT}; color: #FFFFFF; }}
-    QPushButton#primaryAction:hover {{ background: #7C3AED; }}
+    QPushButton#primaryAction {{ background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 {neon_soft}, stop: 1 {wallpaper_panel}); border: 1px solid {neon_border}; color: #FFFFFF; }}
+    QPushButton#primaryAction:hover {{ background: {neon_soft}; border: 2px solid {selected_accent}; }}
     QPushButton:disabled {{ color: {MUTED}; background: {BG}; }}
     QPushButton#playerButton {{
         background-color: {HEADER};
@@ -468,15 +514,15 @@ def application_qss(
     QProgressBar {{ background: {BG}; border: 1px solid {BORDER}; border-radius: 4px; text-align: center; color: {TEXT}; }}
     QProgressBar::chunk {{ background: {HEADER}; border-radius: 3px; }}
     QSplitter::handle {{ background: {BORDER}; width: 1px; }}
-    QFrame#card {{ background: {wallpaper_panel}; border-color: {wallpaper_border}; }}
-    QFrame#appHeader {{ border-color: {wallpaper_border}; }}
+    QFrame#card {{ background: {wallpaper_panel}; border-color: {neon_soft}; }}
+    QFrame#appHeader {{ border-color: {neon_border}; }}
     QPushButton {{ border-color: {wallpaper_border}; }}
     QPushButton:hover {{ border-color: {wallpaper_accent}; }}
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{ border-color: {wallpaper_border}; }}
-    QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {wallpaper_accent}; }}
+    QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border-color: {neon_border}; }}
     QLabel#metricValue {{ color: {wallpaper_accent}; }}
     QFrame#card, QFrame#appHeader, QFrame#sidebar, QFrame#upcomingBannersSection {{
-        background-color: rgba({int(wallpaper_panel[1:3], 16)}, {int(wallpaper_panel[3:5], 16)}, {int(wallpaper_panel[5:7], 16)}, {panel_alpha});
+        background-color: {wallpaper_panel};
     }}
     QPushButton#primaryAction, QPushButton#damageCalculateButton {{ border-color: {selected_accent}; color: {selected_accent}; }}
     QPushButton#primaryAction:hover, QPushButton#damageCalculateButton:hover {{ border-color: {selected_accent}; }}
@@ -557,7 +603,7 @@ def application_qss(
     QMainWindow {{ background-color: {wallpaper_surface}; }}
     QWidget#appShell {{ background: transparent; color: {TEXT}; }}
     QFrame#sidebar {{ background-color: {wallpaper_panel}; border-right-color: {wallpaper_border}; }}
-    QFrame#card, QFrame#appHeader {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
+    QFrame#card, QFrame#appHeader {{ background-color: {wallpaper_panel}; border-color: {neon_soft}; }}
     QFrame#upcomingBannersSection, QFrame#upcomingBannerCard, QFrame#upcomingBannerPastCard {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
     QFrame#bannerTimeline, QFrame#bannerImageContainer, QFrame#bannerHud {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
     QPushButton#nav, QPushButton#navActive {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
@@ -565,10 +611,10 @@ def application_qss(
     QTabWidget#mainTabs, QTabWidget#mainTabs::pane {{ background: transparent; }}
     QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{ background: transparent; }}
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit {{ background-color: {wallpaper_panel}; color: {TEXT}; border-color: {wallpaper_border}; }}
-    QPushButton#primaryAction {{ background: {wallpaper_panel}; color: {TEXT}; border-color: {wallpaper_accent}; }}
-    QPushButton#primaryAction:hover {{ background: {wallpaper_surface}; color: {TEXT}; border: 2px solid {wallpaper_accent}; }}
-    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ background-color: {wallpaper_surface}; border-color: {wallpaper_accent}; }}
-    QLineEdit:hover {{ background-color: {wallpaper_surface}; border: 2px solid {wallpaper_accent}; }}
+    QPushButton#primaryAction {{ background: {wallpaper_panel}; color: {TEXT}; border-color: {neon_border}; }}
+    QPushButton#primaryAction:hover {{ background: {neon_soft}; color: {TEXT}; border: 2px solid {selected_accent}; }}
+    QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ background-color: {wallpaper_surface}; border-color: {neon_border}; }}
+    QLineEdit:hover {{ background-color: {wallpaper_surface}; border: 2px solid {neon_border}; }}
     QTableWidget {{ background-color: {wallpaper_panel}; alternate-background-color: {wallpaper_surface}; border-color: {wallpaper_border}; }}
     QHeaderView::section {{ background-color: {wallpaper_surface}; color: {TEXT}; border-color: {wallpaper_border}; }}
     QTabBar::tab {{ background-color: {wallpaper_panel}; color: {wallpaper_muted}; border-color: {wallpaper_border}; }}
@@ -601,6 +647,6 @@ def application_qss(
     QTabWidget#mainTabs QLabel#bannerBadge[element="Havoc"] {{ color: #FFE8EE; }}
     QTabWidget#mainTabs QLabel#bannerBadge[element="Spectro"] {{ color: #FFF8D6; }}
     QFrame#card, QFrame#appHeader, QFrame#sidebar, QFrame#upcomingBannersSection {{
-        background-color: rgba({int(wallpaper_panel[1:3], 16)}, {int(wallpaper_panel[3:5], 16)}, {int(wallpaper_panel[5:7], 16)}, {panel_alpha});
+        background-color: {wallpaper_panel};
     }}
     """

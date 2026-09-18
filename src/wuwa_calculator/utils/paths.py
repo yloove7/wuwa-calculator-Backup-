@@ -8,6 +8,8 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = PACKAGE_ROOT.parents[1]
 ASSETS_ROOT = PROJECT_ROOT / "Assets"
 USER_DATA_ROOT = PACKAGE_ROOT / "storage" / "user_data"
+LEGACY_DATA_ROOT = PACKAGE_ROOT / "data"
+LEGACY_STORAGE_ROOT = PACKAGE_ROOT / "storage"
 
 
 def get_asset_path(relative_path: str | Path) -> Path:
@@ -18,3 +20,13 @@ def get_asset_path(relative_path: str | Path) -> Path:
 def get_user_data_path(filename: str | Path) -> Path:
     """Return an absolute path for a generated user-data file."""
     return USER_DATA_ROOT / Path(filename)
+
+
+def get_legacy_data_path(filename: str | Path) -> Path:
+    """Return the old data path used before user data was centralized."""
+    return LEGACY_DATA_ROOT / Path(filename)
+
+
+def get_legacy_storage_path(filename: str | Path) -> Path:
+    """Return an old storage path kept as a migration source."""
+    return LEGACY_STORAGE_ROOT / Path(filename)

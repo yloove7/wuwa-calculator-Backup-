@@ -16,7 +16,6 @@ os.environ["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "0"
 # PaddleOCR ainda inclui protos antigos incompatíveis com protobuf 4+.
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
-from paddleocr import PaddleOCR
 project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -35,7 +34,16 @@ ELEMENTS = (
 
 ELEMENT_PATTERN = "|".join(ELEMENTS)
 
-ocr = PaddleOCR(lang="en")
+_ocr_engine = None
+
+
+def _get_ocr_engine():
+    global _ocr_engine
+    if _ocr_engine is None:
+        from paddleocr import PaddleOCR
+
+        _ocr_engine = PaddleOCR(lang="en")
+    return _ocr_engine
 
 STAT_PATTERNS: dict[str, re.Pattern[str]] = {
     "atk": re.compile(
@@ -144,8 +152,14 @@ def clean_number(raw: str | None) -> float | None:
     if raw is None:
         return None
     text = raw.strip().replace("%", "").replace(" ", "")
-    if text.count(",") == 1 and "." not in text:
-        text = text.replace(",", ".")
+    if "," in text and "." in text:
+        if text.rfind(",") > text.rfind("."):
+            text = text.replace(".", "").replace(",", ".")
+        else:
+            text = text.replace(",", "")
+    elif "," in text:
+        integer, fraction = text.rsplit(",", 1)
+        text = text.replace(",", "") if len(fraction) == 3 else f"{integer}.{fraction}"
     else:
         text = text.replace(",", "")
     try:
@@ -179,7 +193,8 @@ def extract_image_data(path: str | Path) -> tuple[dict[str, float], str | None]:
     """Imagem → texto, atributos reconhecidos e personagem identificado."""
     path = Path(path)
     print("[Importação] Extraindo informações da imagem...")
-    result = ocr.predict(str(path))
+    ocr_engine = _get_ocr_engine()
+    result = ocr_engine.predict(str(path))
     text = extract_text_from_paddle_result(result)
     stats = extract_stats_from_text(text)
     if len(stats) < 3:
@@ -187,7 +202,7 @@ def extract_image_data(path: str | Path) -> tuple[dict[str, float], str | None]:
             import numpy as np
 
             prepared = prepare_for_ocr(path, width=1920)
-            enhanced_result = ocr.predict(np.asarray(prepared))
+            enhanced_result = ocr_engine.predict(np.asarray(prepared))
             enhanced_text = extract_text_from_paddle_result(enhanced_result)
             text = "\n".join(part for part in (text, enhanced_text) if part)
         except (OSError, RuntimeError, ValueError):

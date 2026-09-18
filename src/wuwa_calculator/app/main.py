@@ -14,13 +14,15 @@ os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.ffmpeg=false")
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PySide6.QtCore import QObject, QSettings, Qt, QThread, QUrl, Signal
+from PySide6.QtCore import (
+    QObject, QPropertyAnimation, QRect, QSettings, Qt, QThread, QTimer, QUrl, Signal,
+)
 from PySide6.QtGui import (
     QDesktopServices, QIcon, QPixmap, QResizeEvent, QPainter, QPainterPath
     )
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog,
-    QFormLayout, QFrame, QGraphicsBlurEffect, QHBoxLayout, QFileDialog,
+    QFormLayout, QFrame, QHBoxLayout, QFileDialog,
     QLabel, QLineEdit, QMainWindow, QMessageBox,
     QProgressBar, QPushButton, QSlider, QTabWidget, QToolButton, QVBoxLayout,
     QWidget,
@@ -32,6 +34,7 @@ from src.wuwa_calculator.app.resonator_tab import ResonatorTab
 from src.wuwa_calculator.app.styles import (
     accent_preset,
     application_qss,
+    apply_glow,
     refresh_glows,
     wallpaper_palette,
 )
@@ -123,7 +126,9 @@ class SettingsTab(QWidget):
 
         self.accent_box = QComboBox()
         self.accent_box.addItems([
-            "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta"
+            "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta",
+            "Verde Aurora", "Azul Abissal", "Rosa Prisma", "Laranja Solar",
+            "Turquesa Maré", "Lima Resonância",
         ])
         appearance_form.addRow("Cor do tema", self.accent_box)
 
@@ -298,7 +303,7 @@ class SettingsTab(QWidget):
                 item.widget().deleteLater()
 
         window.tabs.setCurrentIndex(0)
-        window._set_sidebar_active("⌂   Home")
+        window._set_sidebar_active("⌂   Banners")
 
     def _restore_defaults(self) -> None:
         self.preferences.clear()
@@ -622,9 +627,6 @@ class WuwaQtWindow(QMainWindow):
         self.background_label.setObjectName("appBackground")
         self.background_label.setAttribute(
             Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        acrylic_blur = QGraphicsBlurEffect(self.background_label)
-        acrylic_blur.setBlurRadius(18)
-        self.background_label.setGraphicsEffect(acrylic_blur)
         self.background_label.lower()
         self._background_cache_key: tuple[str, bool, int, int] | None = None
 
@@ -691,7 +693,7 @@ class WuwaQtWindow(QMainWindow):
                 "Tela preparada para exibir fontes, "
                 "cache e estado das integrações."),
         )
-        self._tab_titles = ("Home", "Teams", "Histórico", "Mapeamento de Frequências", "Fontes de dados")
+        self._tab_titles = ("Banners", "Teams", "Histórico", "Mapeamento de Frequências", "Fontes de dados")
         self._tab_widgets: dict[int, QWidget] = {}
         self._active_main_index: int | None = None
         self.tabs = tabs
@@ -715,11 +717,12 @@ class WuwaQtWindow(QMainWindow):
         sidebar = QFrame()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(184)
+        apply_glow(sidebar, blur=26, opacity=105)
 
         self.sidebar_layout = QVBoxLayout(sidebar)
         self.sidebar_layout.setContentsMargins(14, 18, 14, 18)
         self.sidebar_layout.setSpacing(8)
-        for index, label in enumerate(("⌂   Home",
+        for index, label in enumerate(("⌂   Banners",
                                        "♣   Teams",
                                        "◷   Histórico",
                                        "⌁   Frequências")):
@@ -742,7 +745,7 @@ class WuwaQtWindow(QMainWindow):
         workspace.addWidget(tabs, 1)
         shell_layout.addLayout(workspace, 1)
 
-        self._set_sidebar_active("Home")
+        self._set_sidebar_active("Banners")
         self.setCentralWidget(shell)
         self._update_background(
             self.preferences.value("background", True, type=bool),
@@ -1014,7 +1017,7 @@ class WuwaQtWindow(QMainWindow):
                 self._set_sidebar_active(previous_label)
             else:
                 self.tabs.setCurrentIndex(0)
-                self._set_sidebar_active("Home")
+                self._set_sidebar_active("Banners")
             return
 
         current_widget = self.tabs.currentWidget()
@@ -1087,35 +1090,152 @@ class ImportDialog(QDialog):
     def __init__(self, parent: QWidget, character_tab: ResonatorTab):
         super().__init__(parent)
         self.character_tab = character_tab
+        self.pending_stats: dict[str, float] = {}
 
-        self.setWindowTitle("Importar dados")
-        self.resize(500, 400)
+        self.setObjectName("ocrImportDialog")
+        self.setWindowTitle("Importar Dados")
+        self.resize(860, 620)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 18, 20, 16)
+        layout.setSpacing(12)
 
-        title = QLabel("Importar dados de uma imagem")
+        heading = QHBoxLayout()
+        title = QLabel("IMPORTAR DADOS")
+        title.setObjectName("ocrDialogTitle")
+        heading.addWidget(title)
+        heading.addStretch(1)
+        protocol = QLabel("OCR // DATA EXTRACTION")
+        protocol.setObjectName("ocrDialogProtocol")
+        heading.addWidget(protocol)
+        layout.addLayout(heading)
 
-        self.select_button = QPushButton("Selecionar imagem")
+        content = QHBoxLayout()
+        content.setSpacing(14)
+
+        scan_panel = QFrame()
+        scan_panel.setObjectName("ocrScanPanel")
+        scan_layout = QVBoxLayout(scan_panel)
+        scan_layout.setContentsMargins(12, 12, 12, 12)
+        scan_layout.setSpacing(8)
+        scan_label = QLabel("ÁREA DE ESCANEAMENTO // DATA GRID")
+        scan_label.setObjectName("ocrSectionLabel")
+        scan_layout.addWidget(scan_label)
+
+        self.scan_grid = QFrame()
+        self.scan_grid.setObjectName("ocrGrid")
+        grid_layout = QVBoxLayout(self.scan_grid)
+        grid_layout.setContentsMargins(18, 18, 18, 18)
+        grid_layout.addStretch(1)
+        grid_hint = QLabel("Aguardando imagem\n\nArraste ou selecione uma screenshot de atributos")
+        grid_hint.setObjectName("ocrGridHint")
+        grid_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        grid_hint.setWordWrap(True)
+        grid_layout.addWidget(grid_hint)
+        grid_layout.addStretch(1)
+        self.select_button = QPushButton("↑  Selecionar imagem")
+        self.select_button.setObjectName("ocrSelectButton")
         self.select_button.clicked.connect(self.select_image)
+        grid_layout.addWidget(self.select_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.scan_line = QFrame(self.scan_grid)
+        self.scan_line.setObjectName("ocrScanLine")
+        self.scan_line.setGeometry(0, 4, 1, 2)
+        self.scan_animation = QPropertyAnimation(self.scan_line, b"geometry", self)
+        self.scan_animation.setDuration(1800)
+        self.scan_animation.setLoopCount(-1)
+        self.scan_animation.setStartValue(QRect(8, 8, 1, 2))
+        self.scan_animation.setEndValue(QRect(8, 248, 1, 2))
+        scan_layout.addWidget(self.scan_grid, 1)
+        content.addWidget(scan_panel, 3)
 
-        self.status_label = QLabel(
-            "Selecione uma screenshot para importar os dados."
-        )
+        status_panel = QFrame()
+        status_panel.setObjectName("ocrStatusPanel")
+        status_layout = QVBoxLayout(status_panel)
+        status_layout.setContentsMargins(14, 14, 14, 14)
+        status_layout.setSpacing(10)
+        status_title = QLabel("ALVO DA IMPORTAÇÃO")
+        status_title.setObjectName("ocrSectionLabel")
+        status_layout.addWidget(status_title)
+        character_card = QFrame()
+        character_card.setObjectName("ocrCharacterCard")
+        character_layout = QHBoxLayout(character_card)
+        character_layout.setContentsMargins(8, 8, 8, 8)
+        self.character_preview = QLabel()
+        self.character_preview.setObjectName("ocrCharacterPreview")
+        self.character_preview.setFixedSize(78, 96)
+        self.character_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pixmap = self.character_tab.character_image.pixmap()
+        if pixmap is not None and not pixmap.isNull():
+            self.character_preview.setPixmap(pixmap.scaled(
+                78, 96, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            ))
+        else:
+            self.character_preview.setText("◇")
+        character_layout.addWidget(self.character_preview)
+        identity = QVBoxLayout()
+        character_name = self.character_tab.character_name.text().strip() or "Resonador"
+        name_label = QLabel(character_name)
+        name_label.setObjectName("ocrCharacterName")
+        level_label = QLabel("NÍVEL 80  //  BUILD ATIVA")
+        level_label.setObjectName("ocrCharacterMeta")
+        identity.addWidget(name_label)
+        identity.addWidget(level_label)
+        identity.addStretch(1)
+        character_layout.addLayout(identity, 1)
+        status_layout.addWidget(character_card)
+        self.status_ring = QLabel("◌")
+        self.status_ring.setObjectName("ocrStatusRing")
+        self.status_ring.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_layout.addWidget(self.status_ring)
+        self.status_label = QLabel("Aguardando imagem")
+        self.status_label.setObjectName("ocrStatusLabel")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
+        status_layout.addWidget(self.status_label)
+        status_layout.addStretch(1)
+        content.addWidget(status_panel, 2)
+        layout.addLayout(content, 1)
+
+        preview_panel = QFrame()
+        preview_panel.setObjectName("ocrPreviewPanel")
+        preview_layout = QVBoxLayout(preview_panel)
+        preview_layout.setContentsMargins(12, 8, 12, 8)
+        preview_title = QLabel("PRÉ-VISUALIZAÇÃO DOS DADOS DETECTADOS")
+        preview_title.setObjectName("ocrSectionLabel")
+        preview_layout.addWidget(preview_title)
+        self.preview_label = QLabel("ATK: ----    CRIT: --%    LEVEL: --\nAguardando leitura do OCR...")
+        self.preview_label.setObjectName("ocrPreviewText")
+        preview_layout.addWidget(self.preview_label)
+        layout.addWidget(preview_panel)
 
         self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName("ocrProgress")
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.hide()
-
-        layout.addWidget(title)
-        layout.addWidget(self.select_button)
         layout.addWidget(self.progress_bar)
-        layout.addWidget(self.status_label)
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        cancel_button = QPushButton("Cancelar")
+        cancel_button.setObjectName("ocrCancelButton")
+        cancel_button.clicked.connect(self.reject)
+        self.confirm_button = QPushButton("Confirmar Importação")
+        self.confirm_button.setObjectName("ocrConfirmButton")
+        self.confirm_button.setEnabled(False)
+        self.confirm_button.clicked.connect(self.confirm_import)
+        actions.addWidget(cancel_button)
+        actions.addWidget(self.confirm_button)
+        layout.addLayout(actions)
 
         self.ocr_thread: QThread | None = None
         self.ocr_worker: ImageImportWorker | None = None
+
+    def _set_scan_status(self, message: str) -> None:
+        self.status_label.setText(message)
+        self.status_ring.setText("◉")
 
     def select_image(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
@@ -1131,14 +1251,21 @@ class ImportDialog(QDialog):
         self.select_button.setEnabled(False)
         self.progress_bar.setValue(0)
         self.progress_bar.show()
-        self.status_label.setText("Preparando importação...")
+        self.confirm_button.setEnabled(False)
+        self.pending_stats = {}
+        self.preview_label.setText("ATK: ----    CRIT: --%    LEVEL: --\nProcessando leitura da imagem...")
+        self._set_scan_status("Escaneando...")
+        scan_width = max(1, self.scan_grid.width() - 16)
+        self.scan_animation.setStartValue(QRect(8, 8, scan_width, 2))
+        self.scan_animation.setEndValue(QRect(8, max(8, self.scan_grid.height() - 8), scan_width, 2))
+        self.scan_animation.start()
 
         self.ocr_thread = QThread(self)
         self.ocr_worker = ImageImportWorker(path, self.character_tab.current_id)
         self.ocr_worker.moveToThread(self.ocr_thread)
         self.ocr_thread.started.connect(self.ocr_worker.run)
         self.ocr_worker.progress.connect(self.progress_bar.setValue)
-        self.ocr_worker.status.connect(self.status_label.setText)
+        self.ocr_worker.status.connect(self._set_scan_status)
         self.ocr_worker.finished.connect(self._import_finished)
         self.ocr_worker.failed.connect(self._import_failed)
         self.ocr_worker.finished.connect(self.ocr_thread.quit)
@@ -1148,14 +1275,16 @@ class ImportDialog(QDialog):
 
     def _import_finished(self, result: dict) -> None:
         self.select_button.setEnabled(True)
+        self.scan_animation.stop()
         stats = result.get("stats", {})
         if stats:
-            self.character_tab.apply_imported_stats(stats)
-            message = "Stats extraídos:\n" + "\n".join(
-                f"{key}: {value}" for key, value in stats.items())
-            self.status_label.setText("Importação concluída.")
-            QMessageBox.information(self, "Dados importados", message)
-            self.accept()
+            self.pending_stats = stats
+            self.status_ring.setText("◉")
+            self.status_label.setText("Dados detectados")
+            preview = "    ".join(
+                f"{key.upper()}: {value:g}" for key, value in stats.items())
+            self.preview_label.setText(preview)
+            self.confirm_button.setEnabled(True)
             return
 
         message = (
@@ -1164,6 +1293,14 @@ class ImportDialog(QDialog):
         )
         self.status_label.setText(message)
         QMessageBox.critical(self, "Nenhum dado encontrado", message)
+
+    def confirm_import(self) -> None:
+        if not self.pending_stats:
+            return
+        self.character_tab.apply_imported_stats(self.pending_stats)
+        self.status_ring.setText("★")
+        self.status_label.setText("Importado com sucesso (5 estrelas)")
+        self.accept()
 
     def _import_failed(self, error: object) -> None:
         self.select_button.setEnabled(True)
@@ -1203,6 +1340,8 @@ class ImportDialog(QDialog):
             title = "Erro inesperado"
 
         print(f"[Importação] {type(error).__name__}: {error}")
+        self.scan_animation.stop()
+        self.status_ring.setText("×")
         self.status_label.setText(message)
         QMessageBox.critical(self, title, message)
 

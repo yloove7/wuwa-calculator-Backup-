@@ -4,17 +4,30 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Any
 
-from src.wuwa_calculator.utils.paths import get_user_data_path
+from src.wuwa_calculator.utils.paths import get_legacy_storage_path, get_user_data_path
 
 CACHE_FILE = get_user_data_path("current_banner.json")
 CACHE_MAX_AGE_SECONDS = 24 * 60 * 60
 
 
+def _migrate_legacy_banner_cache() -> None:
+    legacy_path = get_legacy_storage_path("current_banner.json")
+    if CACHE_FILE.exists() or not legacy_path.exists():
+        return
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(legacy_path, CACHE_FILE)
+    except OSError:
+        return
+
+
 def load_cached_banner() -> dict[str, Any] | None:
+    _migrate_legacy_banner_cache()
     try:
         if time.time() - CACHE_FILE.stat().st_mtime > CACHE_MAX_AGE_SECONDS:
             CACHE_FILE.unlink(missing_ok=True)
