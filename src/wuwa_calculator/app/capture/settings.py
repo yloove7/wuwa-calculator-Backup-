@@ -26,7 +26,7 @@ class WindowMatchPriority(str, Enum):
 
 @dataclass(slots=True)
 class CaptureSettings:
-    capture_cursor: bool = True
+    capture_cursor: bool = False
     capture_audio: bool = False
     allow_transparency: bool = False
     premultiplied_alpha: bool = False

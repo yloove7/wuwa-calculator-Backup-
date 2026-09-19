@@ -38,6 +38,8 @@ class FrameProcessor:
 
     @staticmethod
     def _process_alpha(frame: Any, settings: CaptureSettings) -> Any:
+        if not settings.allow_transparency and not settings.premultiplied_alpha:
+            return frame
         shape = getattr(frame, "shape", ())
         if len(shape) < 3 or shape[2] < 4:
             return frame

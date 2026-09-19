@@ -39,14 +39,18 @@ class LivePreviewGLWidget(QOpenGLWidget):
         super().__init__(parent)
         self._image = QImage()
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self.update)
-        self._refresh_timer.start(max(1, round(1000.0 / 201.0)))
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._repaint_latest_frame)
         self.setMinimumSize(1, 1)
 
     def set_frame(self, image: QImage) -> None:
         if image.isNull():
             return
         self._image = image
+        if not self._refresh_timer.isActive():
+            self._refresh_timer.start(max(1, round(1000.0 / 60.0)))
+
+    def _repaint_latest_frame(self) -> None:
         self.update()
 
     def clear_frame(self) -> None:

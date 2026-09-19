@@ -200,6 +200,13 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertTrue(WorkerCapturaNativa._read_ui_anchors(frame, shader_ocr)[4])
         self.assertTrue(WorkerCapturaNativa._read_ui_anchors(frame, update_ocr)[4])
 
+    def test_learning_rules_start_with_blocked_screen_knowledge(self) -> None:
+        from src.wuwa_calculator.app.capture.learning import classify_screen_text
+
+        self.assertTrue(classify_screen_text("Carregando 75%")['loading'])
+        self.assertTrue(classify_screen_text("Recompensas Obtidas")['reward_screen'])
+        self.assertTrue(classify_screen_text("Desafio Concluído")['completion'])
+
     def test_map_ocr_rejects_hardware_overlay_terms(self) -> None:
         import numpy as np
 

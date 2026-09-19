@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 import sys
 import time
-import unicodedata
 from collections import defaultdict
 from threading import Lock, current_thread
 from typing import Any
@@ -25,15 +25,18 @@ from PySide6.QtWidgets import (
 from src.wuwa_calculator.app.components import Card
 from src.wuwa_calculator.app.capture.controller import FrameProcessor
 from src.wuwa_calculator.app.capture.damage_events import DamageEventTracker
+from src.wuwa_calculator.app.capture.learning import LearningStore, classify_screen_text
 from src.wuwa_calculator.app.capture.settings import CaptureSettings
 
 
 ANALYSIS_BUCKET_SECONDS = 5.0
 INACTIVITY_TIMEOUT = 12.0
 MIN_INACTIVITY_ANALYSIS_SECONDS = 15.0
-OCR_SAMPLE_FPS = 15.0
+OCR_SAMPLE_FPS = 10.0
 DEFAULT_PREVIEW_FPS = 60.0
+PREVIEW_OUTPUT_FPS = 60.0
 MAX_PREVIEW_FPS = 240.0
+MAX_LIVE_HIT_MARKERS = 3000
 COMBAT_ROI = (0.15, 0.90, 0.03, 0.97)
 MAX_DAMAGE_VALUE = 10_000_000
 MAP_ROI = (0.05, 0.15, 0.02, 0.20)
@@ -911,6 +914,9 @@ class LiveDamageAnalysisWorker(QObject):
         self._cancelled = True
 
     def run(self) -> None:
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("ORT_INTRA_OP_NUM_THREADS", "1")
+        os.environ.setdefault("ORT_INTER_OP_NUM_THREADS", "1")
         import cv2
         from rapidocr_onnxruntime import RapidOCR
 
@@ -1188,6 +1194,8 @@ class WorkerCapturaNativa(QObject):
         self._capture_elapsed = QElapsedTimer()
         self._detection_tracker = DamageDetectionTracker()
         self._damage_events = DamageEventTracker()
+        self._learning_store = LearningStore()
+        self._learning_profile = self._learning_store.profile(capture_mode)
         self._frame_gate = CombatFrameGate()
         self._interface_detector = InterfaceMenuDetector()
         self._loading_detector = LoadingScreenDetector()
@@ -1199,6 +1207,7 @@ class WorkerCapturaNativa(QObject):
         self._wgc_disabled_hwnd: int | None = None
         self._wgc_frame = None
         self._wgc_lock = Lock()
+        self._last_wgc_copy_at = 0.0
         self._wgc_client_crop: tuple[float, float, float, float] | None = None
         self._linux_capture = None
         self._linux_monitor = None
@@ -1230,9 +1239,13 @@ class WorkerCapturaNativa(QObject):
         self._cancelled = True
 
     def run(self) -> None:
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("ORT_INTRA_OP_NUM_THREADS", "1")
+        os.environ.setdefault("ORT_INTER_OP_NUM_THREADS", "1")
         try:
             import cv2
             from rapidocr_onnxruntime import RapidOCR
+            cv2.setNumThreads(1)
 
             if sys.platform != "win32":
                 try:
@@ -1321,7 +1334,7 @@ class WorkerCapturaNativa(QObject):
                         False,
                         "",
                     )
-                    if timestamp - self._last_anchor_read_at >= 0.75:
+                    if timestamp - self._last_anchor_read_at >= 1.0:
                         (
                             completion,
                             pre_combat,
@@ -1374,7 +1387,15 @@ class WorkerCapturaNativa(QObject):
                         self._last_map_read_at = timestamp
                         if map_name:
                             self.map_detected.emit(map_name)
-                    values = LiveDamageAnalysisWorker._read_values(frame, ocr)
+                    if not self._frame_gate.allow(frame, timestamp):
+                        self._update_combat_state(timestamp, False)
+                        QThread.msleep(40)
+                        continue
+                    values = [
+                        value
+                        for value in LiveDamageAnalysisWorker._read_values(frame, ocr)
+                        if self._learning_profile.accepts(value[3], value[4], value[5])
+                    ]
                     damage_events = self._damage_events.update(values, timestamp)
                     hud_ready = self._interface_detector.combat_hud_visible(frame, anchor_text)
                     menu_open = self._interface_detector.is_menu(frame, timestamp) and not hud_ready
@@ -1411,10 +1432,6 @@ class WorkerCapturaNativa(QObject):
                             self._update_combat_state(timestamp, False)
                         QThread.msleep(40)
                         continue
-                    if not self._frame_gate.allow(frame, timestamp):
-                        self._update_combat_state(timestamp, False)
-                        QThread.msleep(40)
-                        continue
                     if not damage_events:
                         self._update_combat_state(timestamp, False)
                         QThread.msleep(40)
@@ -1434,6 +1451,7 @@ class WorkerCapturaNativa(QObject):
             if self._linux_capture is not None:
                 self._linux_capture.close()
                 self._linux_capture = None
+            self._learning_store.save()
             self.analysis_completed.emit({
                 "reason": "live_capture",
                 "last_hit": self._last_hit_time,
@@ -1441,6 +1459,7 @@ class WorkerCapturaNativa(QObject):
             self.finished.emit()
 
     def _emit_damage_events(self, events, timestamp: float) -> None:
+        self._learning_profile.observe(events)
         fresh_values = [event[0] for event in events]
         self._update_combat_state(timestamp, True)
         damage = float(sum(fresh_values))
@@ -1634,52 +1653,15 @@ class WorkerCapturaNativa(QObject):
             if text:
                 texts.append(text)
         combined = " ".join(texts)
-        normalized = "".join(
-            character
-            for character in unicodedata.normalize("NFKD", combined).casefold()
-            if not unicodedata.combining(character)
+        flags = classify_screen_text(combined)
+        return (
+            flags["completion"],
+            flags["pre_combat"],
+            flags["reward_screen"],
+            flags["login"],
+            flags["loading"],
+            combined,
         )
-        completion = "desafio concluido" in normalized or "confirmar pontuacao" in normalized
-        pre_combat = "relatorio ambiental" in normalized or "efeito de area" in normalized
-        reward_screen = any(
-            phrase in normalized
-            for phrase in (
-                "resgatar",
-                "recompensas obtidas",
-                "waveplates",
-                "placa de ondulacao",
-                "drops de ecos",
-            )
-        )
-        login = any(
-            phrase in normalized
-            for phrase in (
-                "iniciar jogo",
-                "servidor",
-                "america",
-                "europa",
-                "asia",
-            )
-        )
-        loading = bool(
-            re.search(r"\b\d{1,3}\s*%", normalized)
-            or re.search(r"\b\d+(?:\.\d+)?\s*(?:mb|kb)\s*/\s*s\b", normalized)
-            or any(
-                phrase in normalized
-                for phrase in (
-                    "carregando",
-                    "loading",
-                    "dica de tela",
-                    "compiling shaders",
-                    "compilando shaders",
-                    "checking updates",
-                    "verificando atualizacoes",
-                    "atualizando",
-                    "verificando arquivos",
-                )
-            )
-        )
-        return completion, pre_combat, reward_screen, login, loading, combined
 
     def mark_preview_consumed(self) -> None:
         with self._preview_signal_lock:
@@ -1724,11 +1706,15 @@ class WorkerCapturaNativa(QObject):
                     image = frame.frame_buffer
                     if image is None or image.size == 0:
                         return
+                    now = time.monotonic()
+                    with self._wgc_lock:
+                        if now - self._last_wgc_copy_at < 1.0 / PREVIEW_OUTPUT_FPS:
+                            return
+                        self._last_wgc_copy_at = now
                     bgr = image[:, :, :3].copy()
                     bgr = self._crop_wgc_to_client_area(bgr, int(hwnd))
                     if bgr is None or bgr.size == 0:
                         return
-                    now = time.monotonic()
                     with self._wgc_lock:
                         self._wgc_log_frame_count += 1
                         if self._wgc_log_started_at <= 0.0:
@@ -1743,7 +1729,7 @@ class WorkerCapturaNativa(QObject):
                         self._debug_log(f"FPS WGC recebido: {frames / elapsed:.1f}")
                     with self._wgc_lock:
                         self._wgc_frame = bgr
-                    preview_fps = min(max(self._preview_fps, 1.0), MAX_PREVIEW_FPS)
+                    preview_fps = min(max(self._preview_fps, 1.0), PREVIEW_OUTPUT_FPS)
                     if now - self._last_preview_at >= 1.0 / preview_fps:
                         self._last_preview_at = now
                         with self._preview_signal_lock:
@@ -1828,7 +1814,7 @@ class WorkerCapturaNativa(QObject):
             return cv2.cvtColor(screenshot, cv2.COLOR_BGRA2BGR)
         if self._wgc_control is not None:
             with self._wgc_lock:
-                return None if self._wgc_frame is None else self._wgc_frame.copy()
+                return self._wgc_frame
         return None
 
 
@@ -1853,7 +1839,7 @@ class DpsSimulationPanel(Card):
         self._pending_position_ms = 0
         self._plot_dirty = False
         self._plot_update_timer = QTimer(self)
-        self._plot_update_timer.setInterval(66)
+        self._plot_update_timer.setInterval(100)
         self._plot_update_timer.timeout.connect(self._flush_plot_update)
         self._position_timer = QTimer(self)
         self._position_timer.setInterval(33)
@@ -2278,7 +2264,7 @@ class DpsSimulationPanel(Card):
             self.live_worker.finished.connect(self._on_live_finished)
             self.live_thread.finished.connect(self._on_live_thread_finished)
             self.live_thread.start()
-            self.live_thread.setPriority(QThread.Priority.NormalPriority)
+            self.live_thread.setPriority(QThread.Priority.LowPriority)
             return
 
         self.analysis_status.setText(
@@ -2406,6 +2392,8 @@ class DpsSimulationPanel(Card):
             float(data.get("combat_elapsed", 0.0)),
         )
         self._hit_times.extend([timestamp] * hits)
+        if len(self._hit_times) > MAX_LIVE_HIT_MARKERS:
+            self._hit_times = self._hit_times[-MAX_LIVE_HIT_MARKERS:]
         self.has_real_data = True
         self._plot_dirty = True
         if not self._plot_update_timer.isActive():
