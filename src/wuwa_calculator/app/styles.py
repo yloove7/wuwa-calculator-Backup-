@@ -5,9 +5,14 @@ from dataclasses import dataclass
 # * EDITAVEL: altere cores globais e regras QSS aqui; o wallpaper gera uma paleta complementar.
 # ! Nao use #RRGGBBAA no QColor: _with_alpha produz o formato Qt #AARRGGBB.
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QAbstractAnimation, QUrl
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtWidgets import QAbstractButton, QGraphicsDropShadowEffect, QWidget
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
+    QWidget,
+)
 
 from src.wuwa_calculator.utils.paths import get_asset_path
 
@@ -92,7 +97,24 @@ def apply_element_glow(widget: QWidget, element: str, blur: float = 24.0, opacit
     widget.setGraphicsEffect(effect)
 
 
-def refresh_glows(root: QWidget) -> None:
+def disable_visual_effects(root: QWidget) -> None:
+    for widget in [root, *root.findChildren(QWidget)]:
+        current_effect = widget.graphicsEffect()
+        if current_effect is not None:
+            widget.setGraphicsEffect(None)
+        if isinstance(current_effect, QGraphicsOpacityEffect):
+            current_effect.setOpacity(1.0)
+
+    for animation in root.findChildren(QAbstractAnimation):
+        if animation.state() != QAbstractAnimation.State.Stopped:
+            animation.stop()
+
+
+def refresh_glows(root: QWidget, performance_mode: bool = False) -> None:
+    if performance_mode:
+        disable_visual_effects(root)
+        return
+
     for widget in [root, *root.findChildren(QWidget)]:
         mode = widget.property("_glow_mode")
         if mode == "global":
@@ -164,19 +186,19 @@ def _accent_preset(name: str) -> str:
     return {
         "Auto Wallpaper": "#6FEAFF",
         "Ciano Tethys": "#6FEAFF",
-        "Dourado Sol": "#FFD76A",
-        "Roxo Nécro": "#B78CFF",
-        "Vermelho Alerta": "#FF6B6B",
+        "Dourado Sol": "#C9952A",
+        "Roxo Nécro": "#6B4AB6",
+        "Vermelho Alerta": "#8F2D2D",
         "Verde Aurora": "#74F2B2",
         "Azul Abissal": "#73B7FF",
         "Rosa Prisma": "#FF8FC7",
-        "Laranja Solar": "#FFAD66",
+        "Laranja Solar": "#BF5A1F",
         "Turquesa Maré": "#55E6D0",
         "Lima Resonância": "#D2F26B",
         "Gelo Lunar": "#B9E8FF",
-        "Âmbar Nebulosa": "#F4C56A",
-        "Coral Resonante": "#FF8D78",
-        "Índigo Profundo": "#8D9BFF",
+        "Âmbar Nebulosa": "#A56B1A",
+        "Coral Resonante": "#B55E43",
+        "Índigo Profundo": "#4D4FAD",
         "Prata Sônica": "#D7E1EA",
         "Verde Vórtice": "#78E6A4",
     }.get(name, "#6FEAFF")
@@ -187,25 +209,112 @@ def accent_preset(name: str) -> str:
     return _accent_preset(name)
 
 
+class ThemeManager:
+    """Separate neutral surfaces from wallpaper-derived accent colors."""
+
+    DARK_NEUTRAL_BG = "rgba(18, 22, 26, 0.75)"
+    LIGHT_NEUTRAL_BG = "rgba(255, 255, 255, 0.65)"
+    DARK_TEXT = "#FFFFFF"
+    LIGHT_TEXT = "#12161A"
+    DARK_TEXT_SECONDARY = "#A0A5AB"
+    LIGHT_TEXT_SECONDARY = "#4A5056"
+
+    def __init__(self, accent_color: str = "#6FEAFF", is_dark: bool = True) -> None:
+        self.accent_color = accent_color
+        self.is_dark = is_dark
+
+    def set_theme(self, is_dark: bool) -> None:
+        self.is_dark = bool(is_dark)
+
+    def neutral_background(self) -> str:
+        return self.DARK_NEUTRAL_BG if self.is_dark else self.LIGHT_NEUTRAL_BG
+
+    def text_primary(self) -> str:
+        return self.DARK_TEXT if self.is_dark else self.LIGHT_TEXT
+
+    def text_secondary(self) -> str:
+        return self.DARK_TEXT_SECONDARY if self.is_dark else self.LIGHT_TEXT_SECONDARY
+
+    def qss(self, *, wallpaper: str = "", show_background: bool = True, interface_opacity: int = 85) -> str:
+        neutral_bg = self.neutral_background()
+        text_main = self.text_primary()
+        text_secondary = self.text_secondary()
+        surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = (
+            _wallpaper_palette(wallpaper) if show_background else (BG, CARD, BORDER, ACCENT, MUTED)
+        )
+        selected_accent = self.accent_color or wallpaper_accent
+        neon_border = _rgba(selected_accent, 185)
+        neon_soft = _rgba(selected_accent, 75)
+        panel_alpha = max(125, min(190, round(70 + interface_opacity * 0.95)))
+        wallpaper_panel = neutral_bg
+        wallpaper_surface = _rgba(surface_color, min(215, panel_alpha + 18))
+        return f"""
+        QMainWindow {{ background: {neutral_bg}; color: {text_main}; }}
+        QWidget {{ background: transparent; color: {text_main}; font-family: "Bahnschrift", "Segoe UI"; font-size: 13px; }}
+        QLabel {{ background: transparent; color: {text_main}; }}
+        QLabel#muted, QLabel#eyebrow, QLabel#metricName, QLabel#optionLabel, QLabel#ocrStatusItem, QLabel#ocrStatusItem[active="true"], QLabel#ocrStatusItem[complete="true"] {{ color: {text_secondary}; }}
+        QFrame#sidebar {{ background: {neutral_bg}; border-right: 1px solid {wallpaper_border}; }}
+        QFrame#card, QFrame#appHeader, QFrame#upcomingBannersSection, QFrame#upcomingBannerCard, QFrame#upcomingBannerPastCard, QFrame#bannerTimeline, QFrame#bannerImageContainer, QFrame#bannerHud {{ background: {neutral_bg}; border-color: {wallpaper_border}; }}
+        QFrame#card {{ border: 1px solid {wallpaper_border}; border-radius: 12px; }}
+        QFrame#appHeader {{ border: 1px solid {wallpaper_border}; border-radius: 10px; }}
+        QPushButton {{ background: {neutral_bg}; color: {text_main}; border: 1px solid {wallpaper_border}; }}
+        QPushButton:hover {{ background: {wallpaper_surface}; border: 2px solid {selected_accent}; color: {text_main}; }}
+        QPushButton:pressed {{ background: {selected_accent}; color: #FFFFFF; border: 2px solid {selected_accent}; }}
+        QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit {{ background: {neutral_bg}; color: {text_main}; border: 1px solid {wallpaper_border}; }}
+        QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QTextEdit:hover, QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus {{ background: {wallpaper_surface}; border: 2px solid {selected_accent}; }}
+        QComboBox QAbstractItemView {{ background: {neutral_bg}; color: {text_main}; border: 1px solid {selected_accent}; selection-background-color: {wallpaper_surface}; selection-color: {text_main}; }}
+        QCheckBox {{ color: {text_main}; spacing: 10px; font-weight: 700; }}
+        QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 2px solid {wallpaper_border}; background: rgba(255, 255, 255, 0.04); }}
+        QCheckBox::indicator:hover {{ border: 2px solid {selected_accent}; background: rgba(255, 255, 255, 0.08); }}
+        QCheckBox::indicator:checked {{ background: transparent; border: 2px solid {selected_accent}; }}
+        QTabBar::tab {{ background: {neutral_bg}; color: {text_secondary}; border: 1px solid {wallpaper_border}; }}
+        QTabBar::tab:selected {{ background: {wallpaper_surface}; color: {text_main}; border: 2px solid {selected_accent}; }}
+        QSlider::groove:horizontal {{ background: {wallpaper_surface}; border: 1px solid {wallpaper_border}; }}
+        QSlider::sub-page:horizontal {{ background: {selected_accent}; }}
+        QSlider::handle:horizontal {{ background: {text_main}; border: 2px solid {selected_accent}; }}
+        QScrollBar:vertical, QScrollBar:horizontal {{ background: {neutral_bg}; }}
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{ background: {selected_accent}; border: 1px solid {selected_accent}; border-radius: 5px; }}
+        QFrame#card, QFrame#appHeader, QFrame#sidebar, QFrame#upcomingBannersSection {{ background-color: {neutral_bg}; }}
+        QPushButton#primaryAction {{ background: {neutral_bg}; color: {text_main}; border: 1px solid {selected_accent}; }}
+        QPushButton#primaryAction:hover {{ background: {wallpaper_surface}; border: 2px solid {selected_accent}; }}
+        QFrame#historyTeamSummary, QFrame#historyQuickMetric, QFrame#historyStatCard, QFrame#damageFormulaBox, QFrame#damageInputGroup, QFrame#damageOutputCard {{ background: {neutral_bg}; border-color: {wallpaper_border}; }}
+        QLabel#title, QLabel#bannerName, QLabel#skillTitle, QLabel#bannerSubtitle, QLabel#damageInputLabel, QLabel#damageFormula, QLabel#historyTeamMembers {{ color: {text_main}; }}
+        QLabel#muted, QLabel#eyebrow {{ color: {text_secondary}; }}
+        """
+
+
 def theme_config(
     wallpaper: str = "",
     interface_opacity: int = 85,
     accent_theme: str = "Ciano Tethys",
 ) -> ThemeConfig:
     """Resolve the current Tethys palette for adaptive custom widgets."""
+    if accent_theme in {"Modo claro", "Modo escuro"}:
+        accent_theme = "Auto Wallpaper"
     _surface, panel, _wallpaper_border, wallpaper_accent, muted = _wallpaper_palette(wallpaper)
-    primary = wallpaper_accent if accent_theme == "Auto Wallpaper" else _accent_preset(accent_theme)
-    secondary = wallpaper_accent
+    if accent_theme == "Auto Wallpaper":
+        primary = wallpaper_accent
+        secondary = wallpaper_accent
+        is_dark = True
+        panel_color = panel
+        panel_border = _wallpaper_border
+    else:
+        primary = _accent_preset(accent_theme)
+        secondary = primary
+        is_dark = True
+        panel_color = _blend(primary, "#0B0F1A", 0.6)
+        panel_border = _rgba(primary, 170)
+    theme_manager = ThemeManager(accent_color=primary, is_dark=is_dark)
     panel_alpha = max(125, min(190, round(70 + interface_opacity * 0.95)))
     return ThemeConfig(
         primary_neon_color=primary,
         secondary_neon_color=secondary,
-        panel_bg_color=panel,
-        panel_bg_color_with_alpha=_rgba(panel, panel_alpha),
+        panel_bg_color=panel_color,
+        panel_bg_color_with_alpha=_rgba(panel_color, panel_alpha),
         button_gradient_start=_blend(primary, "#FFFFFF", 0.18),
-        button_gradient_end=_blend(secondary, panel, 0.45),
-        text_color=TEXT,
-        muted_text_color=muted,
+        button_gradient_end=_blend(secondary, panel_color, 0.45),
+        text_color=theme_manager.text_primary(),
+        muted_text_color=theme_manager.text_secondary(),
     )
 
 
@@ -216,35 +325,59 @@ def application_qss(
     accent_theme: str = "Ciano Tethys",
 ) -> str:
     global CURRENT_GLOW_COLOR
-    background_rule = f"background-color: {BG};"
-    surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = (
-        _wallpaper_palette(wallpaper) if show_background else (BG, CARD, BORDER, ACCENT, MUTED)
-    )
-    selected_accent = wallpaper_accent if accent_theme == "Auto Wallpaper" else _accent_preset(accent_theme)
+
+    if accent_theme in {"Modo claro", "Modo escuro"}:
+        accent_theme = "Auto Wallpaper"
+
+    if show_background:
+        surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = _wallpaper_palette(wallpaper)
+    else:
+        surface_color, panel_color, wallpaper_border, wallpaper_accent, wallpaper_muted = (BG, CARD, BORDER, ACCENT, MUTED)
+
+    if accent_theme == "Auto Wallpaper":
+        selected_accent = wallpaper_accent
+        theme_manager = ThemeManager(accent_color=selected_accent, is_dark=True)
+        background_rule = f"background-color: {BG};"
+        text_color = theme_manager.text_primary()
+    else:
+        selected_accent = _accent_preset(accent_theme)
+        surface_color = _blend(selected_accent, "#0B0F1A", 0.5)
+        panel_color = _blend(selected_accent, "#111827", 0.72)
+        wallpaper_border = _rgba(selected_accent, 180)
+        wallpaper_accent = selected_accent
+        wallpaper_muted = _blend(selected_accent, "#EAF4FF", 0.35)
+        theme_manager = ThemeManager(accent_color=selected_accent, is_dark=True)
+        background_rule = f"background-color: {BG};"
+        text_color = theme_manager.text_primary()
+
     CURRENT_GLOW_COLOR = selected_accent
     neon_border = _rgba(selected_accent, 185)
     neon_soft = _rgba(selected_accent, 75)
-    # Acrylic stays translucent while the setting changes its material intensity.
-    panel_alpha = max(125, min(190, round(70 + interface_opacity * 0.95)))
+    panel_alpha = max(110, min(215, round(55 + interface_opacity * 1.25)))
     wallpaper_panel = _rgba(panel_color, panel_alpha)
-    wallpaper_surface = _rgba(surface_color, min(215, panel_alpha + 18))
+    wallpaper_surface = _rgba(surface_color, min(235, panel_alpha + 22))
+    accent_soft = _rgba(selected_accent, max(55, min(180, panel_alpha - 25)))
+    text_primary = theme_manager.text_primary()
+    text_secondary = theme_manager.text_secondary()
     return f"""
     QMainWindow {{
         {background_rule}
-        color: {TEXT};
+        color: {text_color};
     }}
-    QWidget {{ background: transparent; color: {TEXT}; font-family: "Bahnschrift", "Segoe UI"; font-size: 13px; }}
-    QLabel {{ background: transparent; }}
+    QWidget {{ background: transparent; color: {text_color}; font-family: "Bahnschrift", "Segoe UI"; font-size: 13px; }}
+    QLabel {{ background: transparent; color: {text_color}; }}
     QWidget#appShell {{ background: transparent; }}
-    QFrame#sidebar {{ background: rgba(12, 16, 32, {panel_alpha}); border-right: 1px solid #202744; }}
+    QFrame#sidebar {{ background: {wallpaper_panel}; border-right: 1px solid {wallpaper_border}; }}
+    QFrame#card, QFrame#appHeader {{ background: {wallpaper_panel}; border: 1px solid {wallpaper_border}; border-radius: 12px; }}
+    QFrame#appHeader {{ border-radius: 10px; }}
     QTabWidget#mainTabs {{ background: transparent; border: 0; }}
     QTabWidget#mainTabs::pane {{ border: 0; background: transparent; }}
     QPushButton#nav, QPushButton#navActive {{ text-align: left; border: 0; padding: 10px; border-radius: 7px; }}
-    QPushButton#nav {{ background: #161D39; color: #EDEAFF; }}
-    QPushButton#nav:hover {{ background: #24265A; border: 1px solid #A855F7; }}
-    QPushButton#navActive {{ background: #48209A; color: #FFFFFF; font-weight: 800; }}
-    QPushButton#nav[element="Aero"], QPushButton#navActive[element="Aero"] {{ background: #145A4A; border: 1px solid #72E6C0; color: #E8FFF8; }}
-    QPushButton#nav[element="Glacio"], QPushButton#navActive[element="Glacio"] {{ background: #285A78; border: 1px solid #82D8FF; color: #E4F8FF; }}
+    QPushButton#nav {{ background: {wallpaper_surface}; color: {text_color}; border: 1px solid {wallpaper_border}; }}
+    QPushButton#nav:hover {{ background: {accent_soft}; border: 1px solid {selected_accent}; }}
+    QPushButton#navActive {{ background: {selected_accent}; color: #FFFFFF; font-weight: 800; }}
+    QPushButton#nav[element="Aero"], QPushButton#navActive[element="Aero"] {{ background: {selected_accent}; border: 1px solid #72E6C0; color: #E8FFF8; }}
+    QPushButton#nav[element="Glacio"], QPushButton#navActive[element="Glacio"] {{ background: {selected_accent}; border: 1px solid #82D8FF; color: #E4F8FF; }}
     QPushButton#nav[element="Electro"], QPushButton#navActive[element="Electro"] {{ background: #49356F; border: 1px solid #B78CFF; color: #F0E8FF; }}
     QPushButton#nav[element="Fusion"], QPushButton#navActive[element="Fusion"] {{ background: #713D2C; border: 1px solid #FF8A65; color: #FFF0E8; }}
     QPushButton#nav[element="Havoc"], QPushButton#navActive[element="Havoc"] {{ background: #642C43; border: 1px solid #E85D75; color: #FFE8EE; }}
@@ -256,11 +389,11 @@ def application_qss(
     QPushButton#nav[element="Havoc"]:hover, QPushButton#navActive[element="Havoc"]:hover {{ background: #873B58; }}
     QPushButton#nav[element="Spectro"]:hover, QPushButton#navActive[element="Spectro"]:hover {{ background: #87702D; }}
     QFrame#card {{
-        background: rgba(15, 20, 40, {panel_alpha});
-        border: 1px solid {neon_soft};
+        background: {wallpaper_panel};
+        border: 1px solid {wallpaper_border};
         border-radius: 12px;
     }}
-    QFrame#appHeader {{ background: rgba(13, 17, 34, {panel_alpha}); border: 1px solid {neon_border}; border-radius: 10px; }}
+    QFrame#appHeader {{ background: {wallpaper_panel}; border: 1px solid {wallpaper_border}; border-radius: 10px; }}
     QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{ background: transparent; border: 0; }}
     QFrame#videoSurface {{ background: rgba(11, 13, 18, 235); border: 1px solid rgba(0, 217, 255, 70); border-radius: 8px; }}
     QFrame#mediaToolbar {{ background: rgba(8, 14, 27, 235); border: 1px solid rgba(0, 217, 255, 90); border-radius: 7px; }}
@@ -489,6 +622,28 @@ def application_qss(
     QLabel#skillIcon {{ background: #242A5A; color: #FFFFFF; border: 1px solid #5D5CE8; border-radius: 7px; padding: 8px; min-width: 28px; font-size: 20px; }}
     QLabel#skillTitle {{ color: #DDBBFF; font-weight: 800; font-size: 14px; }}
     QLabel#skillNumber {{ background: #3D477A; color: #FFFFFF; border-radius: 5px; padding: 7px; min-width: 16px; font-size: 14px; font-weight: 800; }}
+    QFrame#weaponInfoCard {{
+        background: rgba(17, 22, 38, 210);
+        border: 1px solid rgba(108, 151, 255, 180);
+        border-radius: 10px;
+        padding: 2px;
+    }}
+    QLabel#weaponInfoTitle {{
+        color: #F0F6FF;
+        font-family: "Cinzel", "Bahnschrift", "Segoe UI";
+        font-size: 18px;
+        font-weight: 800;
+        margin: 0 0 2px 0;
+    }}
+    QLabel#weaponInfoText {{
+        color: #DDE9FF;
+        background: rgba(12, 16, 29, 120);
+        border: 1px solid rgba(110, 234, 255, 90);
+        border-radius: 8px;
+        padding: 12px 14px 12px 14px;
+        line-height: 1.6;
+        margin-top: 8px;
+    }}
     QLabel#bannerPortrait {{ background: transparent; border: 0; }}
     QLabel#bannerName {{ color: #FFFFFF; font-family: "Cinzel", "Bahnschrift", "Segoe UI"; font-size: 30px; font-weight: 800; }}
     QLabel#bannerSubtitle {{ color: {MUTED}; font-size: 14px; }}
@@ -514,6 +669,32 @@ def application_qss(
     }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover {{ border: 1px solid rgba(217, 70, 239, 180); }}
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{ border: 1px solid {selected_accent}; background: rgba(26, 21, 46, 235); }}
+    QCheckBox {{
+        color: {TEXT};
+        spacing: 10px;
+        font-weight: 600;
+    }}
+    QCheckBox::indicator {{
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 2px solid {wallpaper_accent};
+        background: {wallpaper_panel};
+    }}
+    QCheckBox::indicator:hover {{
+        border: 2px solid {selected_accent};
+        background: {wallpaper_surface};
+    }}
+    QCheckBox::indicator:checked {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 {selected_accent}, stop: 1 {wallpaper_accent});
+        border: 2px solid {selected_accent};
+    }}
+    QCheckBox::indicator:checked:hover {{
+        background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1,
+            stop: 0 {selected_accent}, stop: 1 {ACCENT});
+        border: 2px solid #FFFFFF;
+    }}
     QComboBox QAbstractItemView {{ background: {wallpaper_panel}; color: {TEXT}; border: 1px solid {wallpaper_border}; selection-background-color: {wallpaper_surface}; }}
     QPushButton {{
         background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
@@ -652,7 +833,7 @@ def application_qss(
         background: {wallpaper_surface};
     }}
     QMainWindow {{ background-color: {wallpaper_surface}; }}
-    QWidget#appShell {{ background: transparent; color: {TEXT}; }}
+    QWidget#appShell {{ background: transparent; color: {text_primary}; }}
     QFrame#sidebar {{ background-color: {wallpaper_panel}; border-right-color: {wallpaper_border}; }}
     QFrame#card, QFrame#appHeader {{ background-color: {wallpaper_panel}; border-color: {neon_soft}; }}
     QFrame#upcomingBannersSection, QFrame#upcomingBannerCard, QFrame#upcomingBannerPastCard {{ background-color: {wallpaper_panel}; border-color: {wallpaper_border}; }}
@@ -684,16 +865,16 @@ def application_qss(
         opacity: 1.0;
     }}
     QLabel#title {{ color: {GOLD}; }}
-    QLabel#bannerName, QLabel#skillTitle {{ color: #FFFFFF; }}
-    QLabel#bannerQuote {{ color: #F4EFFF; }}
-    QLabel#bannerSubtitle, QLabel#muted, QLabel#eyebrow {{ color: #E1E5F0; }}
-    QLabel#damageInputLabel, QLabel#damageFormula, QLabel#historyTeamMembers {{ color: #F2F0FF; }}
+    QLabel#bannerName, QLabel#skillTitle {{ color: {text_primary}; }}
+    QLabel#bannerQuote {{ color: {text_secondary}; }}
+    QLabel#bannerSubtitle, QLabel#muted, QLabel#eyebrow {{ color: {text_secondary}; }}
+    QLabel#damageInputLabel, QLabel#damageFormula, QLabel#historyTeamMembers {{ color: {text_primary}; }}
     QTabWidget#mainTabs QLabel {{
-        color: #FFFFFF;
+        color: {text_primary};
         background: transparent;
     }}
     QFrame#topBanner QLabel {{
-        color: #FFFFFF;
+        color: {text_primary};
         background: transparent;
     }}
     QTabWidget#mainTabs QLabel#bannerBadge[element="Aero"] {{ color: #E8FFF8; }}
@@ -708,12 +889,12 @@ def application_qss(
     /* Final adaptive layer: surfaces and interaction states follow the wallpaper. */
     QPushButton {{
         background: {wallpaper_panel};
-        color: {TEXT};
+        color: {text_primary};
         border: 1px solid {wallpaper_border};
     }}
     QPushButton:hover {{
         background: {wallpaper_surface};
-        color: {TEXT};
+        color: {text_primary};
         border: 2px solid {wallpaper_accent};
     }}
     QPushButton:pressed {{
@@ -723,12 +904,38 @@ def application_qss(
     }}
     QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit {{
         background: {wallpaper_panel};
-        color: {TEXT};
+        color: {text_primary};
         border: 1px solid {wallpaper_border};
     }}
     QLineEdit:hover, QComboBox:hover, QSpinBox:hover, QDoubleSpinBox:hover, QTextEdit:hover,
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus, QTextEdit:focus {{
         background: {wallpaper_surface};
+        border: 2px solid {wallpaper_accent};
+    }}
+    QCheckBox {{
+        color: {text_primary};
+        spacing: 10px;
+        font-weight: 700;
+    }}
+    QCheckBox::indicator {{
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 2px solid {wallpaper_border};
+        background: rgba(255, 255, 255, 0.04);
+    }}
+    QCheckBox::indicator:hover {{
+        border: 2px solid {wallpaper_accent};
+        background: rgba(255, 255, 255, 0.08);
+    }}
+    QCheckBox::indicator:checked {{
+        background: transparent;
+        border: 2px solid {selected_accent};
+        image: url("{get_asset_path('checkmark.svg').as_posix()}");
+        image-position: center;
+        qproperty-icon: none;
+    }}
+    QCheckBox::indicator:checked:hover {{
         border: 2px solid {wallpaper_accent};
     }}
     QComboBox QAbstractItemView {{

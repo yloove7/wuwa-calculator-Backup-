@@ -1,0 +1,17 @@
+{
+  "name": "Aemeath",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Aemeath",
+    "description": "Passiva da arma de Aemeath registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Aemeath",
+    "description": "Weapon passive for Aemeath stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

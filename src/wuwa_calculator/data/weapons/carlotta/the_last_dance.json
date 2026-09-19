@@ -1,0 +1,17 @@
+{
+  "name": "Carlotta",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Carlotta",
+    "description": "Passiva da arma de Carlotta registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Carlotta",
+    "description": "Weapon passive for Carlotta stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

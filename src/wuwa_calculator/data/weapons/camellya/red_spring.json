@@ -1,0 +1,17 @@
+{
+  "name": "Camellya",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Camellya",
+    "description": "Passiva da arma de Camellya registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Camellya",
+    "description": "Weapon passive for Camellya stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

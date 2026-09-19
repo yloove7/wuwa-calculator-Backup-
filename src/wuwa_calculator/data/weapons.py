@@ -1,62 +1,177 @@
-""" Weapons database. """
+"""Weapons database."""
 
-# * EDITAVEL: adicione o nome da arma no mapa do personagem e o texto em MANUAL_WEAPONS.
+from __future__ import annotations
 
-_LOCAL_KIT_WEAPON_NAMES = {
-    "aalto": "The Last Dance", "aemeath": "Everbright Polestar", "augusta": "Thunderflare Dominion", "baizhi": "Stellar Symphony",
-    "brant": "Unflickering Valor", "buling": "Stellar Symphony", "calcharo": "Lustrous Razor",
-    "camellya": "Red Spring", "cantarella": "Whispers of Sirens", "carlotta": "The Last Dance",
-    "cartethyia": "Defier's Thorn", "changli": "Blazing Brilliance", "chisa": "Kumokiri",
-    "chixia": "The Last Dance", "ciaccona": "Woodland Aria", "danjin": "Blazing Brilliance",
-    "denia": "Forged Dwarf Star", "encore": "Stringmaster", "galbrena": "Lux Umbra",
-    "hiyuki": "Frostburn", "iuno": "Moongazer's Sigil", "jianxin": "Verity's Handle",
-    "jinhsi": "Ages of Harvest", "jiyan": "Verdant Summit", "jingran": "Thousandfold Deliverance",
-    "lingyang": "Abyss Surges", "lucilla": "Freeze Frame", "lucy": "Spectral Trigger",
-    "lumi": "Lustrous Razor", "lupa": "Wildfire Mark", "luuk herssen": "Daybreaker's Spine",
-    "lynae": "Spectrum Blaster", "mornye": "Starfield Calibrator", "mortefi": "Static Mist",
-    "phrolova": "Lethean Elegy", "phoebe": "Luminous Hymn", "qingxiao": "Glint of Clouds",
-    "qiuyuan": "Signature Weapon", "rebecca": "Skull Thrasher", "roccia": "Tragicomedy",
-    "rover": "Emerald of Genesis", "rover aero": "Emerald of Genesis", "rover electro": "Blazing Brilliance",
-    "rover fusion": "Emerald of Genesis", "rover glacio": "Emerald of Genesis", "rover havoc": "Emerald of Genesis",
-    "rover spectro": "Emerald of Genesis", "sanhua": "Emerald of Genesis", "shorekeeper": "Stellar Symphony",
-    "sigrika": "Solsworn Ciphers", "suisui": "Firstlight's Herald", "taoqi": "Dauntless Evernight", "verina": "Stellar Symphony",
-    "xiangli yao": "Verity's Handle", "xuanling": "Azure Oath", "yangyang": "Jianxin's Signature Weapon",
-    "yangyang xuanling": "Azure Oath", "yinlin": "Stringmaster", "youhu": "Abyss Surges", "yuanwu": "Ages of Harvest", "zani": "Blazing Justice", "zhezhi": "Rime-Draped Sprouts",
-}
-# Manual weapon overrides. Add the verified PT-BR and EN text for each character ID.
-MANUAL_WEAPONS: dict[str, dict[str, any]] = {
-    "suisui": {
-        "name": "Firstlight's Herald",
-        "PT-BR": """ATQ BASE (NV. 90): 412
-REGEN. DE ENERGIA: 76.9%
+import json
+import sys
+from pathlib import Path
+from typing import Any
 
-## PASSIVA
-Coroa de Primavera
+if __package__ is None or __package__ == "":
+    project_root = Path(__file__).resolve().parents[3]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
-O HP Máx. aumenta em 12%. Ao ativar a Liberação da Ressonância, restaura 8 de Energia de Concerto a si mesmo, podendo ser ativado uma vez a cada 20s. Cada vez que aplicar a Esfoladura Criogênica, obtém Mácula de Neve por 6s; cada vez que causar Cura, obtém Marolas por 6s. Se o próprio Ressonante tiver aplicado a Esfoladura Criogênica e causado Cura enquanto estiver em campo, a próxima Habilidade Outro concederá os efeitos Mácula de Neve e Marolas por 6s. Quando o próprio Ressonante possuir Mácula de Neve e Marolas simultaneamente, o ATQ de todos os Ressonantes próximos na equipe aumenta em 20%. Efeitos de mesmo nome não se acumulam.""",
-        "EN": """BASE ATK (LV. 90): 412
-ENERGY REGEN: 76.9%
+from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 
-## PASSIVE
-Crown of Spring
+_DATA_ROOT = Path(__file__).resolve().parent
+_WEAPONS_ROOT = _DATA_ROOT / "weapons"
+_LEGACY_WEAPONS_ROOT = _WEAPONS_ROOT / "Weapons"
+_CHARACTER_ROOT = _DATA_ROOT / "characters"
+_CHARACTER_DATA_ROOT = _CHARACTER_ROOT / "data"
+_CHARACTER_WEAPONS_ROOT = _CHARACTER_ROOT / "Weapons"
 
-Max HP increases by 12%. When Resonance Liberation is activated, restores 8 Concerto Energy to the wielder, which can be triggered once every 20s. Each time Glacio Chafe is applied, gains Snow Taint for 6s; each time healing is dealt, gains Ripples for 6s. If the wielder applies Glacio Chafe and deals healing while on the field, the next Outro Skill grants Snow Taint and Ripples for 6s. When the wielder has both Snow Taint and Ripples, the ATK of nearby team Resonators increases by 20%. Effects with the same name do not stack.""",
-    },
-    "verina": {
-        "name": "Variation",
-        "PT-BR": """ATQ BASE (NV. 90): 412 
-REGEN. DE ENERGIA: 77.0% 
 
-## PASSIVA 
-Ária Incessante
+def _normalize_weapon_id(value: str) -> str:
+    return str(value).strip().replace("_", " ").lower()
 
-Ao lançar a Habilidade de Ressonância, restaura 8 de Energia de Concerto. Este efeito pode ser ativado 1 vez(es) a cada 20s.""",
-        "EN": """BASE ATK (LV. 90): 412 
-ENERGY REGEN: 76.9% 
 
-## PASSIVE 
-Ceaseless Aria
+def _stringify_passive_block(locale_payload: Any, *, locale: str) -> str:
+    if isinstance(locale_payload, str):
+        return locale_payload
 
-When Resonance Skill is cast, restore 8 Concerto Energy. This effect can be triggered 1 time(s) every 20s.""",
-    },
-}
+    if not isinstance(locale_payload, dict):
+        return ""
+
+    base_atk = locale_payload.get("base_atk")
+    if base_atk is None:
+        base_atk = locale_payload.get("base_atk_lv_90") or 412
+
+    energy_regen = locale_payload.get("energy_regen")
+    if energy_regen is None:
+        energy_regen = locale_payload.get("energy_regen_pct") or locale_payload.get("regen") or 76.9
+
+    passive_name = locale_payload.get("passive_name") or locale_payload.get("name") or ""
+    description = locale_payload.get("description") or locale_payload.get("text") or ""
+    effects = locale_payload.get("effects") or []
+
+    if locale == "PT-BR":
+        header_1 = "ATQ BASE (NV. 90):"
+        header_2 = "REGEN. DE ENERGIA:"
+    else:
+        header_1 = "BASE ATK (LV. 90):"
+        header_2 = "ENERGY REGEN:"
+
+    lines: list[str] = [
+        f"{header_1} {base_atk}",
+        f"{header_2} {energy_regen}%",
+        "",
+        str(passive_name),
+        "",
+    ]
+
+    if description:
+        lines.append(str(description))
+
+    for effect in effects:
+        if not effect:
+            continue
+        lines.append("")
+        lines.append(str(effect))
+
+    return "\n".join(lines).strip()
+
+
+def _safe_json_load(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _read_character_weapon_passives() -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+
+    roots = [
+        _WEAPONS_ROOT,
+        _LEGACY_WEAPONS_ROOT,
+        _CHARACTER_WEAPONS_ROOT,
+        _CHARACTER_DATA_ROOT,
+    ]
+
+    for root in roots:
+        if not root.exists():
+            continue
+        for character_dir in sorted(root.iterdir(), key=lambda path: path.name.lower()):
+            if not character_dir.is_dir():
+                continue
+
+            json_files = sorted(
+                [path for path in character_dir.iterdir() if path.is_file() and path.suffix.lower() == ".json"],
+                key=lambda path: path.name.lower(),
+            )
+            if not json_files:
+                continue
+
+            payload = None
+            for json_path in json_files:
+                candidate = _safe_json_load(json_path)
+                if candidate:
+                    payload = candidate
+                    break
+
+            if not payload:
+                continue
+
+            weapon_id = _normalize_weapon_id(character_dir.name)
+            name_value = str(payload.get("name") or payload.get("weapon_name") or "").strip()
+            pt_br_value = payload.get("PT-BR") or payload.get("pt_br") or payload.get("description") or payload.get("passive") or ""
+            en_value = payload.get("EN") or payload.get("en") or payload.get("description") or payload.get("passive") or ""
+            candidate = {
+                "name": name_value,
+                "PT-BR": _stringify_passive_block(pt_br_value, locale="PT-BR"),
+                "EN": _stringify_passive_block(en_value, locale="EN"),
+            }
+            if not candidate["name"] and not candidate["PT-BR"] and not candidate["EN"]:
+                continue
+            existing = result.get(weapon_id)
+            if existing and (existing.get("name") or existing.get("PT-BR") or existing.get("EN")):
+                continue
+            result[weapon_id] = candidate
+    return result
+
+
+def _read_registry_from_disk() -> dict[str, Any]:
+    registry_path = _WEAPONS_ROOT / "registry.json"
+    if not registry_path.exists():
+        return {}
+    payload = _safe_json_load(registry_path)
+    if not isinstance(payload, dict):
+        return {}
+    return payload
+
+
+def _read_passives_from_disk() -> dict[str, dict[str, str]]:
+    result: dict[str, dict[str, str]] = {}
+    result.update(_read_character_weapon_passives())
+    return result
+
+
+def _build_weapon_name_map() -> dict[str, str]:
+    registry = _read_passives_from_disk()
+    name_map: dict[str, str] = {}
+    for weapon_id, values in registry.items():
+        weapon_name = str(values.get("name") or "").strip()
+        if weapon_name:
+            name_map[str(weapon_id)] = weapon_name
+    return name_map
+
+
+_LOCAL_KIT_WEAPON_NAMES: dict[str, str] = _build_weapon_name_map()
+
+
+def resolve_weapon_fallback(character_id: str, default: str = "") -> str:
+    fallback = CHARACTER_IMAGE_FALLBACKS.get(character_id, {})
+    if isinstance(fallback, dict):
+        weapon_value = fallback.get("weapon")
+        if weapon_value:
+            return str(weapon_value)
+    return default
+
+
+MANUAL_WEAPONS: dict[str, dict[str, Any]] = _read_passives_from_disk()
+WEAPON_REGISTRY: dict[str, Any] = _read_registry_from_disk()

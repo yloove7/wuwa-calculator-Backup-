@@ -1,0 +1,17 @@
+{
+  "name": "Freeze Frame",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Quadro Congelado",
+    "description": "Passiva da arma de Lucilla registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Freeze Frame",
+    "description": "Weapon passive for Lucilla stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

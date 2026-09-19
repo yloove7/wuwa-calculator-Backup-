@@ -1,0 +1,17 @@
+{
+  "name": "Buling",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Buling",
+    "description": "Passiva da arma de Buling registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Buling",
+    "description": "Weapon passive for Buling stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

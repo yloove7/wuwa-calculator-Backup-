@@ -1,0 +1,17 @@
+{
+  "name": "Hiyuki",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Hiyuki",
+    "description": "Passiva da arma de Hiyuki registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Hiyuki",
+    "description": "Weapon passive for Hiyuki stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

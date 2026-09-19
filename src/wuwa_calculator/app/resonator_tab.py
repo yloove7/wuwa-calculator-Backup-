@@ -168,11 +168,17 @@ class ResonatorTab(QWidget):
 
         weapon = QWidget()
         weapon_layout = QVBoxLayout(weapon)
+        weapon_layout.setContentsMargins(12, 12, 12, 12)
+        weapon_layout.setSpacing(10)
         self.weapon_name = QLabel("--")
-        self.weapon_name.setObjectName("metricValue")
+        self.weapon_name.setObjectName("weaponInfoTitle")
+        self.weapon_name.setWordWrap(True)
+        self.weapon_name.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.weapon_text = QLabel("--")
+        self.weapon_text.setObjectName("weaponInfoText")
         self.weapon_text.setWordWrap(True)
         self.weapon_text.setTextFormat(Qt.TextFormat.RichText)
+        self.weapon_text.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.weapon_passive_text = ""
         language_row = QHBoxLayout()
         language_row.addWidget(QLabel("Idioma"))
@@ -181,15 +187,21 @@ class ResonatorTab(QWidget):
         language_row.addWidget(self.language_box)
         language_row.addStretch(1)
         weapon_layout.addLayout(language_row)
-        weapon_layout.addWidget(self.weapon_name)
         self.weapon_image = QLabel("Sem imagem")
         self.weapon_image.setObjectName("portrait")
         self.weapon_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.weapon_image.setMinimumSize(0, 0)
         self.weapon_image.setMaximumSize(320, 220)
         self.weapon_image.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        weapon_layout.addWidget(self.weapon_image)
-        weapon_layout.addWidget(self.weapon_text)
+        weapon_info = QFrame()
+        weapon_info.setObjectName("weaponInfoCard")
+        weapon_info_layout = QVBoxLayout(weapon_info)
+        weapon_info_layout.setContentsMargins(10, 10, 10, 10)
+        weapon_info_layout.setSpacing(6)
+        weapon_info_layout.addWidget(self.weapon_name)
+        weapon_info_layout.addWidget(self.weapon_text)
+        weapon_layout.addWidget(self.weapon_image, 0, Qt.AlignmentFlag.AlignHCenter)
+        weapon_layout.addWidget(weapon_info)
         weapon_layout.addStretch(1)
         self.controls.addTab(weapon, "Arma ativa")
         supports = QWidget()
@@ -709,7 +721,7 @@ class ResonatorTab(QWidget):
     @classmethod
     def _format_skill_description(cls, text: str) -> str:
         """Converte descricoes longas em linhas HTML compactas e destacadas."""
-        if re.search(r"<(?:font|b|i|br)\b", text, re.IGNORECASE):
+        if re.search(r"<(?:font|b|i|br|div)\b", text, re.IGNORECASE):
             return text
         paragraphs = [
             " ".join(line.strip() for line in paragraph.splitlines())
@@ -730,7 +742,9 @@ class ResonatorTab(QWidget):
                 escaped,
                 flags=re.IGNORECASE,
             )
-            formatted.append(f"• {escaped}<br>")
+            sentences = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ])", escaped)
+            sentence_html = "<br>".join(f"{sentence.strip()}" for sentence in sentences if sentence.strip())
+            formatted.append(f"<div style='margin-top: 6px;'>• {sentence_html}</div>")
         return "".join(formatted)
 
     def _render_weapon(self, manual: dict[str, Any], kit: dict[str, Any]) -> None:
@@ -739,7 +753,18 @@ class ResonatorTab(QWidget):
         else:
             text = str(kit.get("weapon_passive", "Passiva não cadastrada"))
         self.weapon_passive_text = self._clean_display_text(text)
-        self.weapon_text.setText(self._styled_text(text))
+        formatted = self._format_skill_description(text)
+        self.weapon_text.setText(formatted)
+        current_element = self.element_box.currentText()
+        element_color = {
+            "Aero": "#72E6C0",
+            "Glacio": "#82D8FF",
+            "Electro": "#B78CFF",
+            "Fusion": "#FF8A65",
+            "Havoc": "#E85D75",
+            "Spectro": "#FFD76A",
+        }.get(current_element, "#D9B56D")
+        self.weapon_name.setStyleSheet(f"color: {element_color};")
 
     def _render_kit(self, kit: dict[str, Any]) -> None:
         while self.kit_layout.count():

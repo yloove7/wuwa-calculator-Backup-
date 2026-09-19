@@ -1,0 +1,17 @@
+{
+  "name": "Galbrena",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Galbrena",
+    "description": "Passiva da arma de Galbrena registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Galbrena",
+    "description": "Weapon passive for Galbrena stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

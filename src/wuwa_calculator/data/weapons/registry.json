@@ -1,12 +1,192 @@
 {
+  "version": 1,
+  "source": "per_character_weapon_passives",
+  "characters": {
+    "aalto": {
+      "weapon_passive": "aalto/the_last_dance.json"
+    },
+    "aemeath": {
+      "weapon_passive": "aemeath/everbright_polestar.json"
+    },
+    "augusta": {
+      "weapon_passive": "augusta/thunderflare_dominion.json"
+    },
+    "baizhi": {
+      "weapon_passive": "baizhi/stellar_symphony.json"
+    },
+    "brant": {
+      "weapon_passive": "brant/unflickering_valor.json"
+    },
+    "buling": {
+      "weapon_passive": "buling/stellar_symphony.json"
+    },
+    "calcharo": {
+      "weapon_passive": "calcharo/lustrous_razor.json"
+    },
+    "camellya": {
+      "weapon_passive": "camellya/red_spring.json"
+    },
+    "cantarella": {
+      "weapon_passive": "cantarella/whispers_of_sirens.json"
+    },
+    "carlotta": {
+      "weapon_passive": "carlotta/the_last_dance.json"
+    },
+    "cartethyia": {
+      "weapon_passive": "cartethyia/defier_s_thorn.json"
+    },
+    "changli": {
+      "weapon_passive": "changli/blazing_brilliance.json"
+    },
+    "chisa": {
+      "weapon_passive": "chisa/kumokiri.json"
+    },
+    "chixia": {
+      "weapon_passive": "chixia/the_last_dance.json"
+    },
+    "ciaccona": {
+      "weapon_passive": "ciaccona/woodland_aria.json"
+    },
+    "danjin": {
+      "weapon_passive": "danjin/blazing_brilliance.json"
+    },
+    "denia": {
+      "weapon_passive": "denia/forged_dwarf_star.json"
+    },
+    "encore": {
+      "weapon_passive": "encore/string_master.json"
+    },
+    "galbrena": {
+      "weapon_passive": "galbrena/lux_umbra.json"
+    },
+    "hiyuki": {
+      "weapon_passive": "hiyuki/frost_burn.json"
+    },
+    "iuno": {
+      "weapon_passive": "iuno/moon_gazer_sigil.json"
+    },
+    "jianxin": {
+      "weapon_passive": "jianxin/verity_s_handle.json"
+    },
+    "jingran": {
+      "weapon_passive": "jingran/thousandfold_deliverance.json"
+    },
+    "jinhsi": {
+      "weapon_passive": "jinhsi/ages_of_harvest.json"
+    },
+    "jiyan": {
+      "weapon_passive": "jiyan/verdant_summit.json"
+    },
+    "lingyang": {
+      "weapon_passive": "lingyang/abyss_surges.json"
+    },
+    "lucilla": {
+      "weapon_passive": "lucilla/freeze_frame.json"
+    },
+    "lucy": {
+      "weapon_passive": "lucy/spectral_trigger.json"
+    },
+    "lumi": {
+      "weapon_passive": "lumi/lustrous_razor.json"
+    },
+    "lupa": {
+      "weapon_passive": "lupa/wildfire_mark.json"
+    },
+    "luuk herssen": {
+      "weapon_passive": "luuk herssen/daybreakers_spine.json"
+    },
+    "lynae": {
+      "weapon_passive": "lynae/spectrum_blaster.json"
+    },
+    "mornye": {
+      "weapon_passive": "mornye/starfield_calibrator.json"
+    },
+    "mortefi": {
+      "weapon_passive": "mortefi/static_mist.json"
+    },
+    "phoebe": {
+      "weapon_passive": "phoebe/luminous_hymn.json"
+    },
+    "phrolova": {
+      "weapon_passive": "phrolova/lethean_elegy.json"
+    },
+    "qingxiao": {
+      "weapon_passive": "qingxiao/glint_of_clouds.json"
+    },
+    "qiuyuan": {
+      "weapon_passive": "qiuyuan/emerald_sentence.json"
+    },
+    "rebecca": {
+      "weapon_passive": "rebecca/skull_thrasher.json"
+    },
+    "roccia": {
+      "weapon_passive": "roccia/tragic_comedy.json"
+    },
+    "rover": {
+      "weapon_passive": "rover/emerald_of_genesis.json"
+    },
+    "rover aero": {
+      "weapon_passive": "rover aero/emerald_of_genesis.json"
+    },
+    "rover electro": {
+      "weapon_passive": "rover electro/blazing_brilliance.json"
+    },
+    "rover fusion": {
+      "weapon_passive": "rover fusion/emerald_of_genesis.json"
+    },
+    "rover glacio": {
+      "weapon_passive": "rover glacio/emerald_of_genesis.json"
+    },
+    "rover havoc": {
+      "weapon_passive": "rover havoc/emerald_of_genesis.json"
+    },
+    "rover spectro": {
+      "weapon_passive": "rover spectro/emerald_of_genesis.json"
+    },
+    "sanhua": {
+      "weapon_passive": "sanhua/emerald_of_genesis.json"
+    },
+    "shorekeeper": {
+      "weapon_passive": "shorekeeper/stellar_symphony.json"
+    },
+    "sigrika": {
+      "weapon_passive": "sigrika/sols_worn_ciphers.json"
+    },
     "suisui": {
-        "name": "Firstlight's Herald",
-        "PT-BR": "ATQ BASE (NV. 90): 412\nREGEN. DE ENERGIA: 76.9%\n\n## PASSIVA\nCoroa de Primavera\n\nO HP Máx. aumenta em 12%. Ao ativar a Liberação da Ressonância, restaura 8 de Energia de Concerto a si mesmo, podendo ser ativado uma vez a cada 20s. Cada vez que aplicar a Esfoladura Criogênica, obtém Mácula de Neve por 6s; cada vez que causar Cura, obtém Marolas por 6s. Se o próprio Ressonante tiver aplicado a Esfoladura Criogênica e causado Cura enquanto estiver em campo, a próxima Habilidade Outro concederá os efeitos Mácula de Neve e Marolas por 6s. Quando o próprio Ressonante possuir Mácula de Neve e Marolas simultaneamente, o ATQ de todos os Ressonantes próximos na equipe aumenta em 20%. Efeitos de mesmo nome não se acumulam.",
-        "EN": "BASE ATK (LV. 90): 412\nENERGY REGEN: 76.9%\n\n## PASSIVE\nCrown of Spring\n\nMax HP increases by 12%. When Resonance Liberation is activated, restores 8 Concerto Energy to the wielder, which can be triggered once every 20s. Each time Glacio Chafe is applied, gains Snow Taint for 6s; each time healing is dealt, gains Ripples for 6s. If the wielder applies Glacio Chafe and deals healing while on the field, the next Outro Skill grants Snow Taint and Ripples for 6s. When the wielder has both Snow Taint and Ripples, the ATK of nearby team Resonators increases by 20%. Effects with the same name do not stack."
+      "weapon_passive": "suisui/firstlights_herald.json"
+    },
+    "taoqi": {
+      "weapon_passive": "taoqi/dauntless_evernight.json"
     },
     "verina": {
-        "name": "Variation",
-        "PT-BR": "ATQ BASE (NV. 90): 412 \nREGEN. DE ENERGIA: 77.0% \n\n## PASSIVA \nÁria Incessante\n\nAo lançar a Habilidade de Ressonância, restaura 8 de Energia de Concerto. Este efeito pode ser ativado 1 vez(es) a cada 20s.",
-        "EN": "BASE ATK (LV. 90): 412 \nENERGY REGEN: 76.9% \n\n## PASSIVE \nCeaseless Aria\n\nWhen Resonance Skill is cast, restore 8 Concerto Energy. This effect can be triggered 1 time(s) every 20s."
+      "weapon_passive": "verina/stellar_symphony.json"
+    },
+    "xiangli yao": {
+      "weapon_passive": "xiangli yao/verity_s_handle.json"
+    },
+    "xuanling": {
+      "weapon_passive": "xuanling/azure_oath.json"
+    },
+    "yangyang": {
+      "weapon_passive": "yangyang/emerald_of_genesis.json"
+    },
+    "yangyang xuanling": {
+      "weapon_passive": "yangyang xuanling/azure_oath.json"
+    },
+    "yinlin": {
+      "weapon_passive": "yinlin/string_master.json"
+    },
+    "youhu": {
+      "weapon_passive": "youhu/abyss_surges.json"
+    },
+    "yuanwu": {
+      "weapon_passive": "yuanwu/ages_of_harvest.json"
+    },
+    "zani": {
+      "weapon_passive": "zani/blazing_justice.json"
+    },
+    "zhezhi": {
+      "weapon_passive": "zhezhi/rime_draped_sprouts.json"
     }
+  }
 }

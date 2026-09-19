@@ -1,0 +1,17 @@
+{
+  "name": "Lupa",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lupa",
+    "description": "Passiva da arma de Lupa registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lupa",
+    "description": "Weapon passive for Lupa stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

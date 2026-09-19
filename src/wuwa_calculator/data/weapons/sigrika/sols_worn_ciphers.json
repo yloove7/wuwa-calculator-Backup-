@@ -1,0 +1,17 @@
+{
+  "name": "Sigrika",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Sigrika",
+    "description": "Passiva da arma de Sigrika registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Sigrika",
+    "description": "Weapon passive for Sigrika stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

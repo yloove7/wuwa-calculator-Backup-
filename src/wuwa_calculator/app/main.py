@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QFormLayout, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
     QGridLayout, QHBoxLayout, QFileDialog,
     QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPushButton, QSlider, QTabWidget, QToolButton, QVBoxLayout,
+    QPushButton, QScrollArea, QSlider, QTabWidget, QToolButton, QVBoxLayout,
     QWidget,
     QMenu,
 )
@@ -133,18 +133,26 @@ class SettingsTab(QWidget):
 
         self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
         self.opacity_slider.setRange(50, 100)
+        self.opacity_slider.setSingleStep(1)
+        self.opacity_slider.setPageStep(1)
+        self.opacity_slider.setTracking(False)
         self.opacity_slider.setValue(85)
         self.opacity_slider.setToolTip("Opacidade dos painéis e cards")
         appearance_form.addRow("Opacidade da interface", self.opacity_slider)
 
         self.accent_box = QComboBox()
         self.accent_box.addItems([
-            "Auto Wallpaper", "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta",
+            "Auto Wallpaper",
+            "Ciano Tethys", "Dourado Sol", "Roxo Nécro", "Vermelho Alerta",
             "Verde Aurora", "Azul Abissal", "Rosa Prisma", "Laranja Solar",
             "Turquesa Maré", "Lima Resonância", "Gelo Lunar", "Âmbar Nebulosa",
             "Coral Resonante", "Índigo Profundo", "Prata Sônica", "Verde Vórtice",
         ])
         appearance_form.addRow("Cor do tema", self.accent_box)
+
+        self.language_box = QComboBox()
+        self.language_box.addItems(["PT-BR", "EN"])
+        appearance_form.addRow("Idioma do app", self.language_box)
 
         self.confirm_exit_box = QCheckBox(
             "Confirmar antes de fechar o programa")
@@ -181,6 +189,30 @@ class SettingsTab(QWidget):
         wallpaper_layout.addLayout(wallpaper_actions)
         layout.addWidget(wallpaper_card)
 
+        session_card = Card()
+        session_layout = QVBoxLayout(session_card)
+        session_layout.setContentsMargins(20, 20, 20, 20)
+        session_layout.addWidget(TitleLabel("Sessão e desempenho"))
+
+        self.auto_open_last_box = QCheckBox("Abrir o último personagem ao iniciar")
+        self.auto_save_box = QCheckBox("Salvar sessão automaticamente")
+        self.performance_mode_box = QCheckBox("Modo leve / reduzir efeitos visuais")
+
+        session_layout.addWidget(self.auto_open_last_box)
+        session_layout.addWidget(self.auto_save_box)
+        session_layout.addWidget(self.performance_mode_box)
+
+        session_actions = QHBoxLayout()
+        clear_cache_button = QPushButton("Limpar cache")
+        clear_cache_button.clicked.connect(self._clear_cache)
+        clear_history_button = QPushButton("Limpar histórico")
+        clear_history_button.clicked.connect(self._clear_history)
+        session_actions.addWidget(clear_cache_button)
+        session_actions.addWidget(clear_history_button)
+        session_actions.addStretch(1)
+        session_layout.addLayout(session_actions)
+        layout.addWidget(session_card)
+
         data_card = Card()
         data_layout = QVBoxLayout(data_card)
         data_layout.setContentsMargins(20, 20, 20, 20)
@@ -205,6 +237,10 @@ class SettingsTab(QWidget):
         self.background_box.toggled.connect(self._background_changed)
         self.opacity_slider.valueChanged.connect(self._interface_opacity_changed)
         self.accent_box.currentTextChanged.connect(self._accent_changed)
+        self.language_box.currentTextChanged.connect(self._language_changed)
+        self.auto_open_last_box.toggled.connect(self._auto_open_last_changed)
+        self.auto_save_box.toggled.connect(self._auto_save_changed)
+        self.performance_mode_box.toggled.connect(self._performance_mode_changed)
         self.confirm_exit_box.toggled.connect(self._confirm_exit_changed)
         self._load_preferences()
 
@@ -219,8 +255,22 @@ class SettingsTab(QWidget):
 
         self.opacity_slider.setValue(settings.value("interface_opacity", 85, type=int))
         accent = settings.value("accent_theme", "Auto Wallpaper", type=str)
+        if accent in {"Modo claro", "Modo escuro"}:
+            accent = "Auto Wallpaper"
         index = self.accent_box.findText(accent)
         self.accent_box.setCurrentIndex(max(0, index))
+        self.language_box.setCurrentText(
+            settings.value("ui_language", "PT-BR", type=str)
+        )
+        self.auto_open_last_box.setChecked(
+            settings.value("auto_open_last_character", True, type=bool)
+        )
+        self.auto_save_box.setChecked(
+            settings.value("auto_save_session", True, type=bool)
+        )
+        self.performance_mode_box.setChecked(
+            settings.value("performance_mode", False, type=bool)
+        )
         self.confirm_exit_box.setChecked(
             settings.value("confirm_exit", True, type=bool))
 
@@ -272,11 +322,16 @@ class SettingsTab(QWidget):
             window.apply_preferences()
 
     def _set_wallpaper_label(self, wallpaper: str) -> None:
-        self.wallpaper_label.setText(
-            f"Wallpaper atual: {wallpaper}"
-            if wallpaper
-            else "Wallpaper atual: app_background_reference.png"
-        )
+        label_text = "app_background_reference.png"
+        if wallpaper:
+            cleaned = wallpaper.strip()
+            if cleaned.startswith("file://"):
+                parsed = QUrl(cleaned)
+                local_path = parsed.toLocalFile()
+                label_text = Path(local_path).name or cleaned
+            else:
+                label_text = Path(cleaned).name or cleaned
+        self.wallpaper_label.setText(f"Wallpaper atual: {label_text}")
 
     def _background_changed(self, enabled: bool) -> None:
         self.preferences.setValue("background", enabled)
@@ -296,8 +351,41 @@ class SettingsTab(QWidget):
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
+    def _language_changed(self, language: str) -> None:
+        self.preferences.setValue("ui_language", language)
+        window = self.host or self.window()
+        if isinstance(window, WuwaQtWindow):
+            window.apply_preferences()
+
+    def _auto_open_last_changed(self, enabled: bool) -> None:
+        self.preferences.setValue("auto_open_last_character", enabled)
+
+    def _auto_save_changed(self, enabled: bool) -> None:
+        self.preferences.setValue("auto_save_session", enabled)
+
+    def _performance_mode_changed(self, enabled: bool) -> None:
+        self.preferences.setValue("performance_mode", enabled)
+        window = self.host or self.window()
+        if isinstance(window, WuwaQtWindow):
+            window.apply_preferences()
+
     def _confirm_exit_changed(self, enabled: bool) -> None:
         self.preferences.setValue("confirm_exit", enabled)
+
+    def _clear_cache(self) -> None:
+        from src.wuwa_calculator.storage.banner_cache import CACHE_FILE as BANNER_CACHE_FILE
+        for path in (BANNER_CACHE_FILE, Path(self.preferences.fileName()).parent / "current_banner.json"):
+            try:
+                if path.exists():
+                    path.unlink()
+            except OSError:
+                pass
+        QMessageBox.information(self, "Cache limpo", "O cache de banner foi removido.")
+
+    def _clear_history(self) -> None:
+        from src.wuwa_calculator.storage.history_storage import ROTATION_HISTORY_FILE, save_rotation_document, empty_rotation_document
+        save_rotation_document(empty_rotation_document(), ROTATION_HISTORY_FILE)
+        QMessageBox.information(self, "Histórico limpo", "O histórico de rotações foi resetado.")
 
     def _clear_characters(self) -> None:
         window = self.host or self.window()
@@ -324,6 +412,10 @@ class SettingsTab(QWidget):
         self.background_box.setChecked(True)
         self.opacity_slider.setValue(85)
         self.accent_box.setCurrentText("Auto Wallpaper")
+        self.language_box.setCurrentText("PT-BR")
+        self.auto_open_last_box.setChecked(True)
+        self.auto_save_box.setChecked(True)
+        self.performance_mode_box.setChecked(False)
         self.confirm_exit_box.setChecked(True)
         self._reset_wallpaper()
         window = self.host or self.window()
@@ -336,10 +428,23 @@ class SettingsDialog(QDialog):
         super().__init__(host)
         self.setWindowTitle("Configurações | Tethys")
         self.setModal(True)
-        self.setMinimumSize(760, 620)
+        self.resize(820, 540)
+        self.setMinimumSize(720, 420)
+        self.setMaximumHeight(620)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-        layout.addWidget(SettingsTab(self, host=host), 1)
+        layout.setSpacing(10)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        settings_tab = SettingsTab(self, host=host)
+        scroll.setWidget(settings_tab)
+        layout.addWidget(scroll, 1)
+
         close_button = QPushButton("Fechar")
         close_button.clicked.connect(self.accept)
         layout.addWidget(close_button, 0, Qt.AlignmentFlag.AlignRight)
@@ -814,6 +919,22 @@ class WuwaQtWindow(QMainWindow):
             self.open_character_tab)
         self.import_button.clicked.connect(self.open_import_dialog)
         self.apply_preferences()
+        self._restore_last_session()
+
+    def _restore_last_session(self) -> None:
+        if not self.preferences.value("auto_open_last_character", True, type=bool):
+            return
+        last_character = self.preferences.value("last_character", "", type=str)
+        if not last_character:
+            return
+        normalized = self._normalize_character_id(last_character)
+        if not normalized:
+            return
+        for candidate in KNOWN_CHARACTER_IDS:
+            if self._normalize_character_id(candidate) == normalized:
+                self.character_id_entry.setText(candidate)
+                self.open_character_tab()
+                break
 
     def apply_preferences(self) -> None:
         self.preferences.sync()
@@ -821,7 +942,11 @@ class WuwaQtWindow(QMainWindow):
         wallpaper = self.preferences.value("wallpaper", "", type=str)
         interface_opacity = self.preferences.value("interface_opacity", 85, type=int)
         accent_theme = self.preferences.value("accent_theme", "Auto Wallpaper", type=str)
+        performance_mode = self.preferences.value("performance_mode", False, type=bool)
         app = QApplication.instance()
+
+        palette = wallpaper_palette(wallpaper if background else "")
+        effective_accent = palette[3] if accent_theme == "Auto Wallpaper" else accent_preset(accent_theme)
 
         if app is not None:
             app.setStyleSheet(application_qss(
@@ -834,10 +959,10 @@ class WuwaQtWindow(QMainWindow):
             apply_palette = getattr(widget, "apply_wallpaper_palette", None)
             if callable(apply_palette):
                 apply_palette(
-                    *wallpaper_palette(wallpaper if background else ""),
-                    accent_preset(accent_theme),
+                    *palette,
+                    theme_accent=effective_accent,
                 )
-        refresh_glows(self)
+        refresh_glows(self, performance_mode=performance_mode)
         self._update_background(background, wallpaper)
 
     def _update_background(self, enabled: bool, wallpaper: str) -> None:
@@ -1143,6 +1268,9 @@ class WuwaQtWindow(QMainWindow):
             )
 
         self.tabs.setCurrentWidget(character_tab)
+        if self.preferences.value("auto_save_session", True, type=bool):
+            self.preferences.setValue("last_character", character_id)
+            self.preferences.sync()
         self._set_sidebar_active(
             f"{self._element_icon(CHARACTER_ELEMENTS.get(character_id))}   {character_id.title()}")
         self.character_status.clear()

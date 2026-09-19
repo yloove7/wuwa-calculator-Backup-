@@ -7,7 +7,7 @@
 # por certificado TLS expirado; as URLs foram preservadas intencionalmente.
 
 CHARACTER_IMAGE_FALLBACKS = {
-    "suisui": {"char":"https://rackoon.com.br/images/wuwa/resonators/suisui-sprite-sm.webp","weapon":"https://i.imgur.com/r7ChV8Y.png"},
+    "suisui": {"char":"https://rackoon.com.br/images/wuwa/resonators/suisui-sprite-sm.webp","weapon":"https://rackoon.com.br/images/wuwa/weapons-items/firstlight-s-herald.webp"},
     "lucilla": {"char": "https://rackoon.com.br/images/wuwa/resonators/lucilla-sprite-sm.webp", "weapon": "https://wuwalab.com/images/weapons/freezeframe.webp"},
     "xuanling": {"char": "https://rackoon.com.br/images/wuwa/resonators/yangyang-xuanling-sprite-sm.webp", "weapon": "https://wuwalab.com/images/weapons/azureoath.webp"},
     "lucy": {"char": "https://rackoon.com.br/images/wuwa/resonators/lucy-sprite-sm.webp", "weapon": "https://wuwalab.com/images/weapons/spectraltrigger.webp"},
