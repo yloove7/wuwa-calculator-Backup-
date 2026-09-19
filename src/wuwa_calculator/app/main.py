@@ -845,17 +845,29 @@ class WuwaQtWindow(QMainWindow):
             from src.wuwa_calculator.app.multimedia_tab import MultimediaTab
             return MultimediaTab()
 
+        def build_obs_test() -> QWidget:
+            from src.wuwa_calculator.app.obs_test_tab import ObsTestTab
+            return ObsTestTab()
+
         self._tab_factories = (
             build_home,
             build_teams,
             build_history,
             build_multimedia,
+            build_obs_test,
             lambda: PlaceholderTab(
                 "Fontes de dados",
                 "Tela preparada para exibir fontes, "
                 "cache e estado das integrações."),
         )
-        self._tab_titles = ("Banners", "Teams", "Histórico", "Mapeamento de Frequências", "Fontes de dados")
+        self._tab_titles = (
+            "Banners",
+            "Teams",
+            "Histórico",
+            "Mapeamento de Frequências",
+            "OBS Teste",
+            "Fontes de dados",
+        )
         self._tab_widgets: dict[int, QWidget] = {}
         self._active_main_index: int | None = None
         self.tabs = tabs
@@ -865,6 +877,13 @@ class WuwaQtWindow(QMainWindow):
         tabs.removeTab(3)
         tabs.insertTab(3, multimedia_tab, self._tab_titles[3])
         self._tab_widgets[3] = multimedia_tab
+        obs_test_tab = build_obs_test()
+        tabs.removeTab(4)
+        tabs.insertTab(4, obs_test_tab, self._tab_titles[4])
+        self._tab_widgets[4] = obs_test_tab
+        obs_test_tab.settingsChanged.connect(
+            multimedia_tab.dps_panel.set_capture_settings
+        )
         tabs.currentChanged.connect(self._handle_main_tab_changed)
         self._handle_main_tab_changed(0)
 
@@ -887,7 +906,8 @@ class WuwaQtWindow(QMainWindow):
         for index, label in enumerate(("⌂   Banners",
                                        "♣   Teams",
                                        "◷   Histórico",
-                                       "⌁   Frequências")):
+                                       "⌁   Frequências",
+                                       "▣   OBS Teste")):
             self._add_sidebar_button(self.sidebar_layout, label, index)
         self.sidebar_layout.addSpacing(10)
         self.character_sidebar_layout = QVBoxLayout()
@@ -1015,6 +1035,9 @@ class WuwaQtWindow(QMainWindow):
             ):
                 event.ignore()
                 return
+        multimedia_tab = self.tabs.widget(3) if hasattr(self, "tabs") else None
+        if multimedia_tab is not None and hasattr(multimedia_tab, "dps_panel"):
+            multimedia_tab.dps_panel._stop_live_analysis()
         event.accept()
 
     def _add_sidebar_button(

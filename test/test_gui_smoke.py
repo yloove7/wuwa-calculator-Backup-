@@ -9,8 +9,8 @@ try:
     from PySide6.QtGui import QImage
     from PySide6.QtWidgets import QApplication, QLabel
     from src.wuwa_calculator.app.components import WuWaKuroBannerCard
+    from src.wuwa_calculator.app.capture.worker import WorkerCapturaNativa
     from src.wuwa_calculator.app.dps_simulation_panel import (
-        WorkerCapturaNativa,
         CombatFrameGate,
         CombatStateMachine,
         DamageDetectionTracker,
@@ -112,10 +112,27 @@ class GuiSmokeTests(unittest.TestCase):
         tracker.expire(2.0)
         self.assertTrue(tracker.accept(400, 300, 20, 20, 2.0))
 
+    def test_damage_event_tracker_confirms_and_deduplicates_hits(self) -> None:
+        from src.wuwa_calculator.app.capture.damage_events import DamageEventTracker
+
+        tracker = DamageEventTracker()
+        candidate = (1520, 640, 360, 42, 18, 0.22, 0.76)
+        self.assertEqual(tracker.update([candidate], 0.0), [])
+        self.assertEqual(tracker.update([candidate], 0.08), [candidate])
+        self.assertEqual(tracker.update([candidate], 0.16), [])
+
+    def test_damage_event_tracker_keeps_close_different_values_separate(self) -> None:
+        from src.wuwa_calculator.app.capture.damage_events import DamageEventTracker
+
+        tracker = DamageEventTracker()
+        first = (1200, 600, 360, 32, 16, 0.30, 0.94)
+        second = (850, 628, 362, 30, 16, 0.30, 0.94)
+        self.assertEqual(tracker.update([first, second], 0.0), [first, second])
+
     def test_combat_gate_blocks_black_and_static_frames(self) -> None:
         import numpy as np
 
-        self.assertEqual(LiveDamageAnalysisWorker._combat_roi(1000, 1000), (150, 900, 150, 850))
+        self.assertEqual(LiveDamageAnalysisWorker._combat_roi(1000, 1000), (150, 900, 30, 970))
         gate = CombatFrameGate()
         black_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         self.assertFalse(gate.allow(black_frame, 0.0))

@@ -291,6 +291,7 @@ class MultimediaTab(QWidget):
         layout.addWidget(self.dps_panel, 2)
 
     def closeEvent(self, event) -> None:
+        self.dps_panel._stop_live_analysis()
         self.video_player.stop_video()
         super().closeEvent(event)
 

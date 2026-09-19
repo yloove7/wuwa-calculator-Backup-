@@ -23,6 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from src.wuwa_calculator.app.components import Card
+from src.wuwa_calculator.app.capture.controller import FrameProcessor
+from src.wuwa_calculator.app.capture.damage_events import DamageEventTracker
+from src.wuwa_calculator.app.capture.settings import CaptureSettings
 
 
 ANALYSIS_BUCKET_SECONDS = 5.0
@@ -31,7 +34,7 @@ MIN_INACTIVITY_ANALYSIS_SECONDS = 15.0
 OCR_SAMPLE_FPS = 15.0
 DEFAULT_PREVIEW_FPS = 60.0
 MAX_PREVIEW_FPS = 240.0
-COMBAT_ROI = (0.15, 0.90, 0.15, 0.85)
+COMBAT_ROI = (0.15, 0.90, 0.03, 0.97)
 MAX_DAMAGE_VALUE = 10_000_000
 MAP_ROI = (0.05, 0.15, 0.02, 0.20)
 PALAVRAS_IGNORADAS = ("PHYSX", "CPU", "GPU", "FPS", "MSI", "NVIDIA", "RAM", "MS")
@@ -987,7 +990,7 @@ class LiveDamageAnalysisWorker(QObject):
                     continue
                 detection_tracker.expire(target)
                 fresh_values = []
-                for value, center_x, center_y, item_width, item_height, color_score in values:
+                for value, center_x, center_y, item_width, item_height, color_score, _confidence in values:
                     if combat_confirmed and learned_profile is not None:
                         learned_width, learned_height, learned_color = learned_profile
                         size_match = (
@@ -1067,7 +1070,7 @@ class LiveDamageAnalysisWorker(QObject):
         )
 
     @staticmethod
-    def _read_values(frame, ocr: Any) -> list[tuple[int, int, int, int, int, float]]:
+    def _read_values(frame, ocr: Any) -> list[tuple[int, int, int, int, int, float, float]]:
         import cv2
 
         height, width = frame.shape[:2]
@@ -1102,11 +1105,13 @@ class LiveDamageAnalysisWorker(QObject):
                 continue
             box, text, confidence = item
             raw_text = str(text).strip()
-            if not re.fullmatch(r"\d+", raw_text):
+            digits = re.sub(r"[^0-9]", "", raw_text)
+            if not digits or len(digits) > 8:
                 continue
-            if len(raw_text) > 8 or float(confidence) < 0.80:
+            ocr_confidence = float(confidence)
+            if ocr_confidence < 0.55:
                 continue
-            value = int(raw_text)
+            value = int(digits)
             if value < 5 or value > MAX_DAMAGE_VALUE:
                 continue
             points = [(point[0] / 1.15, point[1] / 1.15) for point in box]
@@ -1131,9 +1136,23 @@ class LiveDamageAnalysisWorker(QObject):
             color_score = max(color_ratio, bright_ratio * 0.35)
             if color_score < 0.10:
                 continue
+            candidate_confidence = min(
+                1.0,
+                ocr_confidence * 0.55
+                + min(1.0, color_score / 0.35) * 0.30
+                + min(1.0, bright_ratio) * 0.15,
+            )
             center_x = int(sum(point[0] for point in points) / len(points) + roi_left)
             center_y = int(sum(point[1] for point in points) / len(points) + roi_top)
-            values.append((value, center_x, center_y, max(1, right - left), max(1, bottom - top), color_score))
+            values.append((
+                value,
+                center_x,
+                center_y,
+                max(1, right - left),
+                max(1, bottom - top),
+                color_score,
+                candidate_confidence,
+            ))
         return values
 
 
@@ -1157,14 +1176,18 @@ class WorkerCapturaNativa(QObject):
         start_time: float = 0.0,
         end_seconds: float = 0.0,
         capture_mode: str = "WUTHERING_WAVES",
+        capture_settings: CaptureSettings | None = None,
     ) -> None:
         super().__init__()
         self.start_time = max(0.0, float(start_time))
         self.end_seconds = max(0.0, float(end_seconds))
         self.capture_mode = capture_mode
+        self.capture_settings = capture_settings or CaptureSettings()
+        self._frame_processor = FrameProcessor(self.capture_settings)
         self._cancelled = False
         self._capture_elapsed = QElapsedTimer()
         self._detection_tracker = DamageDetectionTracker()
+        self._damage_events = DamageEventTracker()
         self._frame_gate = CombatFrameGate()
         self._interface_detector = InterfaceMenuDetector()
         self._loading_detector = LoadingScreenDetector()
@@ -1176,6 +1199,7 @@ class WorkerCapturaNativa(QObject):
         self._wgc_disabled_hwnd: int | None = None
         self._wgc_frame = None
         self._wgc_lock = Lock()
+        self._wgc_client_crop: tuple[float, float, float, float] | None = None
         self._linux_capture = None
         self._linux_monitor = None
         self._preview_fps = DEFAULT_PREVIEW_FPS
@@ -1263,6 +1287,9 @@ class WorkerCapturaNativa(QObject):
                 if frame is None:
                     QThread.msleep(16)
                     continue
+                frame = self._frame_processor.process(frame)
+                if frame is None:
+                    continue
                 now = time.monotonic()
                 self._capture_log_frame_count += 1
                 if self._capture_log_first_frame:
@@ -1308,30 +1335,35 @@ class WorkerCapturaNativa(QObject):
                     else:
                         anchor_text = self._last_anchor_text
                     if completion:
+                        self._damage_events.reset()
                         _state, state_changed = self._combat_state.set_finished()
                         if state_changed:
                             self.combat_state_changed.emit(_state)
                         QThread.msleep(40)
                         continue
                     if login:
+                        self._damage_events.reset()
                         _state, state_changed = self._combat_state.set_outside_game()
                         if state_changed:
                             self.combat_state_changed.emit(_state)
                         QThread.msleep(40)
                         continue
                     if loading or self._loading_detector.is_loading(frame, timestamp):
+                        self._damage_events.reset()
                         _state, state_changed = self._combat_state.set_loading()
                         if state_changed:
                             self.combat_state_changed.emit(_state)
                         QThread.msleep(40)
                         continue
                     if pre_combat:
+                        self._damage_events.reset()
                         _state, state_changed = self._combat_state.set_pre_combat()
                         if state_changed:
                             self.combat_state_changed.emit(_state)
                         QThread.msleep(40)
                         continue
                     if reward_screen:
+                        self._damage_events.reset()
                         _state, state_changed = self._combat_state.set_reward_screen()
                         if state_changed:
                             self.combat_state_changed.emit(_state)
@@ -1342,12 +1374,15 @@ class WorkerCapturaNativa(QObject):
                         self._last_map_read_at = timestamp
                         if map_name:
                             self.map_detected.emit(map_name)
+                    values = LiveDamageAnalysisWorker._read_values(frame, ocr)
+                    damage_events = self._damage_events.update(values, timestamp)
                     hud_ready = self._interface_detector.combat_hud_visible(frame, anchor_text)
                     menu_open = self._interface_detector.is_menu(frame, timestamp) and not hud_ready
                     _state, state_changed = self._combat_state.set_interface_open(menu_open)
                     if state_changed:
                         self.combat_state_changed.emit(_state)
                     if menu_open:
+                        self._damage_events.reset()
                         QThread.msleep(40)
                         continue
                     if self._combat_state.state in {LOGIN, CARREGANDO}:
@@ -1370,43 +1405,21 @@ class WorkerCapturaNativa(QObject):
                             self.combat_state_changed.emit(_state)
                             self.battle_restarted.emit()
                     if not hud_ready:
+                        if damage_events:
+                            self._emit_damage_events(damage_events, timestamp)
+                        else:
+                            self._update_combat_state(timestamp, False)
                         QThread.msleep(40)
                         continue
                     if not self._frame_gate.allow(frame, timestamp):
                         self._update_combat_state(timestamp, False)
                         QThread.msleep(40)
                         continue
-                    values = LiveDamageAnalysisWorker._read_values(frame, ocr)
-                    if not values:
+                    if not damage_events:
                         self._update_combat_state(timestamp, False)
                         QThread.msleep(40)
                         continue
-                    self._detection_tracker.expire(timestamp)
-                    fresh_values = []
-                    for value, center_x, center_y, _item_width, _item_height, _color_score in values:
-                        if not self._detection_tracker.accept(
-                            center_x,
-                            center_y,
-                            _item_width,
-                            _item_height,
-                            timestamp,
-                        ):
-                            continue
-                        fresh_values.append(value)
-                    self._update_combat_state(timestamp, bool(fresh_values))
-                    damage = float(sum(fresh_values))
-                    self._accumulated += damage
-                    if fresh_values:
-                        self._last_hit_time = timestamp
-                    self.damage_detected.emit({
-                        "timestamp": timestamp,
-                        "damage": damage,
-                        "hits": len(fresh_values),
-                        "peak": max(fresh_values, default=0),
-                        "accumulated": self._accumulated,
-                        "combat_state": self._combat_state.state,
-                        "combat_elapsed": self._combat_state.active_seconds(timestamp),
-                    })
+                    self._emit_damage_events(damage_events, timestamp)
                 QThread.msleep(1)
         except Exception as error:
             self.failed.emit(f"Falha durante captura em tempo real: {error}")
@@ -1426,6 +1439,23 @@ class WorkerCapturaNativa(QObject):
                 "last_hit": self._last_hit_time,
             })
             self.finished.emit()
+
+    def _emit_damage_events(self, events, timestamp: float) -> None:
+        fresh_values = [event[0] for event in events]
+        self._update_combat_state(timestamp, True)
+        damage = float(sum(fresh_values))
+        self._accumulated += damage
+        self._last_hit_time = timestamp
+        self.damage_detected.emit({
+            "timestamp": timestamp,
+            "damage": damage,
+            "hits": len(fresh_values),
+            "peak": max(fresh_values, default=0),
+            "accumulated": self._accumulated,
+            "combat_state": self._combat_state.state,
+            "combat_elapsed": self._combat_state.active_seconds(timestamp),
+            "confidence": min(event[6] for event in events),
+        })
 
     def _locate_target_window(self):
         try:
@@ -1695,6 +1725,9 @@ class WorkerCapturaNativa(QObject):
                     if image is None or image.size == 0:
                         return
                     bgr = image[:, :, :3].copy()
+                    bgr = self._crop_wgc_to_client_area(bgr, int(hwnd))
+                    if bgr is None or bgr.size == 0:
+                        return
                     now = time.monotonic()
                     with self._wgc_lock:
                         self._wgc_log_frame_count += 1
@@ -1724,7 +1757,7 @@ class WorkerCapturaNativa(QObject):
                 return
 
             capture = WindowsCapture(
-                cursor_capture=False,
+                cursor_capture=self.capture_settings.capture_cursor,
                 draw_border=False,
                 minimum_update_interval=0,
                 dirty_region=False,
@@ -1734,6 +1767,7 @@ class WorkerCapturaNativa(QObject):
             capture.event(on_closed)
             self._wgc_hwnd = int(hwnd)
             self._wgc_frame = None
+            self._wgc_client_crop = None
             self._wgc_control = capture.start_free_threaded()
             self._set_capture_status("Captura WGC assíncrona isolada por HWND")
         except Exception as error:
@@ -1741,6 +1775,47 @@ class WorkerCapturaNativa(QObject):
             self._wgc_hwnd = None
             self._wgc_disabled_hwnd = int(hwnd)
             self._set_capture_status(f"WGC indisponível: {error}")
+
+    def _crop_wgc_to_client_area(self, frame, hwnd: int):
+        """Remove title bar and borders from a WGC window frame."""
+        if sys.platform != "win32":
+            return frame
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            if self._wgc_client_crop is None:
+                user32 = ctypes.windll.user32
+                window_rect = wintypes.RECT()
+                client_rect = wintypes.RECT()
+                client_origin = wintypes.POINT()
+                if not user32.GetWindowRect(hwnd, ctypes.byref(window_rect)):
+                    return frame
+                if not user32.GetClientRect(hwnd, ctypes.byref(client_rect)):
+                    return frame
+                client_origin.x = client_rect.left
+                client_origin.y = client_rect.top
+                if not user32.ClientToScreen(hwnd, ctypes.byref(client_origin)):
+                    return frame
+                window_width = window_rect.right - window_rect.left
+                window_height = window_rect.bottom - window_rect.top
+                if window_width <= 0 or window_height <= 0:
+                    return frame
+                self._wgc_client_crop = (
+                    (client_origin.x - window_rect.left) / window_width,
+                    (client_origin.y - window_rect.top) / window_height,
+                    (client_origin.x - window_rect.left + client_rect.right - client_rect.left) / window_width,
+                    (client_origin.y - window_rect.top + client_rect.bottom - client_rect.top) / window_height,
+                )
+            left_ratio, top_ratio, right_ratio, bottom_ratio = self._wgc_client_crop
+            height, width = frame.shape[:2]
+            left = max(0, min(width - 1, round(width * left_ratio)))
+            top = max(0, min(height - 1, round(height * top_ratio)))
+            right = max(left + 1, min(width, round(width * right_ratio)))
+            bottom = max(top + 1, min(height, round(height * bottom_ratio)))
+            return frame[top:bottom, left:right]
+        except (AttributeError, OSError, TypeError, ValueError):
+            return frame
 
     def _read_capture_frame(self):
         if sys.platform != "win32":
@@ -1761,6 +1836,7 @@ class DpsSimulationPanel(Card):
     def __init__(self, video_player: QWidget, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.video_player = video_player
+        self.capture_settings = CaptureSettings()
         self.modo_analise = "VIDEO"
         self.duration_seconds = 163.0
         self._dps_start_time = 0.0
@@ -2186,6 +2262,7 @@ class DpsSimulationPanel(Card):
                 start_time=self._analysis_start_seconds(),
                 end_seconds=self._analysis_end_seconds(),
                 capture_mode=capture_mode,
+                capture_settings=getattr(self, "capture_settings", None),
             )
             self.live_worker.moveToThread(self.live_thread)
             self.live_thread.started.connect(self.live_worker.run)
@@ -2226,6 +2303,9 @@ class DpsSimulationPanel(Card):
         self.cutoff_line.hide()
         self._live_blocks.clear()
         self._render_initial_analysis_point()
+
+    def set_capture_settings(self, settings: CaptureSettings) -> None:
+        self.capture_settings = settings
         self._total_hits = 0
         self._peak_hit = 0
         self._hit_times.clear()
@@ -2412,6 +2492,10 @@ class DpsSimulationPanel(Card):
             thread.deleteLater()
         self.analysis_status.setText("Análise ao vivo parada")
         return True
+
+    def closeEvent(self, event) -> None:
+        self._stop_live_analysis()
+        super().closeEvent(event)
 
     def _on_duration_changed(self, duration_ms: int) -> None:
         if duration_ms > 0:
