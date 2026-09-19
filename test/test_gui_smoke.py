@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtCore import QBuffer, QIODevice
     from PySide6.QtGui import QImage
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QLabel
     from src.wuwa_calculator.app.components import WuWaKuroBannerCard
     from src.wuwa_calculator.app.history_video_player import HistoryVideoPlayer
 except (ImportError, ModuleNotFoundError):
@@ -47,6 +47,15 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertEqual(player.progress_slider.maximum(), 0)
         self.assertFalse(player.play_button.isEnabled())
         player.close()
+
+    def test_history_tab_has_no_central_banner_image(self) -> None:
+        from src.wuwa_calculator.app.history_tab import HistoryTab
+
+        tab = HistoryTab()
+        banner = tab.findChild(QLabel, "historyBannerPreview")
+        self.assertIsNotNone(banner)
+        self.assertTrue(banner.pixmap() is None or banner.pixmap().isNull())
+        tab.deleteLater()
 
 
 if __name__ == "__main__":

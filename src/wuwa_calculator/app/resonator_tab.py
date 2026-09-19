@@ -45,9 +45,12 @@ from src.wuwa_calculator.app.security_policy import allows_local_image, allows_r
 def _read_network_reply(reply: object) -> bytes:
     if not isinstance(reply, QNetworkReply):
         return b""
-    if reply.error() != QNetworkReply.NetworkError.NoError:
+    if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
         return b""
-    return bytes(reply.readAll())
+    try:
+        return bytes(reply.readAll())
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return b""
 
 
 class ResonatorTab(QWidget):

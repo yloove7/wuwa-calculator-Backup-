@@ -1,7 +1,7 @@
 {
     "id": "yuanwu_basic_attack",
-    "name": "",
-    "description": "",
+    "name": "Ataque Básico",
+    "description": "Descrição detalhada do ataque básico.",
     "effects": [],
     "scalings": []
 }

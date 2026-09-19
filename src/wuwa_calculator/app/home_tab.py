@@ -10,9 +10,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from PySide6.QtCore import QByteArray, QObject, QEvent, QThread, QTimer, QRectF, Qt, Signal
+from PySide6.QtCore import (
+    QByteArray, QEasingCurve, QObject, QEvent, QPoint, QParallelAnimationGroup,
+    QPropertyAnimation, QThread,
+    QTimer, QRectF, Qt, Signal,
+)
 from PySide6.QtGui import (
     QBrush, QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
     QRadialGradient,
@@ -20,6 +24,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -63,6 +68,101 @@ def _rounded_banner_pixmap(source: QPixmap, width: int, height: int, radius: int
     painter.drawPixmap(x, y, scaled)
     painter.end()
     return canvas
+
+
+class CollapsibleTrackerDrawer(QFrame):
+    """Horizontal drawer that keeps the tracker alive while collapsed."""
+
+    EXPANDED_WIDTH = 360
+
+    def __init__(self, tracker: PityTrackerWidget, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("noticeBoardDrawer")
+        self.setMinimumWidth(self.EXPANDED_WIDTH)
+        self.setMaximumWidth(self.EXPANDED_WIDTH)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(480)
+        self._expanded = True
+
+        tracker.setMinimumWidth(0)
+        tracker.setFixedWidth(self.EXPANDED_WIDTH)
+        tracker.setMinimumHeight(0)
+        tracker.setMaximumHeight(16777215)
+        tracker.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        self.tracker = tracker
+        tracker.setParent(self)
+        self.content_widget = tracker
+
+        self.toggle_button = QPushButton("‹", self)
+        self.toggle_button.setObjectName("conveneTrackerToggle")
+        self.toggle_button.setFixedWidth(34)
+        self.toggle_button.setToolTip("Avisos e Notícias")
+        self.toggle_button.setAccessibleName("Avisos e Notícias")
+        self.toggle_button.clicked.connect(self.toggle)
+        self.toggle_button.hide()
+
+        self._animation = QParallelAnimationGroup(self)
+        self._width_animations: list[QPropertyAnimation] = []
+        for property_name in (b"minimumWidth", b"maximumWidth"):
+            width_animation = QPropertyAnimation(self, property_name, self._animation)
+            width_animation.setDuration(250)
+            width_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._width_animations.append(width_animation)
+            self._animation.addAnimation(width_animation)
+        self._position_animation = QPropertyAnimation(
+            self.content_widget, b"pos", self._animation
+        )
+        self._position_animation.setDuration(250)
+        self._position_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._animation.addAnimation(self._position_animation)
+        self._animation.finished.connect(self._on_animation_finished)
+        self._sync_tracker_geometry()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_tracker_geometry()
+
+    def _sync_tracker_geometry(self) -> None:
+        self.content_widget.setGeometry(
+            self.content_widget.x(),
+            0,
+            self.EXPANDED_WIDTH,
+            max(0, self.height()),
+        )
+
+    def _on_animation_started(self) -> None:
+        scroll_area = getattr(self.tracker, "scroll_area", None)
+        if scroll_area is not None:
+            scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def _on_animation_finished(self) -> None:
+        scroll_area = getattr(self.tracker, "scroll_area", None)
+        if scroll_area is not None:
+            policy = (
+                Qt.ScrollBarPolicy.ScrollBarAsNeeded
+                if self._expanded
+                else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+            scroll_area.setVerticalScrollBarPolicy(policy)
+
+    def toggle(self) -> None:
+        self._expanded = not self._expanded
+        self._animation.stop()
+        self._on_animation_started()
+        start_width = self.width()
+        end_width = self.EXPANDED_WIDTH if self._expanded else 0
+        start_x = self.content_widget.pos().x()
+        end_x = 0 if self._expanded else self.EXPANDED_WIDTH
+        for width_animation in self._width_animations:
+            width_animation.setStartValue(start_width)
+            width_animation.setEndValue(end_width)
+        self._position_animation.setStartValue(QPoint(start_x, 0))
+        self._position_animation.setEndValue(QPoint(end_x, 0))
+        self.toggle_button.setText("‹" if self._expanded else "›")
+        self.toggle_button.setToolTip(
+            "Retrair Avisos e Notícias" if self._expanded else "Expandir Avisos e Notícias"
+        )
+        self._animation.start()
 
 
 def _full_banner_pixmap(
@@ -347,12 +447,27 @@ class UpcomingBannersSection(QFrame):
         self.past_layout = QHBoxLayout()
         self.past_layout.setSpacing(10)
         body.addLayout(self.past_layout, 1)
+        first_separator = QFrame()
+        first_separator.setObjectName("bannerTimelineSeparator")
+        first_separator.setFrameShape(QFrame.Shape.VLine)
+        first_separator.setFrameShadow(QFrame.Shadow.Plain)
+        first_separator.setStyleSheet("color: rgba(210, 225, 245, 85);")
+        body.addWidget(first_separator)
         self.current_layout = QHBoxLayout()
         self.current_layout.setSpacing(10)
         body.addLayout(self.current_layout, 1)
+        second_separator = QFrame()
+        second_separator.setObjectName("bannerTimelineSeparator")
+        second_separator.setFrameShape(QFrame.Shape.VLine)
+        second_separator.setFrameShadow(QFrame.Shadow.Plain)
+        second_separator.setStyleSheet("color: rgba(210, 225, 245, 85);")
+        body.addWidget(second_separator)
         self.future_layout = QHBoxLayout()
         self.future_layout.setSpacing(10)
         body.addLayout(self.future_layout, 1)
+        body.setStretchFactor(self.past_layout, 1)
+        body.setStretchFactor(self.current_layout, 1)
+        body.setStretchFactor(self.future_layout, 1)
         root.addLayout(body, 1)
         self.set_cards([], loading=True)
 
@@ -365,17 +480,26 @@ class UpcomingBannersSection(QFrame):
 
         columns = (
             (self.past_layout, "past", "BANNER PASSADO"),
-            (self.current_layout, "current", "BANNER ATUAL"),
+            (self.current_layout, "current", "PRÓXIMOS CONFIRMADOS"),
             (self.future_layout, "future", "PRÓXIMOS CONFIRMADOS"),
         )
         for layout, kind, title in columns:
             record = next((item for item in records if item.get("kind") == kind), None)
             if record is not None:
-                layout.addWidget(UpcomingBannerCard(record, title, compact=True))
+                card = UpcomingBannerCard(record, title, compact=True)
+                card.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Expanding,
+                )
+                layout.addWidget(card, 1)
             else:
                 placeholder = QLabel(title + "\nSem dados importados.")
                 placeholder.setObjectName("bannerTimelineEmpty")
                 placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                placeholder.setSizePolicy(
+                    QSizePolicy.Policy.Expanding,
+                    QSizePolicy.Policy.Expanding,
+                )
                 layout.addWidget(placeholder)
 
 
@@ -389,7 +513,16 @@ class HomeTab(QWidget):
         intro = Card()
         intro_layout = QVBoxLayout(intro)
         intro_layout.setContentsMargins(20, 18, 20, 18)
-        intro_layout.addWidget(TitleLabel("Tethys"))
+        intro_heading = QHBoxLayout()
+        intro_heading.setSpacing(10)
+        intro_heading.addWidget(TitleLabel("Tethys"))
+        intro_heading.addStretch(1)
+        self.convene_tracker_button = QPushButton("▣  Avisos e Notícias")
+        self.convene_tracker_button.setObjectName("conveneTrackerHeaderButton")
+        self.convene_tracker_button.setToolTip("Mostrar ou ocultar Avisos e Notícias")
+        self.convene_tracker_button.clicked.connect(self._toggle_convene_tracker)
+        intro_heading.addWidget(self.convene_tracker_button)
+        intro_layout.addLayout(intro_heading)
         subtitle = QLabel("Motor de dano local para testar rotações, equipes e execução prática.")
         subtitle.setObjectName("muted")
         intro_layout.addWidget(subtitle)
@@ -404,16 +537,34 @@ class HomeTab(QWidget):
         self.catalog_worker: CatalogWorker | None = None
         self.banner_card: WuWaKuroBannerCard | None = None
         
-        hero_row = QHBoxLayout()
-        hero_row.setContentsMargins(0, 0, 0, 0)
-        hero_row.setSpacing(12)
+        page_layout = QHBoxLayout()
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(12)
+        left_column = QWidget()
+        left_column_layout = QVBoxLayout(left_column)
+        left_column_layout.setContentsMargins(0, 0, 0, 0)
+        left_column_layout.setSpacing(8)
+
+        hero_surface = QWidget()
+        hero_surface.setObjectName("homeHeroSurface")
+        hero_surface_layout = QHBoxLayout(hero_surface)
+        hero_surface_layout.setContentsMargins(0, 0, 0, 0)
+        hero_surface_layout.setSpacing(0)
         banner_column = QWidget()
         banner_column_layout = QVBoxLayout(banner_column)
         banner_column_layout.setContentsMargins(0, 0, 0, 0)
+        banner_column.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
 
         # Container temporário para o banner enquanto carrega
         self.banner_placeholder = QFrame()
-        self.banner_placeholder.setFixedWidth(960)
+        self.banner_placeholder.setMinimumWidth(0)
+        self.banner_placeholder.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self.banner_placeholder.setFixedHeight(480)
         placeholder_layout = QVBoxLayout(self.banner_placeholder)
         placeholder_layout.setContentsMargins(0, 0, 0, 0)
@@ -422,7 +573,6 @@ class HomeTab(QWidget):
         placeholder_label.setObjectName("muted")
         placeholder_layout.addWidget(placeholder_label)
         self.banner_container = banner_column_layout
-        hero_row.addWidget(banner_column, 1)
         active_name = str(initial_banner.get("name", "qingxiao")) if initial_banner else "qingxiao"
         self.pity_tracker = PityTrackerWidget(
             active_character=active_name,
@@ -431,8 +581,19 @@ class HomeTab(QWidget):
                 if initial_banner else b""
             },
         )
-        hero_row.addWidget(self.pity_tracker, 0, Qt.AlignmentFlag.AlignTop)
-        root.addLayout(hero_row)
+        self.convene_tracker_drawer = CollapsibleTrackerDrawer(self.pity_tracker)
+        hero_surface_layout.addWidget(banner_column, 1)
+        left_column_layout.addWidget(hero_surface)
+        left_column.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
+        page_layout.addWidget(left_column, 1)
+        page_layout.addWidget(self.convene_tracker_drawer, 0)
+        self.main_layout = page_layout
+        self.convene_tracker_drawer._position_animation.valueChanged.connect(
+            lambda _value: self.main_layout.activate()
+        )
         
         # Se já tem banner pré-carregado, mostra imediatamente
         if initial_banner:
@@ -448,10 +609,15 @@ class HomeTab(QWidget):
         self.timeline_panel.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        root.addSpacing(8)
-        root.addWidget(self.timeline_panel)
+        left_column_layout.addWidget(self.timeline_panel)
+        root.addLayout(page_layout, 1)
         QTimer.singleShot(0, self._start_catalog_refresh)
         root.addStretch(1)
+
+    def _toggle_convene_tracker(self) -> None:
+        drawer = getattr(self, "convene_tracker_drawer", None)
+        if drawer is not None:
+            drawer.toggle()
 
     def set_active(self, active: bool) -> None:
         if self.banner_card is not None:

@@ -1,0 +1,12 @@
+{
+    "suisui": {
+        "name": "Firstlight's Herald",
+        "PT-BR": "ATQ BASE (NV. 90): 412\nREGEN. DE ENERGIA: 76.9%\n\n## PASSIVA\nCoroa de Primavera\n\nO HP Máx. aumenta em 12%. Ao ativar a Liberação da Ressonância, restaura 8 de Energia de Concerto a si mesmo, podendo ser ativado uma vez a cada 20s. Cada vez que aplicar a Esfoladura Criogênica, obtém Mácula de Neve por 6s; cada vez que causar Cura, obtém Marolas por 6s. Se o próprio Ressonante tiver aplicado a Esfoladura Criogênica e causado Cura enquanto estiver em campo, a próxima Habilidade Outro concederá os efeitos Mácula de Neve e Marolas por 6s. Quando o próprio Ressonante possuir Mácula de Neve e Marolas simultaneamente, o ATQ de todos os Ressonantes próximos na equipe aumenta em 20%. Efeitos de mesmo nome não se acumulam.",
+        "EN": "BASE ATK (LV. 90): 412\nENERGY REGEN: 76.9%\n\n## PASSIVE\nCrown of Spring\n\nMax HP increases by 12%. When Resonance Liberation is activated, restores 8 Concerto Energy to the wielder, which can be triggered once every 20s. Each time Glacio Chafe is applied, gains Snow Taint for 6s; each time healing is dealt, gains Ripples for 6s. If the wielder applies Glacio Chafe and deals healing while on the field, the next Outro Skill grants Snow Taint and Ripples for 6s. When the wielder has both Snow Taint and Ripples, the ATK of nearby team Resonators increases by 20%. Effects with the same name do not stack."
+    },
+    "verina": {
+        "name": "Variation",
+        "PT-BR": "ATQ BASE (NV. 90): 412 \nREGEN. DE ENERGIA: 77.0% \n\n## PASSIVA \nÁria Incessante\n\nAo lançar a Habilidade de Ressonância, restaura 8 de Energia de Concerto. Este efeito pode ser ativado 1 vez(es) a cada 20s.",
+        "EN": "BASE ATK (LV. 90): 412 \nENERGY REGEN: 76.9% \n\n## PASSIVE \nCeaseless Aria\n\nWhen Resonance Skill is cast, restore 8 Concerto Energy. This effect can be triggered 1 time(s) every 20s."
+    }
+}

@@ -8,7 +8,7 @@ from PySide6.QtCore import QSignalBlocker, QUrl, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+    QAbstractItemView, QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QSlider, QSplitter, QTableWidget, QVBoxLayout, QWidget,
     QStyledItemDelegate,
 )
@@ -23,7 +23,6 @@ from src.wuwa_calculator.app.backend_adapter import (
     save_history_record,
 )
 from src.wuwa_calculator.app.styles import apply_glow
-from src.wuwa_calculator.utils.paths import get_asset_path
 from src.wuwa_calculator.storage.team_storage import load_teams
 from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 from src.wuwa_calculator.app.security_policy import allows_remote_content
@@ -394,10 +393,11 @@ class HistoryTab(QWidget):
         team_heading = QHBoxLayout()
         team_heading.addWidget(TitleLabel("Equipe ativa"))
         team_heading.addStretch(1)
-        edit_team_button = QPushButton("✎  Editar")
-        edit_team_button.setObjectName("historyEditButton")
-        edit_team_button.setFixedHeight(26)
-        team_heading.addWidget(edit_team_button)
+        self.edit_team_button = QPushButton("✎  Editar")
+        self.edit_team_button.setObjectName("historyEditButton")
+        self.edit_team_button.setFixedHeight(26)
+        self.edit_team_button.clicked.connect(self._edit_team)
+        team_heading.addWidget(self.edit_team_button)
         team_layout.addLayout(team_heading)
         self.team_summary_label = QLabel("Selecione uma equipe para visualizar a composição")
         self.team_summary_label.setObjectName("historyTeamMembers")
@@ -431,13 +431,6 @@ class HistoryTab(QWidget):
         banner_preview.setMinimumHeight(190)
         banner_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         banner_preview.setScaledContents(False)
-        banner_pixmap = QPixmap(str(get_asset_path("app_background_reference.png")))
-        if not banner_pixmap.isNull():
-            banner_preview.setPixmap(banner_pixmap.scaled(
-                560, 230,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            ))
         left_layout.addWidget(banner_preview, 1)
         self.rotation_form_widget = RotationForm(self)
         left_layout.addWidget(self.rotation_form_widget)
@@ -454,14 +447,16 @@ class HistoryTab(QWidget):
         analytics_heading = QHBoxLayout()
         analytics_heading.addWidget(TitleLabel("Análise de Dano"))
         analytics_heading.addStretch(1)
-        general_button = QPushButton("Geral")
-        general_button.setObjectName("historyViewActive")
-        per_second_button = QPushButton("Por Segundo")
-        per_second_button.setObjectName("historyViewButton")
-        general_button.setFixedHeight(26)
-        per_second_button.setFixedHeight(26)
-        analytics_heading.addWidget(general_button)
-        analytics_heading.addWidget(per_second_button)
+        self.general_button = QPushButton("Geral")
+        self.general_button.setObjectName("historyViewActive")
+        self.per_second_button = QPushButton("Por Segundo")
+        self.per_second_button.setObjectName("historyViewButton")
+        self.general_button.setFixedHeight(26)
+        self.per_second_button.setFixedHeight(26)
+        self.general_button.clicked.connect(lambda: self._set_analysis_view("general"))
+        self.per_second_button.clicked.connect(lambda: self._set_analysis_view("per_second"))
+        analytics_heading.addWidget(self.general_button)
+        analytics_heading.addWidget(self.per_second_button)
         analytics_layout.addLayout(analytics_heading)
         metrics = QHBoxLayout()
         self.metrics: dict[str, MetricCard] = {}
@@ -511,6 +506,7 @@ class HistoryTab(QWidget):
         self.saved_table = DataTable(("ID", "Equipe", "Rotação", "Dano total", "Data"))
         self.saved_table.setObjectName("historySavedTable")
         self.saved_table.setAlternatingRowColors(True)
+        self.saved_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.saved_table.cellClicked.connect(self.select_history)
         saved_layout.addWidget(self.saved_table)
         right_layout.addWidget(saved, 1)
@@ -522,10 +518,43 @@ class HistoryTab(QWidget):
         self.team_network = QNetworkAccessManager(self)
         self.team_image_replies: dict[str, object] = {}
         self.current_result: object | None = None
+        self.analysis_mode = "general"
         self.refresh_team_names()
         self.refresh_team_summary()
         self.refresh_history()
+        self._set_analysis_view("general")
         self._update_audit_empty_state()
+
+    def _edit_team(self) -> None:
+        window = self.window()
+        if hasattr(window, "tabs") and hasattr(window, "_select_main_tab"):
+            try:
+                window._select_main_tab(1, "♣   Teams")
+                self.rotation_form.status_label.setText("Equipe aberta para edição.")
+                return
+            except (AttributeError, TypeError, ValueError):
+                pass
+        self.rotation_form.status_label.setText("Aba de equipe indisponível no momento.")
+
+    def _set_analysis_view(self, mode: str) -> None:
+        self.analysis_mode = mode
+        self.general_button.setObjectName("historyViewActive" if mode == "general" else "historyViewButton")
+        self.per_second_button.setObjectName("historyViewActive" if mode == "per_second" else "historyViewButton")
+        self.general_button.style().unpolish(self.general_button)
+        self.general_button.style().polish(self.general_button)
+        self.per_second_button.style().unpolish(self.per_second_button)
+        self.per_second_button.style().polish(self.per_second_button)
+        label_name = "Geral" if mode == "general" else "Por Segundo"
+        self.rotation_form.status_label.setText(f"Modo de análise: {label_name}")
+
+        if self.current_result is None:
+            return
+
+        damage = float(getattr(self.current_result, "rotation_damage", 0.0))
+        dps = float(getattr(self.current_result, "dps", 0.0))
+
+        self.quick_damage.setText(f"{damage:,.0f}")
+        self.quick_dps.setText(f"{dps:,.0f}")
 
     def _update_audit_empty_state(self) -> None:
         has_rows = self.audit_table.rowCount() > 0

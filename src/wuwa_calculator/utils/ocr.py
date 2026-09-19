@@ -22,7 +22,7 @@ project_root = Path(__file__).resolve().parents[1]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.wuwa_calculator.utils.image_processing import load_image, prepare_for_ocr  # pylint: disable=wrong-import-position
+from src.wuwa_calculator.utils.image_processing import prepare_for_ocr  # pylint: disable=wrong-import-position
 from src.wuwa_calculator.data.characters_ids import KNOWN_CHARACTER_IDS
 from src.wuwa_calculator.data.echoes import ECHOES_DB
 
@@ -65,27 +65,6 @@ STAT_PATTERNS: dict[str, re.Pattern[str]] = {
     ),
     "crit_dmg": re.compile(
         rf"\bCrit(?:ical)?\.?\s*(?:DMG|Damage|Dano)\b"
-        rf"{SEP}{NUMBER}\s*{PERCENT}", re.IGNORECASE
-    ),
-    "energy_regen": re.compile(
-        rf"\b(?:Energy\s*Regen|Energy\s*Recharge|Recarga\s*de\s*Energia)\b"
-        rf"{SEP}{NUMBER}\s*{PERCENT}", re.IGNORECASE
-    ),
-    "elemental_dmg": re.compile(
-        rf"\b{ELEMENT_PATTERN}\b"
-        rf"\s*DMG\s*(?:Bonus)?\s*{SEP}{NUMBER}\s*{PERCENT}",
-        re.IGNORECASE
-    ),
-    "heavy_atk_dmg": re.compile(
-        rf"\bHeavy\s*Attack\s*DMG\s*(?:Bonus)?\s*\b"
-        rf"{SEP}{NUMBER}\s*{PERCENT}", re.IGNORECASE
-    ),
-    "liberation_dmg": re.compile(
-        rf"\b(?:Resonance\s*)?Liberation\s*DMG\s*(?:Bonus)?\s*\b"
-        rf"{SEP}{NUMBER}\s*{PERCENT}", re.IGNORECASE
-    ),
-    "skill_dmg": re.compile(
-        rf"\b(?:Resonance\s*)?Skill\s*DMG\s*(?:Bonus)?\s*\b"
         rf"{SEP}{NUMBER}\s*{PERCENT}", re.IGNORECASE
     ),
 }
@@ -545,90 +524,27 @@ def extract_image_data(
 ) -> tuple[dict[str, float], str | None, list[dict[str, object]]]:
     """Imagem → texto, atributos reconhecidos e personagem identificado."""
     path = Path(path)
-    print("[Importação] Extraindo informações da imagem...")
+    print("[Importação] Extraindo atributos base da imagem...")
     ocr_engine = _get_ocr_engine()
     import numpy as np
-    from PIL import ImageEnhance, ImageOps
 
     def emit_status(message: str) -> None:
         if status_callback is not None:
             status_callback(message)
 
-    emit_status("Lendo o layout completo da build card...")
-    texts: list[str] = []
-    echo_region_texts: list[str] = []
+    emit_status("Lendo somente os atributos base...")
+    text = ""
     try:
-        result = ocr_engine.predict(str(path))
-        texts.append(extract_text_from_paddle_result(result))
+        prepared = prepare_for_ocr(path, width=1280).convert("RGB")
+        result = ocr_engine.predict(np.asarray(prepared))
+        text = extract_text_from_paddle_result(result)
     except (IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError) as error:
-        emit_status(
-            "Leitura principal indisponível; tentando formatos alternativos "
-            f"({type(error).__name__})..."
-        )
+        emit_status(f"Falha na leitura dos atributos ({type(error).__name__})...")
 
-    # Different build-card providers use different contrast, scale and panel
-    # arrangements. Read the complete image again with neutral preprocessing;
-    # no provider-specific crop or coordinate is assumed.
-    try:
-        source = load_image(path)
-        prepared = prepare_for_ocr(path, width=1920)
-        variants = (
-            ("Ajustando contraste e escala...", prepared),
-            ("Rechecando textos claros e escuros...", ImageOps.autocontrast(prepared)),
-            ("Rechecando números e percentuais...", ImageEnhance.Contrast(prepared).enhance(2.4)),
-        )
-        if source.size != prepared.size:
-            emit_status("Normalizando proporção da build card...")
-        emit_status("Separando os cinco quadros de Echo...")
-        source_rgb = source.convert("RGB")
-        region_top = int(source_rgb.height * 0.28)
-        region_width = max(1, source_rgb.width // 5)
-        for region_index in range(5):
-            left = max(0, region_index * region_width - max(16, region_width // 14))
-            right = min(source_rgb.width, (region_index + 1) * region_width + max(16, region_width // 14))
-            region = source_rgb.crop((left, region_top, right, source_rgb.height))
-            region = region.resize(
-                (max(640, region.width * 2), max(1, int(region.height * 2))),
-            )
-            try:
-                region_result = ocr_engine.predict(np.asarray(region))
-                region_text = extract_text_from_paddle_result(region_result)
-                if region_text:
-                    echo_region_texts.append(region_text)
-                gray_region = ImageOps.autocontrast(ImageOps.grayscale(region)).convert("RGB")
-                gray_result = ocr_engine.predict(np.asarray(gray_region))
-                gray_text = extract_text_from_paddle_result(gray_result)
-                if gray_text:
-                    echo_region_texts.append(gray_text)
-            except (IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError):
-                continue
-        for message, variant in variants:
-            emit_status(message)
-            try:
-                enhanced_result = ocr_engine.predict(np.asarray(variant))
-                texts.append(extract_text_from_paddle_result(enhanced_result))
-            except (IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError):
-                continue
-    except (IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError):
-        emit_status("Mantendo a leitura original da imagem...")
-
-    text = "\n".join(part for part in texts if part)
     stats = extract_stats_from_text(text)
-    echo_cards = identify_echo_cards(text)
-    regional_cards: list[dict[str, object]] = []
-    for region_text in echo_region_texts:
-        region_cards = identify_echo_cards(region_text)
-        if region_cards:
-            candidate = region_cards[0]
-            if not any(
-                _same_echo_name(candidate.get("name"), existing.get("name"))
-                for existing in regional_cards
-            ):
-                regional_cards.append(candidate)
-    if regional_cards:
-        echo_cards = _merge_echo_card_data(regional_cards, echo_cards)
+    emit_status("Atributos base identificados.")
     print(f"[Importação] Texto encontrado: {text}")
-    return stats, identify_character(text), echo_cards
+    return stats, identify_character(text), []
 
 
 if __name__ == "__main__":

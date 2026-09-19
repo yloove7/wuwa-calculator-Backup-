@@ -656,7 +656,7 @@ class ImageImportWorker(QObject):
                 raise ImageCharacterMismatchError(
                     detected_id, self.target_id
                 )
-            self.status.emit("Finalizando atributos, bônus e status...")
+            self.status.emit("Finalizando atributos base...")
             self.progress.emit(100)
             self.finished.emit({
                 "stats": stats,
@@ -712,6 +712,7 @@ class WuwaQtWindow(QMainWindow):
         header_layout.addWidget(self.character_id_entry)
         header_layout.addWidget(self.character_load_button)
         header_layout.addWidget(self.import_button)
+        header_layout.addStretch(1)
 
         self.character_status = QLabel("")
         self.character_status.setObjectName("onlineStatus")

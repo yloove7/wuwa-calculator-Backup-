@@ -1,6 +1,18 @@
 import unittest
+import requests
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 from src.wuwa_calculator.app.banner_service import _normalise_banner, _parse_timestamp
+from src.wuwa_calculator.app.pity_tracker import (
+    CONVENE_DNS_ERROR_MESSAGE,
+    ClientLogReader,
+    ConveneSyncWorker,
+    NoticeManager,
+    extract_convene_parameters,
+    fetch_convene_records,
+)
 from src.wuwa_calculator.app.wuwa_processing import (
     RotationParameters,
     RotationStep,
@@ -62,6 +74,225 @@ class ProcessingAndBannerTests(unittest.TestCase):
         self.assertEqual(banner["image_url"], "https://i.imgur.com/lq6O5Vo.jpeg")
         self.assertEqual(banner["ends_at"], "2026-09-10T10:00:00+00:00")
 
+    def test_convene_sync_worker_fetches_latest_log_url(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_text(
+                "old https://aki-gm-resources.example/old/gacha?token=old\n"
+                "latest https://aki-gm-resources.example/latest/gacha?token=new",
+                encoding="utf-8",
+            )
+            response = Mock()
+            response.status_code = 200
+            response.text = '{"data": [{"rarity": 5, "name": "Test"}]}'
+            response.json.return_value = {"data": [{"rarity": 5, "name": "Test"}]}
+            worker = ConveneSyncWorker(log_path)
+            received: list[object] = []
+            errors: list[str] = []
+            worker.success_signal.connect(received.append)
+            worker.error_signal.connect(errors.append)
+
+            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response) as get:
+                worker.run()
+
+            get.assert_called_once_with(
+                "https://aki-gm-resources.example/latest/gacha?token=new",
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Accept": "application/json, text/plain, */*",
+                },
+                timeout=15,
+            )
+            self.assertEqual(received, [{"data": [{"rarity": 5, "name": "Test"}]}])
+            self.assertEqual(errors, [])
+
+    def test_convene_sync_worker_rejects_empty_api_response(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            response = Mock(text="")
+            worker = ConveneSyncWorker(log_path)
+            errors: list[str] = []
+            worker.error_signal.connect(errors.append)
+
+            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+                worker.run()
+
+            self.assertEqual(errors, ["Sessão expirada. Acesse o Convene no jogo para revalidar."])
+
+    def test_convene_sync_worker_rejects_expired_json_response(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            response = Mock(text="not-json")
+            worker = ConveneSyncWorker(log_path)
+            errors: list[str] = []
+            worker.error_signal.connect(errors.append)
+
+            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+                worker.run()
+
+            self.assertEqual(
+                errors,
+                ["Sessão expirada. Acesse o Convene no jogo para revalidar."],
+            )
+
+    def test_convene_sync_worker_reports_http_405(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            response = Mock(status_code=405, text="Method Not Allowed")
+            worker = ConveneSyncWorker(log_path)
+            errors: list[str] = []
+            worker.error_signal.connect(errors.append)
+
+            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+                worker.run()
+
+            self.assertEqual(
+                errors,
+                ["Erro HTTP 405: Método de requisição recusado pelo servidor da Kuro."],
+            )
+
+    def test_fetch_convene_records_posts_each_banner_pool(self) -> None:
+        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
+        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response) as post:
+            records = fetch_convene_records(
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+
+        self.assertEqual(len(records), 8)
+        self.assertEqual(post.call_count, 8)
+        first_payload = post.call_args_list[0].kwargs["json"]
+        self.assertEqual(first_payload["playerId"], "player")
+        self.assertEqual(first_payload["recordId"], "record")
+        self.assertEqual(first_payload["cardPoolType"], 1)
+
+    def test_notice_manager_normalizes_kuro_official_news_payload(self) -> None:
+        payload = {
+            "data": {
+                "list": [{
+                    "id": "42",
+                    "title": "Patch notes",
+                    "categoryName": "Avisos",
+                    "createTime": "2026-09-09T10:00:00Z",
+                    "coverUrl": "https://example.com/banner.png",
+                }]
+            }
+        }
+
+        notice = NoticeManager().normalize(payload)[0]
+
+        self.assertEqual(notice["category"], "Avisos")
+        self.assertEqual(notice["date"], "09-09")
+        self.assertEqual(notice["image_url"], "https://example.com/banner.png")
+        self.assertEqual(
+            notice["content_url"],
+            "https://wutheringwaves.kurogames.com/pt/main/news/detail/42",
+        )
+
+    def test_extract_convene_parameters_reads_hash_fragment(self) -> None:
+        player_id, record_id = extract_convene_parameters(
+            "https://aki-gm-resources.example/aki/gacha/index.html/#/record?"
+            "player_id=playerhash&record_id=recordhash&cardPoolType=1"
+        )
+
+        self.assertEqual(player_id, "playerhash")
+        self.assertEqual(record_id, "recordhash")
+
+    def test_extract_convene_parameters_cleans_encoded_camel_case_url(self) -> None:
+        player_id, record_id = extract_convene_parameters(
+            "  https://aki-gm-resources.example/gacha/#/record?"
+            "playerId=Player123%0D%0A&recordId=Record456  \r\n"
+        )
+
+        self.assertEqual(player_id, "Player123")
+        self.assertEqual(record_id, "Record456")
+
+    def test_fetch_convene_records_falls_back_after_dns_failure(self) -> None:
+        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
+
+        def post(endpoint: str, **kwargs):
+            if endpoint == "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord":
+                raise requests.exceptions.ConnectionError("NameResolutionError")
+            return response
+
+        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post) as mocked_post:
+            records = fetch_convene_records(
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+
+        self.assertEqual(len(records), 8)
+        self.assertEqual(mocked_post.call_count, 16)
+        self.assertEqual(mocked_post.call_args_list[1].args[0], "https://aki-gm-resources-oversea.aki-game.net/gacha/getGachaRecord")
+
+    def test_fetch_convene_records_falls_back_after_http_405(self) -> None:
+        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
+
+        def post(endpoint: str, **kwargs):
+            if endpoint == "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord":
+                return Mock(status_code=405, text="Method Not Allowed")
+            return response
+
+        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post) as mocked_post:
+            records = fetch_convene_records(
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+
+        self.assertEqual(len(records), 8)
+        self.assertEqual(mocked_post.call_count, 16)
+
+    def test_fetch_convene_records_uses_get_when_post_is_not_allowed(self) -> None:
+        post_response = Mock(status_code=405, text="Method Not Allowed")
+        get_response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
+        with patch(
+            "src.wuwa_calculator.app.pity_tracker.requests.post",
+            return_value=post_response,
+        ), patch(
+            "src.wuwa_calculator.app.pity_tracker.requests.get",
+            return_value=get_response,
+        ) as get:
+            records = fetch_convene_records(
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+
+        self.assertEqual(len(records), 8)
+        self.assertEqual(get.call_count, 8)
+        self.assertEqual(get.call_args.kwargs["params"]["playerId"], "player")
+        self.assertEqual(get.call_args.kwargs["params"]["recordId"], "record")
+
+    def test_fetch_convene_records_extracts_nested_api_record_shapes(self) -> None:
+        response = Mock(
+            status_code=200,
+            text='{"code": 0, "data": {"result": {"rows": [{"rarity": 5, "name": "Qingxiao"}]}}}',
+        )
+        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response):
+            records = fetch_convene_records(
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+
+        self.assertEqual(len(records), 8)
+        self.assertEqual(records[0]["name"], "Qingxiao")
+
+    def test_fetch_convene_records_reports_dns_failure_after_all_fallbacks(self) -> None:
+        with patch(
+            "src.wuwa_calculator.app.pity_tracker.requests.post",
+            side_effect=requests.exceptions.ConnectionError("NameResolutionError"),
+        ):
+            with self.assertRaisesRegex(requests.exceptions.ConnectionError, "Erro de Conexão/DNS"):
+                fetch_convene_records(
+                    "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                )
+
+    def test_client_log_reader_works_with_game_closed(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            expected_url = (
+                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+            )
+            log_path.write_text(f"Convene Record URL: {expected_url}", encoding="utf-8")
+
+            self.assertEqual(ClientLogReader(log_path).get_convene_url(), expected_url)
 
 if __name__ == "__main__":
     unittest.main()

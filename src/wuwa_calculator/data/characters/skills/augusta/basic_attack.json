@@ -1,7 +1,49 @@
 {
     "id": "augusta_basic_attack",
-    "name": "",
-    "description": "",
-    "effects": [],
-    "scalings": []
+    "name": "Ataque Básico - Caminho da Caçadora",
+    "description": "Realiza uma sequência de ataques físicos e elétricos, consumindo vigor para executar golpes pesados, aéreos ou contra-ataques pós-esquiva.",
+    "effects": [
+        {
+            "name": "Combo Básico",
+            "detail": "Executa até 4 golpes consecutivos causando Dano <font color='#a855f7'><b>Voltaico</b></font>."
+        },
+        {
+            "name": "ATQ Pesado (Choque de Aço)",
+            "detail": "Consome <font color='#eab308'><b>Vigor</b></font> para causar Dano <font color='#a855f7'><b>Voltaico</b></font>. Pressione ATQ Básico para emendar no 2º estágio."
+        },
+        {
+            "name": "ATQ Aéreo & Esquiva",
+            "detail": "Consome <font color='#eab308'><b>Vigor</b></font> para executar um Ataque em Mergulho. O Contra-Ataque pós-esquiva causa Dano <font color='#a855f7'><b>Voltaico</b></font>."
+        },
+        {
+            "name": "Proeza Cheia (100pt)",
+            "detail": "Converte o ATQ Pesado em <font color='#6feaff'><b>Trovão Rugidor: Recuo</b></font>, encadeando em <font color='#6feaff'><b>Corte Giratório</b></font> (ATQ) ou <font color='#6feaff'><b>Uppercut</b></font> (Pulo)."
+        },
+        {
+            "name": "Modificador de Estado",
+            "detail": "Com Proeza/Ascendência cheia, altera as propriedades e animações dos Contra-Ataques de Esquiva."
+        }
+    ],
+    "scalings": [
+        {
+            "attribute": "Dano do 1º Golpe",
+            "type": "ATQ",
+            "value": "42.5%"
+        },
+        {
+            "attribute": "Dano do 2º Golpe",
+            "type": "ATQ",
+            "value": "51.2%"
+        },
+        {
+            "attribute": "Dano do ATQ Pesado",
+            "type": "ATQ",
+            "value": "88.4%"
+        },
+        {
+            "attribute": "Consumo de Vigor (Pesado)",
+            "type": "Fixo",
+            "value": "25pt"
+        }
+    ]
 }

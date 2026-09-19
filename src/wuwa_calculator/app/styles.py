@@ -891,6 +891,14 @@ def application_qss(
         border-radius: 9px;
         gridline-color: rgba(100, 150, 210, 40);
         selection-background-color: rgba(110, 75, 230, 130);
+        selection-color: #F4F7FF;
+    }}
+    QTableWidget#historyAuditTable::item:selected,
+    QTableWidget#historySavedTable::item:selected,
+    QTableWidget#historyAuditTable::item:selected:hover,
+    QTableWidget#historySavedTable::item:selected:hover {{
+        background: rgba(110, 75, 230, 180);
+        color: #F4F7FF;
     }}
     QTableWidget#historyAuditTable QHeaderView::section,
     QTableWidget#historySavedTable QHeaderView::section {{

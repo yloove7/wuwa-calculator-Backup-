@@ -24,6 +24,27 @@ class OcrParserTests(unittest.TestCase):
         })
         self.assertEqual(identify_character(text), "qingxiao")
 
+    def test_extract_stats_ignores_skills_energy_and_damage_bonuses(self) -> None:
+        text = (
+            "Augusta\n"
+            "ATK 2,400\n"
+            "HP 10,000\n"
+            "DEF 1,200\n"
+            "Crit Rate 68%\n"
+            "Crit DMG 250%\n"
+            "Energy Regen 125%\n"
+            "Forte Circuit 180%\n"
+            "Resonance Skill DMG Bonus 220%\n"
+        )
+
+        self.assertEqual(extract_stats_from_text(text), {
+            "atk": 2400.0,
+            "hp": 10000.0,
+            "def": 1200.0,
+            "crit_rate": 68.0,
+            "crit_dmg": 250.0,
+        })
+
     def test_echo_parser_sanitizes_ocr_noise_and_keeps_cost_set(self) -> None:
         text = (
             "Tempest Echo\n"

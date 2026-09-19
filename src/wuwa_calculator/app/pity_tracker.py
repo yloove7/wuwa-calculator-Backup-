@@ -2,19 +2,26 @@
 
 from __future__ import annotations
 
-import json
+import os
 import sys
+import re
+import json
+import requests
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import parse_qs, urlsplit
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, unquote
 
 from PySide6.QtCore import (
+    QAbstractAnimation,
     QEasingCurve,
     Property,
     QPropertyAnimation,
+    QParallelAnimationGroup,
+    QTimer,
     QObject,
+    QPoint,
     QRectF,
     QThread,
     Qt,
@@ -24,6 +31,8 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QColor,
+    QDesktopServices,
+    QFontMetrics,
     QPainter,
     QPainterPath,
     QPixmap,
@@ -32,14 +41,15 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
-    QLineEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
+    QTabBar,
     QVBoxLayout,
     QWidget,
 )
@@ -51,6 +61,202 @@ from src.wuwa_calculator.app.security_policy import allows_remote_content
 from src.wuwa_calculator.app.styles import wallpaper_palette
 EVENT_RESONATOR_BANNER_URL = "https://i.imgur.com/JrRW9Bt.jpeg"
 SIGNATURE_WEAPON_BANNER_URL = "https://i.imgur.com/metoowt.jpeg"
+CONVENE_URL_PREFIX = "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html#"
+CONVENE_LOG_PATH = Path(
+    r"D:\Wuthering Waves\Wuthering Waves Game\Client\Saved\Logs\Client.log"
+)
+KURO_NEWS_API_URL = "https://wutheringwaves.kurogames.com/api/news/list"
+KURO_NEWS_DETAIL_URL = "https://wutheringwaves.kurogames.com/pt/main/news/detail/"
+CONVENE_LOG_URL_RE = re.compile(r"https://aki-gm-resources[^\s\"']+")
+CONVENE_GACHA_URL_RE = re.compile(r"https?://[^\s\"]+gacha[^\s\"]+", re.IGNORECASE)
+CONVENE_URL_NOT_FOUND_MESSAGE = (
+    "URL não encontrada. Abra a tela de Convene no jogo e tente novamente."
+)
+CONVENE_DNS_ERROR_MESSAGE = (
+    "Erro de Conexão/DNS: Não foi possível alcançar o servidor da Kuro Games. "
+    "Verifique sua internet ou firewall."
+)
+KURO_RECORD_API_URLS = (
+    "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord",
+    "https://aki-gm-resources-oversea.aki-game.net/gacha/getGachaRecord",
+)
+KURO_RECORD_API_URL = KURO_RECORD_API_URLS[0]
+CONVENE_PLAYER_ID_RE = re.compile(
+    r"(?:player_id|playerId)=([a-zA-Z0-9]+)", re.IGNORECASE
+)
+CONVENE_RECORD_ID_RE = re.compile(
+    r"(?:record_id|recordId)=([a-zA-Z0-9]+)", re.IGNORECASE
+)
+def extract_convene_parameters(url: str) -> tuple[str, str]:
+    """Extract authentication parameters from query strings or URL fragments."""
+    clean_url = unquote(url.replace("\r", "").replace("\n", "").strip())
+    player_match = CONVENE_PLAYER_ID_RE.search(clean_url)
+    record_match = CONVENE_RECORD_ID_RE.search(clean_url)
+    player_id = player_match.group(1) if player_match else ""
+    record_id = record_match.group(1) if record_match else ""
+    if not player_id or not record_id:
+        raise ValueError("A Convene Record URL não contém player_id e record_id.")
+    return player_id, record_id
+
+
+def fetch_convene_records(convene_url: str) -> list[dict[str, object]]:
+    """Fetch records for every known banner pool using the official API."""
+    player_id, record_id = extract_convene_parameters(convene_url)
+
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0",
+    }
+    records: list[dict[str, object]] = []
+    for pool_type in range(1, 9):
+        response = None
+        payload = {
+            "playerId": player_id,
+            "cardPoolType": pool_type,
+            "language": "en",
+            "recordId": record_id,
+        }
+        for endpoint in KURO_RECORD_API_URLS:
+            try:
+                response = requests.post(
+                    endpoint,
+                    json=payload,
+                    headers=headers,
+                    timeout=15,
+                )
+            except requests.exceptions.ConnectionError:
+                continue
+            if response.status_code == 405:
+                try:
+                    response = requests.get(
+                        endpoint,
+                        params=payload,
+                        headers={"User-Agent": headers["User-Agent"], "Accept": "application/json"},
+                        timeout=15,
+                    )
+                except requests.exceptions.ConnectionError:
+                    continue
+            if response.status_code in (403, 405):
+                continue
+            break
+        if response is None:
+            raise requests.exceptions.ConnectionError(CONVENE_DNS_ERROR_MESSAGE)
+        if response.status_code in (403, 405):
+            raise RuntimeError(
+                f"Erro HTTP {response.status_code}: Método de requisição recusado pelo servidor da Kuro."
+            )
+        if response.status_code != 200:
+            continue
+        if not response.text.strip():
+            continue
+        try:
+            payload = json.loads(response.text)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict) or payload.get("code", 0) not in (0, "0"):
+            continue
+        data = payload.get("data", [])
+        records.extend(PityHistoryImportWorker._extract_records(data))
+    if not records:
+        raise ValueError("Nenhum registro retornado; o token pode estar expirado.")
+    return records
+
+
+def get_convene_url_from_log(log_path: str | Path | None = None) -> str:
+    """Return the latest Convene URL from a standard Wuthering Waves log."""
+    candidates = [
+        Path(os.path.expanduser(
+            r"~\AppData\LocalLow\Kuro Game\Wuthering Waves\Saved\Logs\Client.log"
+        )),
+        CONVENE_LOG_PATH,
+    ]
+    if log_path is not None:
+        candidates = [Path(log_path)]
+
+    selected_path = next((path for path in candidates if path.exists()), None)
+    if selected_path is None:
+        raise FileNotFoundError(CONVENE_URL_NOT_FOUND_MESSAGE)
+    with selected_path.open("r", encoding="utf-8", errors="ignore") as file:
+        log_content = file.read()
+    matches = CONVENE_GACHA_URL_RE.findall(log_content)
+    if not matches:
+        raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
+    return matches[-1]
+
+
+class ClientLogReader:
+    """Native reader for the Wuthering Waves Client.log file."""
+
+    def __init__(self, log_path: str | Path | None = None) -> None:
+        self.log_path = Path(log_path) if log_path is not None else None
+
+    def get_convene_url(self) -> str:
+        return get_convene_url_from_log(self.log_path)
+
+
+class HorizontalPageStack(QFrame):
+    """Fixed horizontal page strip used by the luck assessment panel."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._pages: list[QWidget] = []
+        self._current_index = 0
+        self._strip = QWidget(self)
+        self._layout = QHBoxLayout(self._strip)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(0)
+        self._animation: QPropertyAnimation | None = None
+
+    def addWidget(self, widget: QWidget) -> None:
+        widget.setParent(self._strip)
+        widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._pages.append(widget)
+        self._layout.addWidget(widget)
+        self._sync_geometry()
+
+    def count(self) -> int:
+        return len(self._pages)
+
+    def currentIndex(self) -> int:
+        return self._current_index
+
+    def slide_to(self, index: int, direction: int) -> None:
+        if index == self._current_index or not self._pages:
+            return
+        width = max(1, self.width())
+        start = QPoint(-self._current_index * width, 0)
+        end = QPoint(-index * width, 0)
+        self._strip.move(start)
+        animation = QPropertyAnimation(self._strip, b"pos", self)
+        animation.setDuration(250)
+        animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        animation.setStartValue(start)
+        animation.setEndValue(end)
+
+        def finish() -> None:
+            self._current_index = index
+            self._strip.move(end)
+            self._animation = None
+
+        animation.finished.connect(finish)
+        self._animation = animation
+        animation.start()
+
+    def is_animating(self) -> bool:
+        return self._animation is not None
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._sync_geometry()
+
+    def _sync_geometry(self) -> None:
+        width = max(1, self.width())
+        self._strip.setGeometry(
+            -self._current_index * width,
+            0,
+            width * max(1, len(self._pages)),
+            max(1, self.height()),
+        )
 
 
 @dataclass
@@ -61,7 +267,9 @@ class PityState:
     standard_weapon: int | None = None
     guaranteed: bool | None = None
     five_star_history: list[int] = field(default_factory=list)
+    recent_convene_details: list[str] = field(default_factory=list)
     total_registered: int = 0
+    four_star_total: int = 0
 
 
 class PityHistoryImportWorker(QObject):
@@ -75,33 +283,99 @@ class PityHistoryImportWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            query = parse_qs(urlsplit(self.history_url).fragment.split("?", 1)[-1])
-            params = {key: values[-1] for key, values in query.items() if values}
-            host = urlsplit(self.history_url).netloc
-            endpoint = f"https://{host}/aki/gacha/record/query"
-            records: list[dict[str, object]] = []
-            for page in range(1, 21):
-                body = {**params, "page": page, "size": 20}
-                request = Request(
-                    endpoint,
-                    data=json.dumps(body).encode("utf-8"),
-                    headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
-                    method="POST",
-                )
-                with urlopen(request, timeout=10) as response:  # nosec B310
-                    payload = json.loads(response.read().decode("utf-8"))
-                data = payload.get("data", payload) if isinstance(payload, dict) else {}
-                page_records = data.get("list", data.get("records", [])) if isinstance(data, dict) else []
-                if not isinstance(page_records, list) or not page_records:
-                    break
-                records.extend(item for item in page_records if isinstance(item, dict))
-                if len(page_records) < 20:
-                    break
-            if not records:
-                raise ValueError("Nenhum registro foi retornado pela URL do histórico.")
-            self.imported.emit(records)
+            self.imported.emit(fetch_convene_records(self.history_url))
+        except requests.exceptions.ConnectionError:
+            message = CONVENE_DNS_ERROR_MESSAGE
+            print(f"[Convene] {message}")
+            self.failed.emit(message)
+        except requests.RequestException as error:
+            message = f"Falha de rede ao consultar a API de gacha: {error}"
+            print(f"[Convene] {message}")
+            self.failed.emit(message)
         except Exception as error:
-            self.failed.emit(str(error))
+            message = f"Falha na consulta do Client.log: {error}"
+            print(f"[Convene] {message}")
+            self.failed.emit(message)
+
+    @staticmethod
+    def _parse_query_params(raw_text: str) -> dict[str, str]:
+        text = raw_text.strip()
+        query = text.split("?", 1)[1] if "?" in text else text
+        if "#" in query:
+            query = query.split("#", 1)[-1]
+        if query.startswith("/record?"):
+            query = query.split("?", 1)[1]
+        parsed = parse_qs(query.lstrip("?/"))
+        return {key: values[0] for key, values in parsed.items() if values}
+
+    @staticmethod
+    def _extract_records(data: object) -> list[dict[str, object]]:
+        if isinstance(data, list):
+            return [item for item in data if isinstance(item, dict)]
+        if isinstance(data, dict):
+            if any(key in data for key in ("name", "item", "quality", "rarity", "rank", "time")):
+                return [data]
+            for key in ("list", "records", "history", "items", "rows", "pulls", "result", "data"):
+                records = PityHistoryImportWorker._extract_records(data.get(key))
+                if records:
+                    return records
+        return []
+
+
+class ConveneSyncWorker(QThread):
+    """Read the latest Convene URL and fetch its JSON payload off the UI thread."""
+
+    convene_data_loaded = Signal(dict)
+    sync_failed = Signal(str)
+    success_signal = Signal(object)
+    error_signal = Signal(str)
+
+    def __init__(self, log_path: Path | None = None, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.log_path = Path(log_path) if log_path is not None else None
+
+    def run(self) -> None:
+        try:
+            reader = ClientLogReader(self.log_path)
+            convene_url = reader.get_convene_url()
+            response = requests.get(
+                convene_url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                    "Accept": "application/json, text/plain, */*",
+                },
+                timeout=15,
+            )
+            if response.status_code in (403, 405):
+                raise ValueError(
+                    f"Erro HTTP {response.status_code}: Método de requisição recusado pelo servidor da Kuro."
+                )
+            if response.status_code != 200:
+                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
+            if not response.text.strip():
+                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
+            try:
+                payload = json.loads(response.text)
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    "Sessão expirada. Acesse o Convene no jogo para revalidar."
+                ) from error
+            if not isinstance(payload, dict):
+                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
+            if payload.get("code") not in (None, 0, "0"):
+                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
+            self.convene_data_loaded.emit(payload)
+            self.success_signal.emit(payload)
+        except requests.RequestException as error:
+            self._emit_error(f"Falha de rede ao sincronizar o Convene: {error}")
+        except (FileNotFoundError, OSError, ValueError) as error:
+            self._emit_error(str(error))
+        except Exception as error:  # pylint: disable=broad-except
+            self._emit_error(f"Falha ao sincronizar o Convene: {error}")
+
+    def _emit_error(self, message: str) -> None:
+        self.sync_failed.emit(message)
+        self.error_signal.emit(message)
 
 
 class PityTrackerWorker(QObject):
@@ -271,7 +545,7 @@ class _ConveneBannerCard(QFrame):
         self.badge.setText(values[0] if values else "")
 
 
-class PityTrackerWidget(QFrame):
+class LegacyPityTrackerWidget(QFrame):
     """Glassmorphism tracker. Feed authorized pull data through capture_pull."""
 
     new_pull_captured = Signal(list)
@@ -297,10 +571,9 @@ class PityTrackerWidget(QFrame):
         self.banner_images = banner_images or {}
         self.image_network = QNetworkAccessManager(self)
         self._image_replies: dict[str, QNetworkReply] = {}
-        self.url_input = QLineEdit(self)
-        self.url_input.hide()
         self._import_thread = None
         self._import_worker = None
+        self._sync_worker: ConveneSyncWorker | None = None
         self._pulse_value = 0.0
         self._palette_accent = "#A855F7"
         self._build_large_banner_ui()
@@ -321,6 +594,8 @@ class PityTrackerWidget(QFrame):
         self.setStyleSheet(
             "QFrame#pityTracker { background-color: rgba(18, 22, 30, 224); "
             "border: 1px solid rgba(80, 160, 240, 64); border-radius: 16px; }"
+            "QFrame#pitySection { background: rgba(18, 22, 30, 155); "
+            "border: 1px solid rgba(255, 255, 255, 25); border-radius: 10px; }"
             "QFrame#conveneBannerCard { background-color: rgba(12, 15, 22, 166); "
             "border: 1px solid rgba(255, 255, 255, 20); border-radius: 10px; }"
             "QLabel#conveneBannerCategory { color: #73D7F2; font-size: 9px; font-weight: 800; }"
@@ -334,8 +609,17 @@ class PityTrackerWidget(QFrame):
             "QLabel#pityMeta { color: #AAB6C4; font-size: 9px; }"
             "QLabel#pityStatIcon { color: #B9D8E6; font-size: 17px; }"
             "QLabel#pityStatValue { color: #D6E8F0; font-size: 10px; font-weight: 700; }"
+            "QLabel#pitySectionTitle { color: #F4F7FF; font-size: 11px; font-weight: 900; }"
+            "QLabel#pityStatusTag { color: #6FE0B0; background: rgba(35, 150, 105, 45); "
+            "border: 1px solid rgba(111, 224, 176, 100); border-radius: 8px; padding: 3px 7px; font-size: 8px; font-weight: 800; }"
+            "QLabel#pityLuckValue { color: #FFD76A; font-size: 18px; font-weight: 900; }"
+            "QLabel#pitySummaryValue { color: #F4F7FF; font-size: 16px; font-weight: 900; }"
+            "QLabel#pitySummaryLabel { color: #AAB6C4; font-size: 8px; }"
             "QPushButton#pityIconButton { color: #D9EEF5; background: transparent; border: 0; "
             "font-size: 19px; padding: 0; }"
+            "QPushButton#pitySyncButton { color: #E5F7FC; background: rgba(9, 35, 52, 210); "
+            "border: 1px solid rgba(80, 190, 235, 120); border-radius: 7px; padding: 6px 8px; font-size: 8px; font-weight: 800; }"
+            "QPushButton#pitySyncButton:hover { background: rgba(28, 75, 98, 210); border-color: #73E5FF; }"
             "QPushButton#pityIconButton:hover { color: #73E5FF; }"
             "QPushButton#pityFooter { color: #E5F7FC; background: rgba(12, 28, 42, 170); "
             "border: 1px solid rgba(80, 190, 235, 110); border-radius: 16px; padding: 7px 12px; "
@@ -344,7 +628,7 @@ class PityTrackerWidget(QFrame):
         )
         root = QVBoxLayout(self)
         root.setContentsMargins(14, 12, 14, 12)
-        root.setSpacing(8)
+        root.setSpacing(7)
 
         header = QHBoxLayout()
         header.setSpacing(5)
@@ -355,25 +639,53 @@ class PityTrackerWidget(QFrame):
         online.setObjectName("pityOnline")
         header.addWidget(online)
         header.addStretch(1)
-        sync_button = QPushButton("↻")
-        sync_button.setObjectName("pityIconButton")
-        sync_button.setFixedSize(24, 24)
-        sync_button.setToolTip("Sync Log")
-        sync_button.clicked.connect(self._request_sync)
-        self.sync_button = sync_button
         history_button = QPushButton("•••")
         history_button.setObjectName("pityIconButton")
         history_button.setFixedSize(24, 24)
         history_button.setToolTip("Histórico completo")
         history_button.clicked.connect(self.view_history_clicked)
-        header.addWidget(sync_button)
         header.addWidget(history_button)
         root.addLayout(header)
 
-        self.sync_label = QLabel("◷  Última sincronização por Log: --")
-        self.sync_label.setObjectName("pityMeta")
-        self.sync_label.hide()
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setObjectName("pityScrollArea")
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        content.setMinimumWidth(0)
+        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.scroll_content = content
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 4, 0)
+        content_layout.setSpacing(8)
 
+        sync_section = QFrame()
+        sync_section.setObjectName("pitySection")
+        sync_layout = QVBoxLayout(sync_section)
+        sync_layout.setContentsMargins(9, 8, 9, 8)
+        sync_layout.setSpacing(6)
+        sync_heading = QHBoxLayout()
+        sync_title = QLabel("Sincronização de dados")
+        sync_title.setObjectName("pitySectionTitle")
+        sync_heading.addWidget(sync_title)
+        sync_heading.addStretch(1)
+        self.sync_status = QLabel("Concluído / Sincronizado")
+        self.sync_status.setObjectName("pityStatusTag")
+        sync_heading.addWidget(self.sync_status)
+        sync_layout.addLayout(sync_heading)
+        self.sync_button = QPushButton("Sincronizar Client.log")
+        self.sync_button.setObjectName("pitySyncButton")
+        self.sync_button.clicked.connect(self._request_sync)
+        sync_layout.addWidget(self.sync_button)
+        self.sync_label = QLabel("Última sincronização: --")
+        self.sync_label.setObjectName("pityMeta")
+        sync_layout.addWidget(self.sync_label)
+        content_layout.addWidget(sync_section)
+
+        banners_title = QLabel("Banners em destaque")
+        banners_title.setObjectName("pitySectionTitle")
+        content_layout.addWidget(banners_title)
         character_name = self.active_character.replace(" xuanling", "").title()
         self.resonator_card = _ConveneBannerCard(
             f"{character_name} - Event Resonator", "#A855F7"
@@ -392,47 +704,127 @@ class PityTrackerWidget(QFrame):
         self.standard_card = _ConveneBannerCard("Standard Convene", "#38BDF8")
         self.standard_character = self.standard_card.pity_label
         self.standard_weapon = QLabel()
+        self.reverberation_card = _ConveneBannerCard(
+            "Standard Convene - Invocação de Reverberação", "#A855F7"
+        )
+        self.reverberation_weapon_card = _ConveneBannerCard(
+            "Standard Convene - Arma de Reverberação", "#EAB308", True
+        )
 
-        for card in (self.resonator_card, self.weapon_card, self.standard_card):
-            root.addWidget(card)
+        for card in (
+            self.resonator_card,
+            self.weapon_card,
+            self.reverberation_card,
+            self.reverberation_weapon_card,
+        ):
+            content_layout.addWidget(card)
+
+        summary_section = QFrame()
+        summary_section.setObjectName("pitySection")
+        summary_layout = QVBoxLayout(summary_section)
+        summary_layout.setContentsMargins(9, 8, 9, 8)
+        summary_title = QLabel("Ressonantes em Destaque")
+        summary_title.setObjectName("pitySectionTitle")
+        summary_layout.addWidget(summary_title)
+        summary_grid = QGridLayout()
+        summary_grid.setHorizontalSpacing(12)
+        summary_grid.setVerticalSpacing(8)
+        self.summary_values: dict[str, QLabel] = {}
+        for index, (key, label) in enumerate((
+            ("pulls", "Total de Giros"),
+            ("astrites", "Total de Astrites"),
+            ("five", "5★ Giros"),
+            ("four", "4★ Giros"),
+        )):
+            cell = QVBoxLayout()
+            value_label = QLabel("--")
+            value_label.setObjectName("pitySummaryValue")
+            label_widget = QLabel(label)
+            label_widget.setObjectName("pitySummaryLabel")
+            cell.addWidget(value_label)
+            cell.addWidget(label_widget)
+            self.summary_values[key] = value_label
+            summary_grid.addLayout(cell, index // 2, index % 2)
+        summary_layout.addLayout(summary_grid)
+        content_layout.addWidget(summary_section)
+
+        luck_section = QFrame()
+        luck_section.setObjectName("pitySection")
+        luck_layout = QVBoxLayout(luck_section)
+        luck_layout.setContentsMargins(9, 8, 9, 8)
+        luck_heading = QHBoxLayout()
+        luck_title = QLabel("Avaliação de Sorte")
+        luck_title.setObjectName("pitySectionTitle")
+        luck_heading.addWidget(luck_title)
+        luck_heading.addStretch(1)
+        previous_button = QPushButton("<")
+        previous_button.setObjectName("pityIconButton")
+        previous_button.setFixedSize(24, 24)
+        next_button = QPushButton(">")
+        next_button.setObjectName("pityIconButton")
+        next_button.setFixedSize(24, 24)
+        luck_heading.addWidget(previous_button)
+        luck_heading.addWidget(next_button)
+        luck_layout.addLayout(luck_heading)
+        self.luck_stack = HorizontalPageStack()
+        self.luck_stack.setObjectName("pityLuckStack")
+        self.luck_pages: dict[str, dict[str, QLabel]] = {}
+        for key, title, obtained in (
+            ("five", "Sorte 5★", "5★ obtidos: 0"),
+            ("four", "Sorte 4★", "4★ obtidos: 0"),
+        ):
+            page = QWidget()
+            page_layout = QVBoxLayout(page)
+            page_layout.setContentsMargins(0, 0, 0, 0)
+            page_layout.setSpacing(2)
+            luck_value = QLabel(title)
+            luck_value.setObjectName("pityLuckValue")
+            average_label = QLabel("Pity médio: --")
+            average_label.setObjectName("pityMeta")
+            obtained_label = QLabel(obtained)
+            obtained_label.setObjectName("pityMeta")
+            message_label = QLabel("Faça mais giros para desbloquear")
+            message_label.setObjectName("pityMeta")
+            page_layout.addWidget(luck_value)
+            page_layout.addWidget(average_label)
+            page_layout.addWidget(obtained_label)
+            page_layout.addWidget(message_label)
+            self.luck_pages[key] = {
+                "value": luck_value,
+                "average": average_label,
+                "obtained": obtained_label,
+                "message": message_label,
+            }
+            self.luck_stack.addWidget(page)
+        previous_button.clicked.connect(lambda: self._change_luck_page(-1))
+        next_button.clicked.connect(lambda: self._change_luck_page(1))
+        luck_layout.addWidget(self.luck_stack)
+        content_layout.addWidget(luck_section)
 
         self.history_row = QHBoxLayout()
         self.footer_stats = QLabel()
         self.footer_stats.hide()
-        stats = QHBoxLayout()
-        stats.setSpacing(8)
-        stat_values = (("◷", "Last Update", "--"), ("◇", "Total de Giros", "--"), ("✧", "Next Pity Milestone", "--"))
-        for index, (icon, label, value) in enumerate(stat_values):
-            column = QVBoxLayout()
-            column.setSpacing(1)
-            column.setContentsMargins(0, 0, 0, 0)
-            icon_label = QLabel(icon)
-            icon_label.setObjectName("pityStatIcon")
-            column.addWidget(icon_label, 0, Qt.AlignmentFlag.AlignLeft)
-            name = QLabel(label)
-            name.setObjectName("pityMeta")
-            column.addWidget(name)
-            stat_value = QLabel(value)
-            stat_value.setObjectName("pityStatValue")
-            column.addWidget(stat_value)
-            if label == "Last Update":
-                self.last_update_value = stat_value
-            elif label == "Total de Giros":
-                self.total_pulls_value = stat_value
-            else:
-                self.next_pity_value = stat_value
-            stats.addLayout(column, 1)
-            if index < 2:
-                separator = QFrame()
-                separator.setFrameShape(QFrame.Shape.VLine)
-                separator.setStyleSheet("color: rgba(150, 190, 210, 70);")
-                stats.addWidget(separator)
-        root.addLayout(stats)
+        self.last_update_value = QLabel("--")
+        self.total_pulls_value = QLabel("--")
+        self.next_pity_value = QLabel("--")
         footer_button = QPushButton("Ver Histórico Completo  >")
         footer_button.setObjectName("pityFooter")
         footer_button.clicked.connect(self.view_history_clicked)
-        root.addWidget(footer_button)
+        content_layout.addWidget(footer_button)
+        content_layout.addStretch(1)
+        self.scroll_area.setWidget(content)
+        root.addWidget(self.scroll_area, 1)
         self._refresh_labels()
+
+    def _change_luck_page(self, direction: int) -> None:
+        current_index = self.luck_stack.currentIndex()
+        next_index = max(0, min(self.luck_stack.count() - 1, current_index + direction))
+        if next_index == current_index:
+            return
+        if self.luck_stack.is_animating():
+            return
+
+        self.luck_stack.slide_to(next_index, direction)
 
     def apply_wallpaper_palette(
         self,
@@ -609,7 +1001,7 @@ class PityTrackerWidget(QFrame):
 
         footer_row = QHBoxLayout()
         footer_row.setSpacing(5)
-        recent_label = QLabel("5★ Recentes")
+        recent_label = QLabel("Recent Convene Details")
         recent_label.setObjectName("pityMeta")
         footer_row.addWidget(recent_label)
         self.history_row = QHBoxLayout()
@@ -664,7 +1056,8 @@ class PityTrackerWidget(QFrame):
             if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
                 return
             pixmap = QPixmap()
-            pixmap.loadFromData(bytes(reply.readAll()))
+            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            pixmap.loadFromData(data)
             if not pixmap.isNull():
                 target.set_art(pixmap)
         finally:
@@ -699,7 +1092,8 @@ class PityTrackerWidget(QFrame):
             if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
                 return
             pixmap = QPixmap()
-            pixmap.loadFromData(bytes(reply.readAll()))
+            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            pixmap.loadFromData(data)
             if not pixmap.isNull():
                 target.setPixmap(self._circular_pixmap(pixmap, width, height))
                 if border_color:
@@ -774,16 +1168,30 @@ class PityTrackerWidget(QFrame):
         self.standard_weapon.setText(f"Arma: {standard_weapon} / 80")
         total = self.state.total_registered or "--"
         self.footer_stats.setText(f"Total registrado no banco: {total} tiros")
-        self.total_pulls_value.setText(
+        self.summary_values["pulls"].setText(
             f"{self.state.total_registered:,}" if self.state.total_registered else "--"
         )
+        self.summary_values["astrites"].setText(
+            f"{self.state.total_registered * 160:,}" if self.state.total_registered else "--"
+        )
+        self.summary_values["five"].setText(str(len(self.state.five_star_history)))
+        self.summary_values["four"].setText(str(self.state.four_star_total))
         current_pity = self.state.resonator
         next_pity = max(0, 80 - current_pity) if current_pity is not None else None
-        self.next_pity_value.setText(
-            f"In {next_pity} pulls" if next_pity is not None else "--"
+        average = sum(self.state.five_star_history) / len(self.state.five_star_history) if self.state.five_star_history else None
+        five_page = self.luck_pages["five"]
+        five_page["value"].setText("Sorte 5★: --" if not self.state.five_star_history else "Sorte 5★: registrada")
+        five_page["average"].setText(f"Pity médio: {average:.1f}" if average is not None else "Pity médio: --")
+        five_page["obtained"].setText(f"5★ obtidos: {len(self.state.five_star_history)}")
+        five_page["message"].setText(
+            "Boa sequência de sorte" if self.state.five_star_history else "Faça mais giros para desbloquear"
         )
-        self.last_update_value.setText(
-            "Just now" if self.state.total_registered else "--"
+        four_page = self.luck_pages["four"]
+        four_page["value"].setText("Sorte 4★: --" if not self.state.four_star_total else "Sorte 4★: registrada")
+        four_page["average"].setText("Pity médio: --")
+        four_page["obtained"].setText(f"4★ obtidos: {self.state.four_star_total}")
+        four_page["message"].setText(
+            "Boa sequência de sorte" if self.state.four_star_total else "Faça mais giros para desbloquear"
         )
         self._set_progress(self.resonator_progress, self.state.resonator)
         self._set_progress(self.weapon_progress, self.state.weapon)
@@ -794,7 +1202,17 @@ class PityTrackerWidget(QFrame):
             item = self.history_row.takeAt(0)
             if item.widget() is not None:
                 item.widget().deleteLater()
+        details = self.state.recent_convene_details[:3]
         history = self.state.five_star_history[-3:]
+        if details:
+            for detail in details:
+                badge = QLabel(detail[:18])
+                badge.setObjectName("pityHistoryBadge")
+                badge.setFixedSize(112, 20)
+                badge.setToolTip(detail)
+                self.history_row.addWidget(badge)
+            self.history_row.addStretch(1)
+            return
         if not history:
             empty = QLabel("--")
             empty.setObjectName("pityHistory")
@@ -812,14 +1230,75 @@ class PityTrackerWidget(QFrame):
 
     def _request_sync(self) -> None:
         self.sync_log_clicked.emit()
-        url, accepted = QInputDialog.getText(
-            self,
-            "Sincronizar via Log",
-            "Cole a URL do histórico de invocações:",
+        self._start_saved_log_import()
+
+    def _start_saved_log_import(self) -> None:
+        """Use the saved local Client.log without external import scripts."""
+        try:
+            convene_url = ClientLogReader().get_convene_url()
+        except (FileNotFoundError, OSError, ValueError) as error:
+            self._on_sync_error(str(error))
+            return
+        self.sync_status.setText("URL do Client.log encontrada")
+        self.sync_label.setText("Consultando os registros salvos...")
+        self._start_import(convene_url)
+
+    def _start_convene_sync(self) -> None:
+        if self._sync_worker is not None and self._sync_worker.isRunning():
+            return
+        self.sync_button.setEnabled(False)
+        self.sync_button.setText("Carregando...")
+        self.sync_status.setText("Sincronizando...")
+        self.sync_label.setStyleSheet("color: #F4C7C3;")
+        self.sync_label.setText("Lendo Client.log e consultando a API...")
+        self._sync_worker = ConveneSyncWorker(parent=self)
+        self._sync_worker.convene_data_loaded.connect(self.on_convene_data_received)
+        self._sync_worker.sync_failed.connect(self._on_sync_error)
+        self._sync_worker.finished.connect(self._clear_sync_worker)
+        self._sync_worker.start()
+
+    def on_convene_data_received(self, data: dict) -> None:
+        """Apply a successful API payload to every Convene Tracker surface."""
+        records = PityHistoryImportWorker._extract_records(data)
+        if not records:
+            self._on_sync_error("A API não retornou registros de Convene reconhecíveis.")
+            return
+        self._apply_imported_records(records)
+        self.sync_status.setText("ONLINE / Sincronizado")
+        self.sync_status.setStyleSheet(
+            "color: #6FE0B0; background: rgba(35, 150, 105, 45); "
+            "border: 1px solid rgba(111, 224, 176, 100);"
         )
-        if accepted and url.strip():
-            self.url_input.setText(url.strip())
-            self._start_import()
+        self.update()
+        self.repaint()
+
+    def update_convene_ui(self, data: object) -> None:
+        """Backward-compatible alias for the Convene data handler."""
+        if isinstance(data, dict):
+            self.on_convene_data_received(data)
+
+    def _on_sync_error(self, message: str) -> None:
+        self.sync_status.setText("Não sincronizado")
+        self.sync_status.setStyleSheet(
+            "color: #FF8F8F; background: rgba(150, 35, 35, 45); "
+            "border: 1px solid rgba(255, 143, 143, 100);"
+        )
+        self.sync_label.setStyleSheet("color: #FF8F8F;")
+        self.sync_label.setText("Falha na sincronização")
+        self.sync_label.setToolTip(message)
+        if (
+            message.startswith("Erro HTTP 403:")
+            or message.startswith("Erro HTTP 405:")
+            or message.startswith("Erro de Conexão/DNS:")
+        ):
+            self.sync_label.setText(message)
+
+    def _clear_sync_worker(self) -> None:
+        if self._sync_worker is not None:
+            self._sync_worker.deleteLater()
+        self._sync_worker = None
+        self.sync_button.setText("Sincronizar Client.log")
+        self.sync_button.setEnabled(True)
 
     def _set_progress(self, progress: QProgressBar, value: int | None) -> None:
         current = max(0, min(80, value or 0))
@@ -830,12 +1309,16 @@ class PityTrackerWidget(QFrame):
             f"QProgressBar::chunk {{ background: {color}; border-radius: 2px; }}"
         )
 
-    def _start_import(self) -> None:
-        if not self.url_input.text().strip():
+    def _start_import(self, convene_url: str) -> None:
+        try:
+            extract_convene_parameters(convene_url)
+        except ValueError as error:
+            self.sync_status.setText("Client.log inválido")
+            self.sync_label.setText(str(error))
             return
-        self.sync_button.setEnabled(False)
+        self.sync_status.setText("Sincronizando...")
         self._import_thread = QThread(self)
-        self._import_worker = PityHistoryImportWorker(self.url_input.text())
+        self._import_worker = PityHistoryImportWorker(convene_url)
         self._import_worker.moveToThread(self._import_thread)
         self._import_thread.started.connect(self._import_worker.run)
         self._import_worker.imported.connect(self._apply_imported_records)
@@ -845,29 +1328,86 @@ class PityTrackerWidget(QFrame):
         self._import_thread.finished.connect(self._clear_import)
         self._import_thread.start()
 
+    def _update_state_from_records(self, records: list[object]) -> None:
+        pity_by_pool = {
+            "resonator": 0,
+            "weapon": 0,
+            "standard_character": 0,
+            "standard_weapon": 0,
+        }
+        five_stars: list[int] = []
+        four_stars = 0
+        for record in reversed(records):
+            if not isinstance(record, dict):
+                continue
+            pool = self._record_pool(record)
+            pity_by_pool[pool] += 1
+            rarity = record.get("quality", record.get("rarity", record.get("rank", 0)))
+            try:
+                rarity_value = int(rarity)
+            except (TypeError, ValueError):
+                continue
+            if rarity_value >= 5:
+                five_stars.append(pity_by_pool[pool])
+                pity_by_pool[pool] = 0
+            elif rarity_value >= 4:
+                four_stars += 1
+        self.state.resonator = pity_by_pool["resonator"]
+        self.state.weapon = pity_by_pool["weapon"]
+        self.state.standard_character = pity_by_pool["standard_character"]
+        self.state.standard_weapon = pity_by_pool["standard_weapon"]
+        self.state.five_star_history = five_stars[:3]
+        self.state.recent_convene_details = [
+            self._format_recent_record(record) for record in records[:5]
+        ]
+        self.state.four_star_total = four_stars
+        self.state.total_registered = len(records)
+
+    @staticmethod
+    def _format_recent_record(record: object) -> str:
+        if not isinstance(record, dict):
+            return str(record)
+        name = record.get("name", record.get("item", record.get("title", "Convene")))
+        rarity = record.get("quality", record.get("rarity", record.get("rank", "?")))
+        return f"{name} ({rarity}★)"
+
+    @staticmethod
+    def _record_pool(record: dict[str, object]) -> str:
+        metadata = " ".join(
+            str(record.get(key, ""))
+            for key in ("type", "pool", "banner", "gacha_type", "resource", "name")
+        ).casefold()
+        is_weapon = "weapon" in metadata or "arma" in metadata
+        is_standard = any(value in metadata for value in ("standard", "permanent", "novice", "常驻"))
+        if is_standard and is_weapon:
+            return "standard_weapon"
+        if is_standard:
+            return "standard_character"
+        if is_weapon:
+            return "weapon"
+        return "resonator"
+
     def _apply_imported_records(self, records: object) -> None:
         if not isinstance(records, list):
             return
-        pity = 0
-        five_stars: list[int] = []
-        for record in reversed(records):
-            pity += 1
-            rarity = record.get("quality", record.get("rarity", 0)) if isinstance(record, dict) else 0
-            try:
-                if int(rarity) >= 5:
-                    five_stars.append(pity)
-                    pity = 0
-            except (TypeError, ValueError):
-                continue
-        self.state.resonator = pity
-        self.state.five_star_history = five_stars[:3]
-        self.state.total_registered = len(records)
-        self.sync_label.setText("◷  Última sincronização por Log: agora")
+        self._update_state_from_records(records)
+        self.sync_status.setText("Concluído / Sincronizado")
+        self.sync_label.setStyleSheet("")
+        self.sync_label.setText("Última sincronização: agora")
         self._refresh_labels()
 
     def _import_failed(self, message: str) -> None:
-        self.sync_label.setText("◷  Falha na sincronização por Log")
+        self.sync_status.setText("Falha na sincronização")
+        self.sync_label.setText(
+            "Abra a tela de Histórico dentro do Wuthering Waves primeiro e tente novamente."
+        )
+        if "Erro HTTP 405:" in message or "Erro HTTP 403:" in message:
+            self.sync_label.setText(message)
+        if message.startswith("Erro de Conexão/DNS:"):
+            self.sync_label.setText(message)
         self.sync_label.setToolTip(message)
+        self.sync_button.setText("Sincronizar Client.log")
+        self.sync_button.setEnabled(True)
         self._refresh_labels()
 
     def _clear_import(self) -> None:
@@ -877,6 +1417,7 @@ class PityTrackerWidget(QFrame):
             self._import_thread.deleteLater()
         self._import_worker = None
         self._import_thread = None
+        self.sync_button.setText("Sincronizar Client.log")
         self.sync_button.setEnabled(True)
 
     def capture_pull(self, items: Iterable[object]) -> None:
@@ -898,3 +1439,575 @@ class PityTrackerWidget(QFrame):
         items = shot.get("items", [])
         if isinstance(items, list):
             self.capture_pull(items)
+
+
+class NoticeManager:
+    """Loads public notices from the official Kuro Games feed and keeps an offline event board."""
+
+    FALLBACK_NOTICES: tuple[dict[str, object], ...] = (
+        {
+            "category": "Eventos",
+            "tag": "Evento",
+            "title": "Eventos ativos da versão",
+            "status": "Em andamento",
+            "summary": "Confira os eventos temporários e resgate as recompensas disponíveis.",
+            "rewards": "Astrites e materiais de evolução",
+            "accent": "#55C7FF",
+            "date": "09-09",
+            "image_url": EVENT_RESONATOR_BANNER_URL,
+        },
+        {
+            "category": "Avisos",
+            "tag": "Aviso",
+            "title": "Avisos do servidor",
+            "status": "Atualizado recentemente",
+            "summary": "Consulte as comunicações oficiais e alterações importantes do serviço.",
+            "rewards": "Informações importantes",
+            "accent": "#F0A35B",
+            "date": "09-09",
+        },
+        {
+            "category": "Notícias",
+            "tag": "Manutenção",
+            "title": "Próxima manutenção programada",
+            "status": "Agendado",
+            "summary": "Programe suas atividades antes da janela de manutenção do servidor.",
+            "rewards": "Compensação conforme anúncio oficial",
+            "accent": "#F06D6D",
+            "date": "09-09",
+            "image_url": SIGNATURE_WEAPON_BANNER_URL,
+        },
+    )
+
+    def __init__(self, endpoint: str | None = None) -> None:
+        default_endpoint = os.environ.get("TETHYS_NOTICES_URL", KURO_NEWS_API_URL).strip()
+        self.endpoint = (endpoint or default_endpoint).strip()
+
+    @staticmethod
+    def _category_from_name(raw_name: str | None) -> str:
+        category = str(raw_name or "").strip()
+        folded = category.casefold()
+        if folded in {"evento", "eventos", "event", "events"}:
+            return "Eventos"
+        if folded in {"aviso", "avisos", "announcement", "announcements", "notice", "notices"}:
+            return "Avisos"
+        if folded in {"notícia", "notícias", "news", "news update", "update", "updates"}:
+            return "Notícias"
+        return "Notícias" if "news" in folded or "notícia" in folded else "Avisos"
+
+    @staticmethod
+    def _build_content_url(item: dict[str, object]) -> str:
+        identifier = str(item.get("id") or "").strip()
+        if identifier:
+            return f"{KURO_NEWS_DETAIL_URL}{identifier}"
+        return ""
+
+    def fallback(self) -> list[dict[str, object]]:
+        return [dict(item) for item in self.FALLBACK_NOTICES]
+
+    def normalize(self, payload: object) -> list[dict[str, object]]:
+        if isinstance(payload, dict):
+            if "data" in payload and isinstance(payload["data"], dict):
+                data = payload["data"]
+                items = data.get("list", data.get("news", data.get("items", [])))
+            else:
+                items = payload.get("notices", payload.get("events", payload.get("news", [])))
+        else:
+            items = payload
+        if not isinstance(items, list):
+            return []
+        notices: list[dict[str, object]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            category_name = item.get("categoryName", item.get("category", item.get("type", "Avisos")))
+            category = self._category_from_name(str(category_name))
+            title = str(item.get("title", item.get("name", "Aviso"))).strip() or "Aviso"
+            image_url = str(item.get("coverUrl", item.get("imageUrl", item.get("image_url", item.get("image", ""))))).strip()
+            date_value = item.get("createTime", item.get("createdAt", item.get("date", item.get("published_at", "09-09"))))
+            notices.append({
+                "category": category,
+                "tag": category[:-1] if category.endswith("s") else category,
+                "title": title,
+                "status": str(item.get("status", "Atualizado recentemente")),
+                "summary": str(item.get("summary", item.get("description", ""))),
+                "rewards": str(item.get("rewards", "")),
+                "image_url": image_url,
+                "accent": str(item.get("accent", "#55C7FF")),
+                "date": self.format_date(date_value),
+                "end_at": str(item.get("end_at", item.get("endDate", item.get("ends_at", "")))),
+                "content_url": self._build_content_url(item),
+            })
+        return notices
+
+    @staticmethod
+    def format_date(value: object) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return "09-09"
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone(timedelta(hours=-5))).strftime("%m-%d")
+        except ValueError:
+            return raw[:10]
+
+    @staticmethod
+    def format_remaining(value: object) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return "Tempo restante indisponível"
+        try:
+            end_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if end_at.tzinfo is None:
+                end_at = end_at.replace(tzinfo=timezone.utc)
+            remaining = end_at - datetime.now(timezone.utc)
+            seconds = max(0, int(remaining.total_seconds()))
+            days, seconds = divmod(seconds, 86400)
+            hours, seconds = divmod(seconds, 3600)
+            minutes, seconds = divmod(seconds, 60)
+            if days:
+                return f"{days:02d}d {hours:02d}h restantes"
+            return f"{hours:02d}h {minutes:02d}m {seconds:02d}s restantes"
+        except ValueError:
+            return "Tempo restante indisponível"
+
+    def load(self) -> list[dict[str, object]]:
+        if not self.endpoint:
+            return self.fallback()
+        try:
+            response = requests.get(
+                self.endpoint,
+                params={"language": "pt", "page": 1, "limit": 10},
+                timeout=12,
+                headers={"Accept": "application/json", "User-Agent": "Mozilla/5.0"},
+            )
+            response.raise_for_status()
+            try:
+                payload = response.json()
+            except (ValueError, json.JSONDecodeError):
+                titles = re.findall(r'alt=["\']([^"\']+)["\']', response.text)
+                payload = {
+                    "events": [
+                        {"category": "Eventos", "tag": "Evento", "title": title, "date": "09-09"}
+                        for title in titles if len(title) > 4
+                    ]
+                }
+            notices = self.normalize(payload)
+            return notices or self.fallback()
+        except (requests.RequestException, ValueError, json.JSONDecodeError):
+            return self.fallback()
+
+
+class NoticeLoadWorker(QThread):
+    loaded = Signal(list)
+
+    def __init__(self, manager: NoticeManager, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.manager = manager
+
+    def run(self) -> None:
+        self.loaded.emit(self.manager.load())
+
+
+class NewsFetcherWorker(QThread):
+    """Worker dedicated to the official Kuro Games news API."""
+
+    news_loaded = Signal(list)
+    failed = Signal(str)
+
+    def __init__(self, manager: NoticeManager, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.manager = manager
+
+    def run(self) -> None:
+        try:
+            self.news_loaded.emit(self.manager.load())
+        except Exception as error:  # pragma: no cover - defensive for UI thread safety
+            self.failed.emit(str(error))
+            self.news_loaded.emit(self.manager.fallback())
+
+
+class NoticeCard(QFrame):
+    """Compact event/news card for the lateral board."""
+
+    def __init__(self, notice: dict[str, object], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.end_at = notice.get("end_at", "")
+        self.setObjectName("noticeCard")
+        accent = str(notice.get("accent", "#55C7FF"))
+        self.setStyleSheet(
+            f"QFrame#noticeCard {{ background: rgba(8, 17, 29, 220); "
+            f"border: 1px solid rgba(130, 190, 220, 55); border-left: 3px solid {accent}; border-radius: 8px; }}"
+        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(11, 10, 11, 10)
+        layout.setSpacing(5)
+        image_url = str(notice.get("image_url", ""))
+        if image_url.startswith(("https://", "http://")):
+            self.image_manager = QNetworkAccessManager(self)
+            self.image_label = QLabel()
+            self.image_label.setFixedHeight(74)
+            self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.image_label.setStyleSheet(
+                "background: rgba(4, 10, 18, 180); border-radius: 6px; color: #6F8796;"
+            )
+            self.image_label.setText("Carregando imagem...")
+            layout.addWidget(self.image_label)
+            reply = self.image_manager.get(QNetworkRequest(QUrl(image_url)))
+            reply.finished.connect(lambda: self._set_image(reply))
+        top = QHBoxLayout()
+        tag = QLabel(str(notice.get("tag", "Aviso")).upper())
+        tag.setStyleSheet(f"color: {accent}; font-size: 9px; font-weight: 900;")
+        top.addWidget(tag)
+        top.addStretch(1)
+        status = QLabel(str(notice.get("status", "Atualizado")))
+        status.setStyleSheet("color: #A8C1D0; font-size: 9px; font-weight: 700;")
+        top.addWidget(status)
+        layout.addLayout(top)
+        title = QLabel(str(notice.get("title", "Aviso")))
+        title.setWordWrap(True)
+        title.setStyleSheet("color: #F4F8FC; font-size: 13px; font-weight: 900;")
+        layout.addWidget(title)
+        summary = QLabel(str(notice.get("summary", "")))
+        summary.setWordWrap(True)
+        summary.setStyleSheet("color: #A9BBC8; font-size: 10px; line-height: 1.3;")
+        layout.addWidget(summary)
+        rewards = str(notice.get("rewards", ""))
+        if rewards:
+            reward_label = QLabel(rewards)
+            reward_label.setWordWrap(True)
+            reward_label.setStyleSheet(f"color: {accent}; font-size: 9px; font-weight: 800;")
+            layout.addWidget(reward_label)
+
+    def _set_image(self, reply: QNetworkReply) -> None:
+        if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
+            pixmap = QPixmap()
+            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            pixmap.loadFromData(data)
+            if not pixmap.isNull():
+                self.image_label.setPixmap(
+                    pixmap.scaled(
+                        self.image_label.size(),
+                        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                self.image_label.setText("")
+        reply.deleteLater()
+
+
+class ElidedNoticeLabel(QLabel):
+    """Single-line label that truncates long launcher headlines cleanly."""
+
+    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._full_text = text
+        self.setText("")
+        self.setMinimumWidth(0)
+
+    def resizeEvent(self, event) -> None:
+        metrics = QFontMetrics(self.font())
+        self.setToolTip(self._full_text)
+        self.setText(metrics.elidedText(self._full_text, Qt.TextElideMode.ElideRight, max(0, self.width())))
+        super().resizeEvent(event)
+
+
+class NoticeRow(QFrame):
+    """Launcher-style notice row with elided title and right-aligned date."""
+
+    def __init__(self, notice: dict[str, object], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.notice = notice
+        self.content_url = str(notice.get("content_url") or notice.get("link") or "").strip()
+        self.setObjectName("noticeRow")
+        self.setMinimumHeight(38)
+        self.setMaximumHeight(38)
+        self.setStyleSheet(
+            "QFrame#noticeRow { background: transparent; border-bottom: 1px solid #2A3038; }"
+            "QFrame#noticeRow:hover { background: rgba(255, 255, 255, 0.05); }"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(8)
+        image_url = str(notice.get("image_url", ""))
+        if str(notice.get("category", "")).casefold() == "eventos" and image_url.startswith(("http://", "https://")):
+            self.image_manager = QNetworkAccessManager(self)
+            self.image_label = QLabel(self)
+            self.image_label.setFixedSize(52, 28)
+            self.image_label.setStyleSheet("background: #202833; border-radius: 4px;")
+            layout.addWidget(self.image_label)
+            reply = self.image_manager.get(QNetworkRequest(QUrl(image_url)))
+            reply.finished.connect(lambda: self._set_image(reply))
+        title = ElidedNoticeLabel(str(notice.get("title", "Aviso")), self)
+        title.setStyleSheet("color: #F3F4F5; font-size: 11px; font-weight: 800;")
+        title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        layout.addWidget(title, 1)
+        if str(notice.get("category", "")).casefold() == "eventos":
+            self.remaining_label = QLabel(NoticeManager.format_remaining(notice.get("end_at", "")))
+            self.remaining_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.remaining_label.setStyleSheet("color: #BFC8D1; font-size: 9px; font-weight: 700;")
+            self.remaining_label.setFixedWidth(112)
+            layout.addWidget(self.remaining_label)
+        date = QLabel(str(notice.get("date", "09-09")))
+        date.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        date.setStyleSheet("color: #A5ADB5; font-size: 10px; font-weight: 700;")
+        date.setFixedWidth(42)
+        layout.addWidget(date)
+
+    def mousePressEvent(self, event) -> None:
+        if self.content_url:
+            QDesktopServices.openUrl(QUrl(self.content_url))
+        super().mousePressEvent(event)
+
+    def _set_image(self, reply: QNetworkReply) -> None:
+        if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
+            pixmap = QPixmap()
+            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            pixmap.loadFromData(data)
+            if not pixmap.isNull():
+                self.image_label.setPixmap(pixmap.scaled(
+                    self.image_label.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                ))
+        reply.deleteLater()
+
+    def update_remaining(self, end_at: object) -> None:
+        if hasattr(self, "remaining_label"):
+            self.remaining_label.setText(NoticeManager.format_remaining(end_at))
+
+
+class NoticeHeroFrame(QFrame):
+    hover_changed = Signal(bool)
+
+    def enterEvent(self, event) -> None:
+        self.hover_changed.emit(True)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self.hover_changed.emit(False)
+        super().leaveEvent(event)
+
+
+class PityTrackerWidget(QFrame):
+    """Lateral notices and events board replacing the former Convene Tracker."""
+
+    def __init__(
+        self,
+        active_character: str = "",
+        banner_images: dict[str, object] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName("noticeBoard")
+        self.setMinimumWidth(320)
+        self.setMaximumWidth(360)
+        self.setFixedHeight(440)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
+            "QFrame#noticeBoard { background: #12161A; border: 0; border-radius: 12px; }"
+            "QTabBar { background: transparent; }"
+            "QTabBar::tab { color: #8A929A; background: transparent; padding: 8px 13px 7px 0; margin-right: 14px; font-size: 12px; font-weight: 700; border: 0; }"
+            "QTabBar::tab:selected { color: #E2B76E; border-bottom: 2px solid #D4A359; }"
+            "QScrollArea { background: transparent; border: 0; }"
+        )
+        self.notices: list[dict[str, object]] = []
+        self.manager = NoticeManager()
+        self.worker: NoticeLoadWorker | None = None
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 8)
+        root.setSpacing(0)
+        self.slide_timer = QTimer(self)
+        self.slide_timer.setInterval(5000)
+        self.slide_timer.timeout.connect(lambda: self._change_slide(1))
+        self._build_hero(root)
+        self.slide_timer.start()
+        self.tabs = QTabBar()
+        self.tabs.addTab("Avisos")
+        self.tabs.addTab("Notícias")
+        self.tabs.addTab("Eventos")
+        self.tabs.setDrawBase(False)
+        self.tabs.setExpanding(False)
+        tabs_wrap = QWidget()
+        tabs_layout = QHBoxLayout(tabs_wrap)
+        tabs_layout.setContentsMargins(14, 3, 12, 0)
+        tabs_layout.addWidget(self.tabs)
+        tabs_layout.addStretch(1)
+        root.addWidget(tabs_wrap)
+        self.tabs.currentChanged.connect(self._render_notices)
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        content = QWidget()
+        self.notice_layout = QVBoxLayout(content)
+        self.notice_layout.setContentsMargins(14, 0, 12, 0)
+        self.notice_layout.setSpacing(0)
+        self.notice_layout.addStretch(1)
+        self.scroll_area.setWidget(content)
+        root.addWidget(self.scroll_area, 1)
+        self.event_timer = QTimer(self)
+        self.event_timer.setInterval(1000)
+        self.event_timer.timeout.connect(self._refresh_event_times)
+        self.event_timer.start()
+        self._start_notice_load()
+
+    def _build_hero(self, root: QVBoxLayout) -> None:
+        hero = NoticeHeroFrame(self)
+        self.hero = hero
+        hero.setFixedHeight(174)
+        hero.setStyleSheet("QFrame#noticeHero { background: #122432; border-top-left-radius: 12px; border-top-right-radius: 12px; }")
+        hero.setObjectName("noticeHero")
+        hero_layout = QGridLayout(hero)
+        hero_layout.setContentsMargins(0, 0, 0, 0)
+        self.hero_image = QLabel(hero)
+        self.hero_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hero_image.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #193B4D,stop:1 #0A151D); border-top-left-radius: 12px; border-top-right-radius: 12px;")
+        self.hero_image.setText("")
+        hero_layout.addWidget(self.hero_image, 0, 0)
+        self.hero_next_image = QLabel(hero)
+        self.hero_next_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hero_next_image.setStyleSheet(self.hero_image.styleSheet())
+        self.hero_next_image.hide()
+        hero_layout.addWidget(self.hero_next_image, 0, 0)
+        logo = QLabel("WUTHERING\nWAVES", hero)
+        logo.setStyleSheet("color: white; font-size: 23px; font-weight: 900; letter-spacing: 1px; background: transparent;")
+        logo.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        logo.setContentsMargins(16, 0, 0, 0)
+        hero_layout.addWidget(logo, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.hero_dots = QLabel("◆  ○")
+        self.hero_dots.setStyleSheet("color: #E2B76E; font-size: 12px; font-weight: 900; background: transparent;")
+        hero_layout.addWidget(self.hero_dots, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        self.btn_prev = QPushButton("◀", hero)
+        self.btn_next = QPushButton("▶", hero)
+        for button in (self.btn_prev, self.btn_next):
+            button.setFixedSize(30, 30)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet(
+                "QPushButton { color: #E2B76E; background: rgba(8, 12, 17, 180); "
+                "border: 1px solid rgba(226, 183, 110, 180); border-radius: 15px; "
+                "font-size: 13px; font-weight: 900; padding: 0; }"
+                "QPushButton:hover { background: rgba(226, 183, 110, 55); }"
+            )
+            button.hide()
+        hero_layout.addWidget(self.btn_prev, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        hero_layout.addWidget(self.btn_next, 0, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.btn_prev.clicked.connect(lambda: self._change_slide(-1))
+        self.btn_next.clicked.connect(lambda: self._change_slide(1))
+        hero.hover_changed.connect(self._set_hero_hover)
+        self.hero_images = (EVENT_RESONATOR_BANNER_URL, SIGNATURE_WEAPON_BANNER_URL)
+        self.hero_pixmaps = [QPixmap(), QPixmap()]
+        self.hero_index = 0
+        self.hero_manager = QNetworkAccessManager(self)
+        for index, image_url in enumerate(self.hero_images):
+            reply = self.hero_manager.get(QNetworkRequest(QUrl(image_url)))
+            reply.finished.connect(lambda index=index, reply=reply: self._set_hero_image(reply, index))
+        root.addWidget(hero)
+
+    def _set_hero_hover(self, hovered: bool) -> None:
+        self.btn_prev.setVisible(hovered)
+        self.btn_next.setVisible(hovered)
+        if hovered:
+            self.slide_timer.stop()
+        else:
+            self.slide_timer.start()
+
+    def _set_hero_image(self, reply: QNetworkReply, index: int) -> None:
+        if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
+            pixmap = QPixmap()
+            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            pixmap.loadFromData(data)
+            if not pixmap.isNull():
+                self.hero_pixmaps[index] = pixmap
+                if index == self.hero_index:
+                    self._display_hero_pixmap(pixmap)
+        reply.deleteLater()
+
+    def _display_hero_pixmap(self, pixmap: QPixmap) -> None:
+        self.hero_image.setPixmap(pixmap.scaled(
+            self.hero_image.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+
+    def _change_slide(self, direction: int) -> None:
+        if getattr(self, "_slide_group", None) is not None and self._slide_group.state() == QAbstractAnimation.State.Running:
+            return
+        next_index = (self.hero_index + direction) % len(self.hero_images)
+        pixmap = self.hero_pixmaps[next_index]
+        self.hero_index = next_index
+        self.hero_dots.setText("  ".join("◆" if index == self.hero_index else "○" for index in range(len(self.hero_images))))
+        if pixmap.isNull():
+            return
+        width = max(1, self.hero.width())
+        self.hero_next_image.setPixmap(pixmap.scaled(
+            self.hero_next_image.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        ))
+        self.hero_image.move(0, 0)
+        self.hero_next_image.move(direction * width, 0)
+        self.hero_next_image.show()
+        current_animation = QPropertyAnimation(self.hero_image, b"pos", self)
+        incoming_animation = QPropertyAnimation(self.hero_next_image, b"pos", self)
+        for animation in (current_animation, incoming_animation):
+            animation.setDuration(280)
+            animation.setEasingCurve(QEasingCurve.Type.OutCubic)
+        current_animation.setStartValue(QPoint(0, 0))
+        current_animation.setEndValue(QPoint(-direction * width, 0))
+        incoming_animation.setStartValue(QPoint(direction * width, 0))
+        incoming_animation.setEndValue(QPoint(0, 0))
+        group = QParallelAnimationGroup(self)
+        group.addAnimation(current_animation)
+        group.addAnimation(incoming_animation)
+
+        def finish() -> None:
+            self.hero_image.setPixmap(self.hero_next_image.pixmap())
+            self.hero_image.move(0, 0)
+            self.hero_next_image.hide()
+            self.hero_next_image.move(0, 0)
+
+        group.finished.connect(finish)
+        self._slide_group = group
+        group.start()
+
+    def _start_notice_load(self) -> None:
+        self.worker = NewsFetcherWorker(self.manager, self)
+        self.worker.news_loaded.connect(self._set_notices)
+        self.worker.failed.connect(lambda message: self._set_notices(self.manager.fallback()))
+        self.worker.start()
+
+    def _set_notices(self, notices: list[dict[str, object]]) -> None:
+        self.notices = notices
+        hero_images = [
+            str(notice.get("image_url", "")).strip()
+            for notice in notices
+            if str(notice.get("image_url", "")).strip()
+        ]
+        if hero_images:
+            self.hero_images = tuple(hero_images[:3])
+        else:
+            self.hero_images = (EVENT_RESONATOR_BANNER_URL, SIGNATURE_WEAPON_BANNER_URL)
+        self.hero_pixmaps = [QPixmap() for _ in self.hero_images]
+        for index, image_url in enumerate(self.hero_images):
+            reply = self.hero_manager.get(QNetworkRequest(QUrl(image_url)))
+            reply.finished.connect(lambda index=index, reply=reply: self._set_hero_image(reply, index))
+        self._render_notices()
+
+    def _render_notices(self) -> None:
+        while self.notice_layout.count() > 1:
+            item = self.notice_layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+        selected = self.tabs.tabText(self.tabs.currentIndex())
+        filtered = [
+            notice for notice in self.notices
+            if str(notice.get("category", "")).casefold() == selected.casefold()
+        ]
+        for notice in filtered:
+            self.notice_layout.insertWidget(self.notice_layout.count() - 1, NoticeRow(notice))
+
+    def _refresh_event_times(self) -> None:
+        for index in range(self.notice_layout.count() - 1):
+            widget = self.notice_layout.itemAt(index).widget()
+            if isinstance(widget, NoticeRow):
+                widget.update_remaining(getattr(widget, "end_at", ""))
