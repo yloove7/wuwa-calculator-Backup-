@@ -9,10 +9,11 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSignalBlocker, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QResizeEvent
+from PySide6.QtCore import QEvent, QRect, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QImage, QPainter, QPixmap, QResizeEvent
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSlider, QStyle,
+    QSlider, QStackedWidget, QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -28,9 +29,44 @@ from PySide6.QtWidgets import (
 # Allow direct execution from the app/ directory while keeping package imports
 # as the canonical path used by the Tethys launcher.
 if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from src.wuwa_calculator.app.components import Card, TitleLabel
+
+
+class LivePreviewGLWidget(QOpenGLWidget):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._image = QImage()
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.timeout.connect(self.update)
+        self._refresh_timer.start(max(1, round(1000.0 / 201.0)))
+        self.setMinimumSize(1, 1)
+
+    def set_frame(self, image: QImage) -> None:
+        if image.isNull():
+            return
+        self._image = image
+        self.update()
+
+    def clear_frame(self) -> None:
+        self._image = QImage()
+        self.update()
+
+    def pixmap(self) -> QPixmap:
+        return QPixmap.fromImage(self._image)
+
+    def paintGL(self) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.fillRect(self.rect(), Qt.GlobalColor.black)
+        if not self._image.isNull():
+            target = self._image.size()
+            target.scale(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            x = (self.width() - target.width()) // 2
+            y = (self.height() - target.height()) // 2
+            painter.drawImage(QRect(x, y, target.width(), target.height()), self._image)
+        painter.end()
 
 
 class ClickableSeekSlider(QSlider):
@@ -109,16 +145,24 @@ class HistoryVideoPlayer(Card):
         self.video_surface.installEventFilter(self)
         self.video_surface.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
         self.media_player.setVideoOutput(self.video_surface)
+        self.live_preview = LivePreviewGLWidget(self)
+        self.live_preview.setObjectName("liveCapturePreview")
+        self.live_preview.hide()
+        self.video_stack = QStackedWidget(self)
+        self.video_stack.setObjectName("videoPreviewStack")
+        self.video_stack.addWidget(self.video_surface)
+        self.video_stack.addWidget(self.live_preview)
         self.hud_label = QLabel("LIVE ANALYZER  //  60 FPS", self.video_surface)
         self.hud_label.setObjectName("videoHud")
         self.hud_label.setFixedHeight(26)
         self._position_video_hud()
         self.hud_label.raise_()
         self._build_fullscreen_overlay()
-        layout.addWidget(self.video_surface, 1)
+        layout.addWidget(self.video_stack, 1)
 
         toolbar = QFrame()
         toolbar.setObjectName("mediaToolbar")
+        self.media_toolbar = toolbar
         controls = QHBoxLayout(toolbar)
         controls.setContentsMargins(8, 5, 8, 5)
         controls.setSpacing(7)
@@ -186,6 +230,24 @@ class HistoryVideoPlayer(Card):
         self._position_video_hud()
         if self._is_fullscreen:
             self._position_fullscreen_overlay()
+
+    def set_live_capture_mode(self, enabled: bool) -> None:
+        self.media_toolbar.setVisible(not enabled)
+        self.hud_label.setVisible(not enabled)
+        self.video_stack.setCurrentWidget(self.live_preview if enabled else self.video_surface)
+        self.live_preview.setVisible(enabled)
+        if enabled:
+            self.media_player.pause()
+        else:
+            self.live_preview.clear_frame()
+
+    def set_live_game_title(self, title: str) -> None:
+        self.title_label.setText(title.strip() or "Jogo detectado")
+
+    def set_live_preview(self, image: QImage) -> None:
+        if image.isNull():
+            return
+        self.live_preview.set_frame(image)
 
     def _build_fullscreen_overlay(self) -> None:
         self.fullscreen_overlay = QWidget(self.video_surface)

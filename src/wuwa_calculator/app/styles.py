@@ -427,9 +427,9 @@ def application_qss(
     QLabel#ocrStatusLabel {{ color: #DCEEFF; font-size: 12px; font-weight: 800; }}
     QFrame#ocrPreviewPanel {{ background: rgba(13, 17, 29, 210); border: 1px solid rgba(255, 215, 106, 105); border-radius: 8px; }}
     QLabel#ocrPreviewText {{ color: #FFD76A; font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12px; font-weight: 800; padding: 4px; }}
-    QLabel#frequencyProtocolTitle {{ color: #6FEAFF; font-size: 12px; font-weight: 800; letter-spacing: 1px; }}
-    QLabel#frequencyProtocolSubtitle {{ color: #8A99AD; font-size: 9px; margin-top: 4px; }}
-    QLabel#frequencyProtocolBadge {{ color: #00D9FF; font-family: "Bahnschrift", "Segoe UI", sans-serif; font-size: 11px; border: 1px solid rgba(0, 217, 255, 76); border-radius: 5px; padding: 4px 10px; min-height: 28px; white-space: nowrap; }}
+    QLabel#frequencyProtocolTitle {{ color: #6FEAFF; font-size: 10px; font-weight: 800; letter-spacing: 1px; }}
+    QLabel#frequencyProtocolSubtitle {{ color: #8A99AD; font-size: 8px; margin-top: 1px; }}
+    QLabel#frequencyProtocolBadge {{ color: #00D9FF; font-family: "Bahnschrift", "Segoe UI", sans-serif; font-size: 9px; border: 1px solid rgba(0, 217, 255, 76); border-radius: 5px; padding: 2px 8px; min-height: 20px; white-space: nowrap; }}
     QLabel#mediaSectionTitle {{ color: #F2F0FF; font-size: 13px; font-weight: 800; }}
     QLabel#mediaPanelDuration {{ color: #67D9FF; font-size: 12px; font-weight: 800; }}
     QFrame#eventRow {{ background: rgba(11, 13, 18, 190); border: 1px solid rgba(0, 217, 255, 50); border-radius: 7px; }}

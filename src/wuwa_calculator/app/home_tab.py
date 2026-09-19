@@ -323,9 +323,13 @@ class UpcomingBannerCard(QFrame):
         overlay.installEventFilter(self)
 
     def _apply_hologram_mask(self) -> None:
+        if self.width() <= 0 or self.height() <= 0 or not self.hologram_overlay:
+            return
         mask = QPixmap(self.size())
         mask.fill(Qt.GlobalColor.transparent)
         painter = QPainter(mask)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         path = QPainterPath()
         path.addRoundedRect(QRectF(0, 0, self.width(), self.height()), 16, 16)
@@ -340,9 +344,13 @@ class UpcomingBannerCard(QFrame):
 
     def _update_hologram(self) -> None:
         width, height = self.width(), self.height()
+        if width <= 0 or height <= 0 or not self.hologram_overlay:
+            return
         overlay = QPixmap(width, height)
         overlay.fill(Qt.GlobalColor.transparent)
         painter = QPainter(overlay)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         path = QPainterPath()
         path.addRoundedRect(QRectF(0, 0, width, height), 16, 16)

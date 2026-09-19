@@ -258,8 +258,8 @@ class MultimediaTab(QWidget):
         protocol_bar = QFrame()
         protocol_bar.setObjectName("frequencyProtocolBar")
         protocol_layout = QVBoxLayout(protocol_bar)
-        protocol_layout.setContentsMargins(14, 9, 14, 9)
-        protocol_layout.setSpacing(2)
+        protocol_layout.setContentsMargins(10, 4, 10, 4)
+        protocol_layout.setSpacing(0)
         protocol_header = QHBoxLayout()
         protocol_title = QLabel("[ TETHYS PROTOCOL // OBSERVATÓRIO DE FREQUÊNCIAS ]")
         protocol_title.setObjectName("frequencyProtocolTitle")
@@ -269,7 +269,7 @@ class MultimediaTab(QWidget):
         )
         protocol_badge.setObjectName("frequencyProtocolBadge")
         protocol_badge.setWordWrap(False)
-        protocol_badge.setMinimumHeight(28)
+        protocol_badge.setMinimumHeight(20)
         protocol_badge.setMinimumWidth(430)
         protocol_badge.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         protocol_header.addWidget(protocol_badge, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -285,55 +285,10 @@ class MultimediaTab(QWidget):
         self.dps_panel = DpsSimulationPanel(self.video_player)
         self.dps_panel.setMinimumHeight(300)
         self.dps_panel.setMaximumHeight(394)
-        self.event_panel = EventTimelinePanel(self.video_player)
-        self.info_panel = VideoInfoPanel(self.video_player)
-        self.options_panel = PlaybackOptionsPanel(self.video_player)
-        self.actions_panel = VideoActionsPanel(self.video_player)
-        for panel in (
-            self.video_player,
-            self.dps_panel,
-            self.event_panel,
-            self.info_panel,
-            self.options_panel,
-            self.actions_panel,
-        ):
-            _compact_width(panel)
-
-        left_column = QWidget()
-        _compact_width(left_column)
-        left_layout = QVBoxLayout(left_column)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
-        left_layout.addWidget(self.video_player, 3)
-        left_layout.addWidget(self.dps_panel, 2)
-        right_column = QWidget()
-        _compact_width(right_column)
-        right_column.setMinimumWidth(320)
-        right_column.setMaximumWidth(320)
-        right_layout = QVBoxLayout(right_column)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(8)
-        self.event_panel.setMaximumHeight(500)
-        right_layout.addWidget(self.event_panel, 0)
-
-        compact_controls = Card()
-        compact_controls.setObjectName("mediaSupportPanel")
-        compact_controls_layout = QVBoxLayout(compact_controls)
-        compact_controls_layout.setContentsMargins(8, 8, 8, 8)
-        compact_controls_layout.setSpacing(4)
-        compact_controls_layout.addWidget(self.info_panel)
-        compact_controls_layout.addWidget(self.options_panel)
-        compact_controls_layout.addWidget(self.actions_panel)
-        right_layout.addWidget(compact_controls, 1)
-
-        columns = QGridLayout()
-        columns.setContentsMargins(0, 0, 0, 0)
-        columns.setHorizontalSpacing(14)
-        columns.addWidget(left_column, 0, 0)
-        columns.addWidget(right_column, 0, 1)
-        columns.setColumnStretch(0, 7)
-        columns.setColumnStretch(1, 3)
-        layout.addLayout(columns, 1)
+        _compact_width(self.video_player)
+        _compact_width(self.dps_panel)
+        layout.addWidget(self.video_player, 3)
+        layout.addWidget(self.dps_panel, 2)
 
     def closeEvent(self, event) -> None:
         self.video_player.stop_video()
