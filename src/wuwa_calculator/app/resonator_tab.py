@@ -30,6 +30,7 @@ if __package__ in {None, ""}:
 # pylint: disable=wrong-import-position
 from src.wuwa_calculator.app.backend_adapter import calculate_character_damage
 from src.wuwa_calculator.app.components import Card, TitleLabel
+from src.wuwa_calculator.app.network_helpers import read_network_reply
 from src.wuwa_calculator.app.styles import apply_element_glow, apply_glow
 from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 from src.wuwa_calculator.data.characters_kits import CHARACTER_KITS_DB, MANUAL_CHARACTER_KITS
@@ -40,17 +41,6 @@ from src.wuwa_calculator.data.echo_images import ECHO_IMAGE_OVERRIDES
 from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 from src.wuwa_calculator.data.weapons import MANUAL_WEAPONS, _LOCAL_KIT_WEAPON_NAMES
 from src.wuwa_calculator.app.security_policy import allows_local_image, allows_remote_content
-
-
-def _read_network_reply(reply: object) -> bytes:
-    if not isinstance(reply, QNetworkReply):
-        return b""
-    if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
-        return b""
-    try:
-        return bytes(reply.readAll())
-    except (AttributeError, RuntimeError, TypeError, ValueError):
-        return b""
 
 
 class ResonatorTab(QWidget):
@@ -877,7 +867,7 @@ class ResonatorTab(QWidget):
 
     def _finish_image(self, reply: object, target: QLabel, fallback: str, url: str) -> None:
         try:
-            data = _read_network_reply(reply)
+            data = read_network_reply(reply)
             pixmap = QPixmap()
             pixmap.loadFromData(data)
             if pixmap.isNull():

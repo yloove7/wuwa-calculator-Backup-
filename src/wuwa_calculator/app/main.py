@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 
 from src.wuwa_calculator.app.components import Card, TitleLabel
 from src.wuwa_calculator.app.resonator_tab import ResonatorTab
+from src.wuwa_calculator.app.settings_store import SettingsStore
 from src.wuwa_calculator.app.styles import (
     accent_preset,
     application_qss,
@@ -114,9 +115,13 @@ class CharacterSidebarButton(QPushButton):
 
 class SettingsTab(QWidget):
     def __init__(self, parent: QWidget | None = None,
-                 host: QWidget | None = None) -> None:
+                 host: QWidget | None = None,
+                 settings: SettingsStore | None = None,
+                 preferences: QSettings | None = None) -> None:
         super().__init__(parent)
         self.host = host
+        self.preferences = preferences or QSettings("Tethys", "Tethys")
+        self.settings = settings or SettingsStore(settings=self.preferences)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(14)
@@ -245,37 +250,33 @@ class SettingsTab(QWidget):
         self.confirm_exit_box.toggled.connect(self._confirm_exit_changed)
         self._load_preferences()
 
-    @property
-    def preferences(self) -> QSettings:
-        return QSettings("Tethys", "Tethys")
-
     def _load_preferences(self) -> None:
-        settings = self.preferences
+        settings = self.settings
         self.background_box.setChecked(
-            settings.value("background", True, type=bool))
+            settings.get("background", True, bool))
 
-        self.opacity_slider.setValue(settings.value("interface_opacity", 85, type=int))
-        accent = settings.value("accent_theme", "Auto Wallpaper", type=str)
+        self.opacity_slider.setValue(settings.get("interface_opacity", 85, int))
+        accent = settings.get("accent_theme", "Auto Wallpaper", str)
         if accent in {"Modo claro", "Modo escuro"}:
             accent = "Auto Wallpaper"
         index = self.accent_box.findText(accent)
         self.accent_box.setCurrentIndex(max(0, index))
         self.language_box.setCurrentText(
-            settings.value("ui_language", "PT-BR", type=str)
+            settings.get("ui_language", "PT-BR", str)
         )
         self.auto_open_last_box.setChecked(
-            settings.value("auto_open_last_character", True, type=bool)
+            self.preferences.value("auto_open_last_character", True, type=bool)
         )
         self.auto_save_box.setChecked(
-            settings.value("auto_save_session", True, type=bool)
+            self.preferences.value("auto_save_session", True, type=bool)
         )
         self.performance_mode_box.setChecked(
-            settings.value("performance_mode", False, type=bool)
+            settings.get("performance_mode", False, bool)
         )
         self.confirm_exit_box.setChecked(
-            settings.value("confirm_exit", True, type=bool))
+            settings.get("confirm_exit", True, bool))
 
-        wallpaper = settings.value("wallpaper", "", type=str)
+        wallpaper = settings.get("wallpaper", "", str)
         self._set_wallpaper_label(wallpaper)
 
     def _choose_wallpaper(self) -> None:
@@ -307,16 +308,16 @@ class SettingsTab(QWidget):
             return
 
         wallpaper = str(QUrl.fromLocalFile(path).toString())
-        self.preferences.setValue("wallpaper", wallpaper)
-        self.preferences.sync()
+        self.settings.set("wallpaper", wallpaper)
+        self.settings.sync()
         self._set_wallpaper_label(path)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
     def _reset_wallpaper(self) -> None:
-        self.preferences.remove("wallpaper")
-        self.preferences.sync()
+        self.settings.remove("wallpaper")
+        self.settings.sync()
         self._set_wallpaper_label("")
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
@@ -335,25 +336,25 @@ class SettingsTab(QWidget):
         self.wallpaper_label.setText(f"Wallpaper atual: {label_text}")
 
     def _background_changed(self, enabled: bool) -> None:
-        self.preferences.setValue("background", enabled)
+        self.settings.set("background", enabled)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
     def _interface_opacity_changed(self, value: int) -> None:
-        self.preferences.setValue("interface_opacity", value)
+        self.settings.set("interface_opacity", value)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
     def _accent_changed(self, accent: str) -> None:
-        self.preferences.setValue("accent_theme", accent)
+        self.settings.set("accent_theme", accent)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
     def _language_changed(self, language: str) -> None:
-        self.preferences.setValue("ui_language", language)
+        self.settings.set("ui_language", language)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
@@ -365,13 +366,13 @@ class SettingsTab(QWidget):
         self.preferences.setValue("auto_save_session", enabled)
 
     def _performance_mode_changed(self, enabled: bool) -> None:
-        self.preferences.setValue("performance_mode", enabled)
+        self.settings.set("performance_mode", enabled)
         window = self.host or self.window()
         if isinstance(window, WuwaQtWindow):
             window.apply_preferences()
 
     def _confirm_exit_changed(self, enabled: bool) -> None:
-        self.preferences.setValue("confirm_exit", enabled)
+        self.settings.set("confirm_exit", enabled)
 
     def _clear_cache(self) -> None:
         from src.wuwa_calculator.storage.banner_cache import CACHE_FILE as BANNER_CACHE_FILE
@@ -442,7 +443,12 @@ class SettingsDialog(QDialog):
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        settings_tab = SettingsTab(self, host=host)
+        settings_tab = SettingsTab(
+            self,
+            host=host,
+            settings=host.settings,
+            preferences=host.preferences,
+        )
         scroll.setWidget(settings_tab)
         layout.addWidget(scroll, 1)
 
@@ -777,6 +783,7 @@ class WuwaQtWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.preferences = QSettings("Tethys", "Tethys")
+        self.settings = SettingsStore(settings=self.preferences)
         self.character_recent_searches: list[str] = []
         self.character_view_counts: dict[str, int] = {}
         self._character_search_popup: QFrame | None = None
@@ -935,8 +942,8 @@ class WuwaQtWindow(QMainWindow):
         self._set_sidebar_active("Banners")
         self.setCentralWidget(shell)
         self._update_background(
-            self.preferences.value("background", True, type=bool),
-            self.preferences.value("wallpaper", "", type=str),
+            self.settings.get("background", True, bool),
+            self.settings.get("wallpaper", "", str),
         )
         self.character_load_button.clicked.connect(
             self.open_character_tab)
@@ -964,12 +971,12 @@ class WuwaQtWindow(QMainWindow):
                 break
 
     def apply_preferences(self) -> None:
-        self.preferences.sync()
-        background = self.preferences.value("background", True, type=bool)
-        wallpaper = self.preferences.value("wallpaper", "", type=str)
-        interface_opacity = self.preferences.value("interface_opacity", 85, type=int)
-        accent_theme = self.preferences.value("accent_theme", "Auto Wallpaper", type=str)
-        performance_mode = self.preferences.value("performance_mode", False, type=bool)
+        self.settings.sync()
+        background = self.settings.get("background", True, bool)
+        wallpaper = self.settings.get("wallpaper", "", str)
+        interface_opacity = self.settings.get("interface_opacity", 85, int)
+        accent_theme = self.settings.get("accent_theme", "Auto Wallpaper", str)
+        performance_mode = self.settings.get("performance_mode", False, bool)
         app = QApplication.instance()
 
         palette = wallpaper_palette(wallpaper if background else "")
@@ -1028,8 +1035,8 @@ class WuwaQtWindow(QMainWindow):
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._update_background(
-            self.preferences.value("background", True, type=bool),
-            self.preferences.value("wallpaper", "", type=str),
+            self.settings.get("background", True, bool),
+            self.settings.get("wallpaper", "", str),
         )
 
     def closeEvent(self, event) -> None:
@@ -1905,11 +1912,11 @@ class CustomImportPopup(QDialog):
 
     @staticmethod
     def _theme_from_parent(parent: QWidget | None) -> ThemeConfig:
-        settings = QSettings("Tethys", "Tethys")
+        settings = SettingsStore()
         return theme_config(
-            settings.value("wallpaper", "", type=str),
-            settings.value("interface_opacity", 85, type=int),
-            settings.value("accent_theme", "Auto Wallpaper", type=str),
+            settings.get("wallpaper", "", str),
+            settings.get("interface_opacity", 85, int),
+            settings.get("accent_theme", "Auto Wallpaper", str),
         )
 
     @property
@@ -2271,11 +2278,11 @@ ImportDialog = CustomImportPopup
 def main() -> int:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
-    settings = QSettings("Tethys", "Tethys")
-    background = settings.value("background", True, type=bool)
-    wallpaper = settings.value("wallpaper", "", type=str)
-    interface_opacity = settings.value("interface_opacity", 85, type=int)
-    accent_theme = settings.value("accent_theme", "Auto Wallpaper", type=str)
+    settings = SettingsStore()
+    background = settings.get("background", True, bool)
+    wallpaper = settings.get("wallpaper", "", str)
+    interface_opacity = settings.get("interface_opacity", 85, int)
+    accent_theme = settings.get("accent_theme", "Auto Wallpaper", str)
     app.setStyleSheet(application_qss(
         show_background=background,
         wallpaper=wallpaper,

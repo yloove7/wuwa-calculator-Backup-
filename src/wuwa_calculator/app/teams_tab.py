@@ -13,14 +13,16 @@ if __package__ in {None, ""}:
 
 from PySide6.QtCore import QSize, Qt, QRectF, QUrl, Signal
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout,
     QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QLineEdit, QPushButton,
     QScrollArea, QVBoxLayout, QWidget, QFrame,
 )
 
+from src.wuwa_calculator.app.character_badge import CharacterBadgeWidget
 from src.wuwa_calculator.app.components import Card, TitleLabel, apply_glow
+from src.wuwa_calculator.app.network_helpers import pixmap_from_bytes, read_network_reply
 from src.wuwa_calculator.app.security_policy import allows_remote_content
 from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 from src.wuwa_calculator.data.characters_ids import KNOWN_CHARACTER_IDS
@@ -31,16 +33,6 @@ from src.wuwa_calculator.data.team_saved_images import TEAM_SAVED_IMAGE_URLS
 from src.wuwa_calculator.storage.team_storage import load_teams, save_teams
 
 SLOT_ROLES = ("Main DPS", "Suporte 1", "Suporte 2")
-
-
-def _read_network_reply(reply: object) -> object:
-    if (
-        not getattr(reply, "isOpen", lambda: False)()
-        or getattr(reply, "error", lambda: QNetworkReply.NetworkError.UnknownNetworkError)()
-        != QNetworkReply.NetworkError.NoError
-    ):
-        return b""
-    return getattr(reply, "readAll", lambda: b"")()
 
 
 def display_name(character_id: str) -> str:
@@ -231,8 +223,7 @@ class EchoPicker(QDialog):
 
     def _finish_echo_icon(self, reply: object, combo: QComboBox, index: int, url: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 combo.setItemIcon(index, QIcon(pixmap.scaled(QSize(32, 32), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)))
         except (AttributeError, RuntimeError, TypeError):
@@ -343,78 +334,6 @@ class EchoPreviewIcon(QLabel):
         painter.setPen(QPen(QColor("#E6EDF7"), 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(empty_rect)
-
-
-class CharacterBadgeWidget(QWidget):
-    """Badge circular de personagem com ícone de arma sobreposto."""
-
-    def __init__(self, char_icon_path: str | None = None,
-                 weapon_icon_path: str | None = None, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.char_pixmap = QPixmap(char_icon_path) if char_icon_path else QPixmap()
-        self.weapon_pixmap = QPixmap(weapon_icon_path) if weapon_icon_path else QPixmap()
-        self.setFixedSize(64, 64)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-
-    def set_pixmaps(self, char_pixmap: QPixmap | None = None,
-                    weapon_pixmap: QPixmap | None = None) -> None:
-        if char_pixmap is not None:
-            self.char_pixmap = char_pixmap
-        if weapon_pixmap is not None:
-            self.weapon_pixmap = weapon_pixmap
-        self.update()
-
-    def set_icons(self, char_path: str | None, weapon_path: str | None) -> None:
-        self.char_pixmap = QPixmap(char_path) if char_path else QPixmap()
-        self.weapon_pixmap = QPixmap(weapon_path) if weapon_path else QPixmap()
-        self.update()
-
-    @staticmethod
-    def _fit_pixmap(pixmap: QPixmap, size: int) -> QPixmap:
-        if pixmap.isNull():
-            return pixmap
-        return pixmap.scaled(
-            size,
-            size,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-
-        avatar_rect = QRectF(2, 2, 56, 56)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor("#FFFFFF")))
-        painter.drawEllipse(avatar_rect)
-
-        if not self.char_pixmap.isNull():
-            avatar_path = QPainterPath()
-            avatar_path.addEllipse(avatar_rect)
-            fitted_avatar = self._fit_pixmap(self.char_pixmap, 56)
-            avatar_x = int(2 + (56 - fitted_avatar.width()) / 2)
-            avatar_y = int(2 + (56 - fitted_avatar.height()) / 2)
-            painter.save()
-            painter.setClipPath(avatar_path)
-            painter.drawPixmap(avatar_x, avatar_y, fitted_avatar)
-            painter.restore()
-
-        if not self.weapon_pixmap.isNull():
-            weapon_rect = QRectF(37, 37, 22, 22)
-            painter.setPen(QPen(QColor("#FFA500"), 2))
-            painter.setBrush(QBrush(QColor("#1A1A1A")))
-            painter.drawEllipse(weapon_rect)
-            weapon_path = QPainterPath()
-            weapon_path.addEllipse(weapon_rect)
-            fitted_weapon = self._fit_pixmap(self.weapon_pixmap, 18)
-            weapon_x = int(37 + (22 - fitted_weapon.width()) / 2)
-            weapon_y = int(37 + (22 - fitted_weapon.height()) / 2)
-            painter.save()
-            painter.setClipPath(weapon_path)
-            painter.drawPixmap(weapon_x, weapon_y, fitted_weapon)
-            painter.restore()
 
 
 class TeamCardWidget(QFrame):
@@ -668,8 +587,7 @@ class TeamsTab(QWidget):
     def _finish_badge_image(self, reply: object, badge: CharacterBadgeWidget,
                             kind: str, source: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 if kind == "char":
                     badge.set_pixmaps(char_pixmap=pixmap)
@@ -772,8 +690,7 @@ class TeamsTab(QWidget):
 
     def _finish_echo_preview(self, reply: object, target: QLabel, url: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 target.setText("")
                 target.setPixmap(pixmap.scaled(target.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
@@ -811,8 +728,7 @@ class TeamsTab(QWidget):
 
     def _finish_element_preview(self, reply: object, target: QLabel, element: str, url: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 target.setText("")
                 target.setPixmap(pixmap.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
@@ -822,8 +738,7 @@ class TeamsTab(QWidget):
 
     def _finish_slot_avatar(self, reply: object, slot: TeamSlot, url: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 slot.setIcon(QIcon(pixmap))
                 slot.setIconSize(QSize(64, 64))
@@ -842,8 +757,7 @@ class TeamsTab(QWidget):
 
     def _finish_avatar(self, reply: object, target: QLabel, url: str) -> None:
         try:
-            pixmap = QPixmap()
-            pixmap.loadFromData(_read_network_reply(reply))
+            pixmap = pixmap_from_bytes(read_network_reply(reply))
             if not pixmap.isNull():
                 target.setPixmap(pixmap.scaled(target.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
                 target.setText("")

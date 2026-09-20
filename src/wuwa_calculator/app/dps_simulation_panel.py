@@ -8,7 +8,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from threading import Lock, current_thread
+from threading import Lock
 from typing import Any
 from pathlib import Path
 
@@ -19,7 +19,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import QElapsedTimer, QObject, QTime, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QPushButton, QTimeEdit, QVBoxLayout, QWidget,
+    QComboBox, QHBoxLayout, QLabel, QTimeEdit, QVBoxLayout, QWidget,
 )
 
 from src.wuwa_calculator.app.components import Card
