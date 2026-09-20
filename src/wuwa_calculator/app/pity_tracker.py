@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import parse_qs, unquote
+from urllib.parse import unquote
 
 from PySide6.QtCore import (
     QAbstractAnimation,
@@ -298,17 +298,6 @@ class PityHistoryImportWorker(QObject):
             self.failed.emit(message)
 
     @staticmethod
-    def _parse_query_params(raw_text: str) -> dict[str, str]:
-        text = raw_text.strip()
-        query = text.split("?", 1)[1] if "?" in text else text
-        if "#" in query:
-            query = query.split("#", 1)[-1]
-        if query.startswith("/record?"):
-            query = query.split("?", 1)[1]
-        parsed = parse_qs(query.lstrip("?/"))
-        return {key: values[0] for key, values in parsed.items() if values}
-
-    @staticmethod
     def _extract_records(data: object) -> list[dict[str, object]]:
         if isinstance(data, list):
             return [item for item in data if isinstance(item, dict)]
@@ -389,19 +378,6 @@ class PityTrackerWorker(QObject):
         if items:
             self.new_pull_captured.emit(items)
             self.shot_captured.emit({"items": items})
-
-
-class _TrackerCard(QFrame):
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setObjectName("pityTrackerCard")
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(4)
-        title_label = QLabel(title)
-        title_label.setObjectName("pityCardTitle")
-        layout.addWidget(title_label)
-        self.content_layout = layout
 
 
 class _BannerArtLabel(QLabel):

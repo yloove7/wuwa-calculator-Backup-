@@ -158,56 +158,6 @@ def identify_echoes(text: str) -> list[str]:
     return matches[:5]
 
 
-def _echo_attribute_lines(lines: list[str]) -> list[str]:
-    attributes: list[str] = []
-    label_patterns = (
-        (r"crit(?:ical)?\s*(?:rate|rote)", "Crit Rate"),
-        (r"crit(?:ical)?\s*(?:dmg|damage|dano)", "Crit DMG"),
-        (r"energy\s*(?:regen|recharge)", "Energy Regen"),
-        (r"heavy\s*attack", "Heavy Attack"),
-        (r"resonance\s*skill|skill\s*dmg", "Skill DMG"),
-        (r"resonance\s*liberation|liberation\s*dmg", "Liberation DMG"),
-        (r"elemental\s*dmg|electro\s*dmg|fusion\s*dmg|aero\s*dmg|glacio\s*dmg", "Elemental DMG"),
-        (r"\batk\b|attack", "ATK"),
-        (r"\bhp\b|health", "HP"),
-        (r"\bdef\b|defense", "DEF"),
-    )
-    for line in lines:
-        cleaned = re.sub(r"[x×]\s*(?=\d)", "", str(line), flags=re.IGNORECASE)
-        cleaned = re.sub(r"[^\w%+.,: -]", " ", cleaned, flags=re.UNICODE)
-        cleaned = re.sub(r"\s+", " ", cleaned).strip(" :-")
-        if not cleaned or not re.search(r"\d", cleaned):
-            continue
-        number_match = re.search(r"[-+]?\d+(?:[.,]\d+)?\s*%?", cleaned)
-        if not number_match:
-            continue
-        label = None
-        for pattern, normalized_label in label_patterns:
-            if re.search(pattern, cleaned, re.IGNORECASE):
-                label = normalized_label
-                break
-        if label is None:
-            continue
-        value = number_match.group(0).replace(" ", "")
-        suffix = "%" if "%" in value or label in {
-            "Crit Rate", "Crit DMG", "Energy Regen", "Heavy Attack",
-            "Skill DMG", "Liberation DMG", "Elemental DMG",
-        } else ""
-        attributes.append(f"{label} +{value.rstrip('%')}" + suffix)
-    return attributes[:8]
-
-
-def _echo_catalog_data(name: str) -> dict[str, object]:
-    normalized_name = _normalise_character(name)
-    for echo_id, data in ECHOES_DB.items():
-        if not isinstance(data, dict):
-            continue
-        candidate = _normalise_character(str(data.get("name", echo_id)))
-        if candidate and (candidate in normalized_name or normalized_name in candidate):
-            return data
-    return {}
-
-
 def _infer_dynamic_cost(main_stat: str) -> int:
     """Determina o custo de forma genérica a partir do valor do Main Stat lido."""
     text = (main_stat or "").casefold()
@@ -229,10 +179,6 @@ def _infer_dynamic_cost(main_stat: str) -> int:
     if value in (10, 12) or has_flat_stat:
         return 1
     return 0
-
-
-def _infer_echo_cost(main_stat: str) -> int:
-    return _infer_dynamic_cost(main_stat)
 
 
 def _parse_dynamic_echo_block(lines: list[str]) -> dict[str, object]:
@@ -413,59 +359,6 @@ def identify_echo_cards(text: str) -> list[dict[str, object]]:
         card["slot"] = len(ordered)
         ordered.append(card)
     return ordered
-
-
-def _same_echo_name(first: object, second: object) -> bool:
-    first_normalized = _normalise_character(str(first))
-    second_normalized = _normalise_character(str(second))
-    return bool(
-        first_normalized
-        and second_normalized
-        and (
-            first_normalized == second_normalized
-            or first_normalized in second_normalized
-            or second_normalized in first_normalized
-        )
-    )
-
-
-def _merge_echo_card_data(
-    primary: list[dict[str, object]],
-    supplemental: list[dict[str, object]],
-) -> list[dict[str, object]]:
-    """Merge full-image and per-card OCR without losing attributes."""
-    merged = [dict(card) for card in primary]
-    for extra in supplemental:
-        target = next(
-            (card for card in merged if _same_echo_name(card.get("name"), extra.get("name"))),
-            None,
-        )
-        if target is None:
-            merged.append(dict(extra))
-            continue
-        for key in ("main_stat", "cost", "set_bonus"):
-            current = target.get(key)
-            incoming = extra.get(key)
-            if current in (None, "", "--", 0) and incoming not in (None, "", "--", 0):
-                target[key] = incoming
-        if target.get("cost") in (None, "", "--", 0):
-            target["cost"] = _infer_echo_cost(str(target.get("main_stat", "--")))
-        for key in ("attributes", "sub_stats"):
-            current_values = target.get(key, [])
-            incoming_values = extra.get(key, [])
-            combined: list[str] = []
-            for value in (
-                current_values if isinstance(current_values, list) else [],
-                incoming_values if isinstance(incoming_values, list) else [],
-            ):
-                for item in value:
-                    if str(item) not in combined:
-                        combined.append(str(item))
-            target[key] = combined
-        target["main_stat"] = target.get("main_stat") or extra.get("main_stat", "--")
-    for index, card in enumerate(merged[:5], 1):
-        card["slot"] = index
-    return merged[:5]
 
 
 def clean_number(raw: str | None) -> float | None:
