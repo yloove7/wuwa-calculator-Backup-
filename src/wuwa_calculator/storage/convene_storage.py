@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import sqlite3
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -33,18 +35,63 @@ class ConveneStorageManager:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return []
-        return self._deduplicate(self._extract_records(payload))
+        return self._sort_records(self._deduplicate(self._extract_records(payload)))
 
     def merge(self, records: Iterable[object]) -> list[dict[str, object]]:
-        merged = self._deduplicate([*self.load(), *self._extract_records(list(records))])
+        merged, _new_records_count = self.merge_with_metadata(records)
+        return merged
+
+    def merge_with_metadata(
+        self,
+        records: Iterable[object],
+    ) -> tuple[list[dict[str, object]], int]:
+        existing = self.load()
+        incoming = [
+            record for record in self._extract_records(list(records))
+            if self._is_pull_record(record)
+        ]
+        existing_keys = {
+            key for key in (self._record_key(record) for record in existing) if key
+        }
+        incoming_keys = {
+            key for key in (self._record_key(record) for record in incoming) if key
+        }
+        merged = self._sort_records(
+            self._deduplicate([*existing, *incoming])
+        )
         document = {
             "schema_version": 1,
             "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
             "pulls": merged,
         }
+        self._write_document(document)
+        return merged, len(incoming_keys - existing_keys)
+
+    def _write_document(self, document: dict[str, object]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
-        return merged
+        content = json.dumps(document, ensure_ascii=False, indent=2)
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.path.parent,
+                prefix=f".{self.path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary_file:
+                temporary_path = Path(temporary_file.name)
+                temporary_file.write(content)
+                temporary_file.flush()
+                os.fsync(temporary_file.fileno())
+            os.replace(temporary_path, self.path)
+            temporary_path = None
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def import_json(self, source: Path) -> list[dict[str, object]]:
         source = Path(source)
@@ -148,18 +195,59 @@ class ConveneStorageManager:
 
     @staticmethod
     def _record_key(record: dict[str, object]) -> str:
+        explicit_key = record.get("dedup_key")
+        if explicit_key not in (None, ""):
+            return str(explicit_key)
         for key in ("seq_id", "seqId", "pull_id", "id"):
             value = record.get(key)
             if value not in (None, ""):
                 return f"id:{value}"
         time_value = record.get("time", record.get("timestamp", record.get("date", "")))
         name = record.get("name", record.get("item", record.get("title", "")))
-        return f"time-name:{time_value}|{name}"
+        pool = record.get("pool", record.get("type", record.get("gacha_type", "")))
+        rarity = record.get("rarity", record.get("quality", record.get("rank", "")))
+        if all(value not in (None, "") for value in (time_value, pool, name, rarity)):
+            return f"fields:{time_value}|{pool}|{name}|{rarity}"
+        signature_fields = {
+            key: record.get(key)
+            for key in ("timestamp", "pool", "name", "rarity", "item", "title")
+            if record.get(key) not in (None, "")
+        }
+        if all(key in signature_fields for key in ("timestamp", "pool", "name", "rarity")):
+            payload = json.dumps(signature_fields, ensure_ascii=False, sort_keys=True)
+            return f"signature:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
+        return ""
+
+    @classmethod
+    def _is_pull_record(cls, record: dict[str, object]) -> bool:
+        if record.get("is_pull") is False:
+            return False
+        return bool(cls._record_key(record))
 
     @classmethod
     def _deduplicate(cls, records: Iterable[object]) -> list[dict[str, object]]:
         unique: dict[str, dict[str, object]] = {}
+        unkeyed: list[dict[str, object]] = []
         for item in records:
             if isinstance(item, dict):
-                unique[cls._record_key(item)] = dict(item)
-        return list(unique.values())
+                key = cls._record_key(item)
+                if key:
+                    unique[key] = dict(item)
+                else:
+                    unkeyed.append(dict(item))
+        return [*unique.values(), *unkeyed]
+
+    @staticmethod
+    def _sort_records(records: list[dict[str, object]]) -> list[dict[str, object]]:
+        def sort_key(item: tuple[int, dict[str, object]]) -> tuple[int, float, int]:
+            index, record = item
+            value = record.get("timestamp", record.get("time", record.get("date")))
+            try:
+                if isinstance(value, (int, float)):
+                    return (0, float(value), index)
+                text = str(value or "").strip().replace("Z", "+00:00")
+                return (0, datetime.fromisoformat(text).timestamp(), index)
+            except (TypeError, ValueError, OverflowError):
+                return (1, 0.0, index)
+
+        return [record for _, record in sorted(enumerate(records), key=sort_key)]

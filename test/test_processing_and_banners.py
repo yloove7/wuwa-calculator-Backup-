@@ -5,10 +5,13 @@ from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 from src.wuwa_calculator.app.banner_service import _normalise_banner, _parse_timestamp
+from PySide6.QtWidgets import QApplication
+
 from src.wuwa_calculator.app.pity_tracker import (
     CONVENE_DNS_ERROR_MESSAGE,
     ClientLogReader,
     ConveneSyncWorker,
+    LegacyPityTrackerWidget,
     NoticeManager,
     extract_convene_parameters,
     fetch_convene_records,
@@ -167,6 +170,33 @@ class ProcessingAndBannerTests(unittest.TestCase):
         self.assertEqual(first_payload["playerId"], "player")
         self.assertEqual(first_payload["recordId"], "record")
         self.assertEqual(first_payload["cardPoolType"], 1)
+
+    def test_legacy_tracker_derives_recent_history_from_cronological_records(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        records = [
+            {"timestamp": "2024-01-01T00:00:00Z", "name": "pull-01", "rarity": 4, "pool": "resonator"},
+            {"timestamp": "2024-01-02T00:00:00Z", "name": "pull-02", "rarity": 3, "pool": "resonator"},
+            {"timestamp": "2024-01-03T00:00:00Z", "name": "five-01", "rarity": 5, "pool": "resonator"},
+            {"timestamp": "2024-01-04T00:00:00Z", "name": "pull-04", "rarity": 4, "pool": "resonator"},
+            {"timestamp": "2024-01-05T00:00:00Z", "name": "five-02", "rarity": 5, "pool": "resonator"},
+            {"timestamp": "2024-01-06T00:00:00Z", "name": "pull-06", "rarity": 4, "pool": "resonator"},
+            {"timestamp": "2024-01-07T00:00:00Z", "name": "five-03", "rarity": 5, "pool": "resonator"},
+        ]
+
+        widget = LegacyPityTrackerWidget()
+        widget._update_state_from_records(records)
+
+        self.assertEqual(widget.state.five_star_history, [3, 2, 2])
+        self.assertEqual(
+            widget.state.recent_convene_details,
+            [
+                "five-01 (5★)",
+                "pull-04 (4★)",
+                "five-02 (5★)",
+                "pull-06 (4★)",
+                "five-03 (5★)",
+            ],
+        )
 
     def test_notice_manager_normalizes_kuro_official_news_payload(self) -> None:
         payload = {
