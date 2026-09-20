@@ -13,7 +13,6 @@ from PySide6.QtCore import QEvent, QRect, QSignalBlocker, QTimer, Qt, QUrl, Sign
 from PySide6.QtGui import QImage, QPainter, QPixmap, QResizeEvent
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
-from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -34,7 +33,7 @@ if __package__ in {None, ""}:
 from src.wuwa_calculator.app.components import Card, TitleLabel
 
 
-class LivePreviewGLWidget(QOpenGLWidget):
+class LivePreviewWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._image = QImage()
@@ -60,7 +59,7 @@ class LivePreviewGLWidget(QOpenGLWidget):
     def pixmap(self) -> QPixmap:
         return QPixmap.fromImage(self._image)
 
-    def paintGL(self) -> None:
+    def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.fillRect(self.rect(), Qt.GlobalColor.black)
@@ -149,7 +148,7 @@ class HistoryVideoPlayer(Card):
         self.video_surface.installEventFilter(self)
         self.video_surface.setAspectRatioMode(Qt.AspectRatioMode.KeepAspectRatio)
         self.media_player.setVideoOutput(self.video_surface)
-        self.live_preview = LivePreviewGLWidget(self)
+        self.live_preview = LivePreviewWidget(self)
         self.live_preview.setObjectName("liveCapturePreview")
         self.live_preview.hide()
         self.video_stack = QStackedWidget(self)

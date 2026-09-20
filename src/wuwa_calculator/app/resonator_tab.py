@@ -356,6 +356,10 @@ class ResonatorTab(QWidget):
             apply_element_glow(widget, element, blur=blur, opacity=opacity)
         apply_element_glow(self.character_image, element, blur=12, opacity=85)
         apply_element_glow(self.weapon_image, element, blur=10, opacity=70)
+        if self.current_id:
+            kit = CHARACTER_KITS_DB.get(self.current_id) or MANUAL_CHARACTER_KITS.get(self.current_id) or {}
+            self._render_weapon(MANUAL_WEAPONS.get(self.current_id, {}), kit)
+            self._render_kit(kit)
 
     @staticmethod
     def _element_icon(element: str) -> str:
@@ -367,6 +371,17 @@ class ResonatorTab(QWidget):
             "Havoc": "◉",
             "Spectro": "✧",
         }.get(element, "✧")
+
+    @staticmethod
+    def _element_color(element: str) -> str:
+        return {
+            "Aero": "#72E6C0",
+            "Glacio": "#82D8FF",
+            "Electro": "#B78CFF",
+            "Fusion": "#FF8A65",
+            "Havoc": "#E85D75",
+            "Spectro": "#FFD76A",
+        }.get(element, "#D9B56D")
 
     def _build_damage_tab(self) -> None:
         tab = QWidget()
@@ -719,10 +734,46 @@ class ResonatorTab(QWidget):
         return escaped
 
     @classmethod
-    def _format_skill_description(cls, text: str) -> str:
+    def _highlight_skill_markup(cls, text: str, keyword_color: str) -> str:
+        parts = re.split(r"(<[^>]+>)", text)
+        highlighted: list[str] = []
+        inside_styled_tag = False
+        for part in parts:
+            if part.startswith("<") and part.endswith(">"):
+                highlighted.append(part)
+                if re.match(r"<(?:font|span)\b", part, re.IGNORECASE):
+                    inside_styled_tag = True
+                elif re.match(r"</(?:font|span)>", part, re.IGNORECASE):
+                    inside_styled_tag = False
+                continue
+            if inside_styled_tag:
+                highlighted.append(part)
+                continue
+            part = re.sub(
+                r"(?<!\w)(\d+(?:[.,]\d+)?\s*%)",
+                r'<font color="#38bdf8"><b>\1</b></font>',
+                part,
+            )
+            part = re.sub(
+                r"(?<!\w)(\d+(?:[.,]\d+)?\s*s(?:egundos?)?)\b",
+                r'<font color="#fb923c"><b>\1</b></font>',
+                part,
+                flags=re.IGNORECASE,
+            )
+            part = re.sub(
+                r"\b(Dano Voltaico|ATQ Pesado|ATQ Básico|Habilidade de Ressonância|Liberação de Ressonância|Ascendência|Majestade|Proeza|Coroa de Vontades|físicos?|elétricos?|golpes pesados|aéreos?|contra-ataques?(?: pós-esquiva)?|Vigor|HP|ATK|DEF|Crit Rate|Crit DMG|Bônus|Passiva|Aero|Glacio|Electro|Fusion|Havoc|Spectro)\b",
+                f'<font color="{keyword_color}"><b>\\1</b></font>',
+                part,
+                flags=re.IGNORECASE,
+            )
+            highlighted.append(part)
+        return "".join(highlighted)
+
+    @classmethod
+    def _format_skill_description(cls, text: str, keyword_color: str = "#A855F7") -> str:
         """Converte descricoes longas em linhas HTML compactas e destacadas."""
         if re.search(r"<(?:font|b|i|br|div)\b", text, re.IGNORECASE):
-            return text
+            return cls._highlight_skill_markup(text, keyword_color)
         paragraphs = [
             " ".join(line.strip() for line in paragraph.splitlines())
             for paragraph in re.split(r"\n\s*\n", text)
@@ -731,17 +782,7 @@ class ResonatorTab(QWidget):
         formatted: list[str] = []
         for paragraph in paragraphs:
             escaped = html.escape(paragraph)
-            escaped = re.sub(
-                r"(?<!\w)(\d+(?:[.,]\d+)?%?(?:s)?)",
-                r'<font color="#eab308"><b>\1</b></font>',
-                escaped,
-            )
-            escaped = re.sub(
-                r"\b(Dano Voltaico|ATQ Pesado|ATQ Básico|Habilidade de Ressonância|Liberação de Ressonância|Ascendência|Majestade|Proeza|Coroa de Vontades)\b",
-                r'<font color="#a855f7"><b>\1</b></font>',
-                escaped,
-                flags=re.IGNORECASE,
-            )
+            escaped = cls._highlight_skill_markup(escaped, keyword_color)
             sentences = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-ÖØ-Þ])", escaped)
             sentence_html = "<br>".join(f"{sentence.strip()}" for sentence in sentences if sentence.strip())
             formatted.append(f"<div style='margin-top: 6px;'>• {sentence_html}</div>")
@@ -753,17 +794,13 @@ class ResonatorTab(QWidget):
         else:
             text = str(kit.get("weapon_passive", "Passiva não cadastrada"))
         self.weapon_passive_text = self._clean_display_text(text)
-        formatted = self._format_skill_description(text)
+        formatted = self._format_skill_description(
+            text,
+            keyword_color=self._element_color(self.element_box.currentText()),
+        )
         self.weapon_text.setText(formatted)
         current_element = self.element_box.currentText()
-        element_color = {
-            "Aero": "#72E6C0",
-            "Glacio": "#82D8FF",
-            "Electro": "#B78CFF",
-            "Fusion": "#FF8A65",
-            "Havoc": "#E85D75",
-            "Spectro": "#FFD76A",
-        }.get(current_element, "#D9B56D")
+        element_color = self._element_color(current_element)
         self.weapon_name.setStyleSheet(f"color: {element_color};")
 
     def _render_kit(self, kit: dict[str, Any]) -> None:
@@ -790,13 +827,16 @@ class ResonatorTab(QWidget):
             title = QLabel(self._styled_text(str(skill.get("name", "Habilidade")), skill_name=True))
             title.setObjectName("skillTitle")
             description = str(skill.get("description", "Sem descrição"))
-            description = self._format_skill_description(description)
+            description = self._format_skill_description(
+                description,
+                keyword_color=self._element_color(self.element_box.currentText()),
+            )
             body = QLabel(
                 description
-                if re.search(r"<(?:font|b|i|br)\b", description, re.IGNORECASE)
+                if re.search(r"<(?:font|b|i|br|div)\b", description, re.IGNORECASE)
                 else self._styled_text(description)
             )
-            if re.search(r"<(?:font|b|i|br)\b", description, re.IGNORECASE):
+            if re.search(r"<(?:font|b|i|br|div)\b", description, re.IGNORECASE):
                 body.setTextFormat(Qt.TextFormat.RichText)
             body.setWordWrap(True)
             text_layout.addWidget(title)

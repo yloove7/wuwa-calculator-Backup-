@@ -46,7 +46,11 @@ class DamageEventTracker:
         for candidate in candidates:
             match_index = self._find_match(candidate, timestamp, matched)
             if match_index is None:
-                self._observations.append(_Observation(candidate, timestamp, timestamp))
+                observation = _Observation(candidate, timestamp, timestamp)
+                if candidate[6] >= 0.90:
+                    observation.emitted = True
+                    emitted.append(candidate)
+                self._observations.append(observation)
                 continue
             matched.add(match_index)
             observation = self._observations[match_index]

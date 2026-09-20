@@ -1296,6 +1296,7 @@ class WuwaQtWindow(QMainWindow):
             self.preferences.sync()
         self._set_sidebar_active(
             f"{self._element_icon(CHARACTER_ELEMENTS.get(character_id))}   {character_id.title()}")
+        self.character_id_entry.clear()
         self.character_status.clear()
 
 
@@ -2001,7 +2002,7 @@ ImportDialog = CustomImportPopup
 
 
 def main() -> int:
-    app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle("Fusion")
     settings = QSettings("Tethys", "Tethys")
     background = settings.value("background", True, type=bool)

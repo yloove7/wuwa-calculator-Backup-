@@ -34,7 +34,8 @@ INACTIVITY_TIMEOUT = 12.0
 MIN_INACTIVITY_ANALYSIS_SECONDS = 15.0
 OCR_SAMPLE_FPS = 10.0
 DEFAULT_PREVIEW_FPS = 60.0
-PREVIEW_OUTPUT_FPS = 60.0
+# A cadence of 30 FPS is steadier for WGC previews than following monitor Hz.
+PREVIEW_OUTPUT_FPS = 45.0
 MAX_PREVIEW_FPS = 240.0
 MAX_LIVE_HIT_MARKERS = 3000
 COMBAT_ROI = (0.15, 0.90, 0.03, 0.97)
@@ -2226,10 +2227,11 @@ class DpsSimulationPanel(Card):
 
     def _switch_to_live_mode(self) -> None:
         self.modo_analise = "LIVE"
-        self._start_live_capture("GENERIC_WINDOW")
+        self._start_live_capture("WUTHERING_WAVES")
 
     def _switch_to_generic_live_mode(self) -> None:
-        self._switch_to_live_mode()
+        self.modo_analise = "LIVE"
+        self._start_live_capture("GENERIC_WINDOW")
 
     def _start_live_capture(self, capture_mode: str) -> None:
         if not self._stop_live_analysis():
@@ -2262,9 +2264,12 @@ class DpsSimulationPanel(Card):
             self.live_worker.analysis_completed.connect(self._on_analysis_completed)
             self.live_worker.failed.connect(self._on_live_failed)
             self.live_worker.finished.connect(self._on_live_finished)
-            self.live_thread.finished.connect(self._on_live_thread_finished)
-            self.live_thread.start()
-            self.live_thread.setPriority(QThread.Priority.LowPriority)
+            thread = self.live_thread
+            thread.finished.connect(
+                lambda finished_thread=thread: self._on_live_thread_finished(finished_thread)
+            )
+            thread.start()
+            thread.setPriority(QThread.Priority.LowPriority)
             return
 
         self.analysis_status.setText(
@@ -2352,9 +2357,12 @@ class DpsSimulationPanel(Card):
         self.live_worker.analysis_completed.connect(self._on_analysis_completed)
         self.live_worker.failed.connect(self._on_live_failed)
         self.live_worker.finished.connect(self._on_live_finished)
-        self.live_thread.finished.connect(self._on_live_thread_finished)
-        self.live_thread.start()
-        self.live_thread.setPriority(QThread.Priority.LowPriority)
+        thread = self.live_thread
+        thread.finished.connect(
+            lambda finished_thread=thread: self._on_live_thread_finished(finished_thread)
+        )
+        thread.start()
+        thread.setPriority(QThread.Priority.LowPriority)
 
     def _on_analysis_completed(self, data: dict) -> None:
         last_hit = float(data.get("last_hit", -1.0))
@@ -2455,14 +2463,16 @@ class DpsSimulationPanel(Card):
         if self.live_thread is not None:
             self.live_thread.quit()
 
-    def _on_live_thread_finished(self) -> None:
+    def _on_live_thread_finished(self, finished_thread: QThread) -> None:
+        if finished_thread is not self.live_thread:
+            finished_thread.deleteLater()
+            return
         if self.live_worker is not None:
             self.live_worker.deleteLater()
-        thread = self.live_thread
+        thread = finished_thread
         self.live_worker = None
         self.live_thread = None
-        if thread is not None:
-            thread.deleteLater()
+        thread.deleteLater()
 
     def _stop_live_analysis(self) -> bool:
         worker = self.live_worker

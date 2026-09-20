@@ -842,6 +842,18 @@ def application_qss(
     QPushButton#nav:hover {{ background-color: {wallpaper_surface}; color: {TEXT}; border: 2px solid {selected_accent}; }}
     QPushButton#navActive {{ background-color: {neon_soft}; color: {TEXT}; border: 1px solid {selected_accent}; font-weight: 800; }}
     QPushButton#navActive:hover {{ background-color: {neon_border}; color: #FFFFFF; border: 2px solid {selected_accent}; }}
+    QPushButton#nav[element="Aero"], QPushButton#navActive[element="Aero"] {{ background-color: #145A4A; border-color: #72E6C0; color: #E8FFF8; }}
+    QPushButton#nav[element="Glacio"], QPushButton#navActive[element="Glacio"] {{ background-color: #285A78; border-color: #82D8FF; color: #E4F8FF; }}
+    QPushButton#nav[element="Electro"], QPushButton#navActive[element="Electro"] {{ background-color: #49356F; border-color: #B78CFF; color: #F0E8FF; }}
+    QPushButton#nav[element="Fusion"], QPushButton#navActive[element="Fusion"] {{ background-color: #713D2C; border-color: #FF8A65; color: #FFF0E8; }}
+    QPushButton#nav[element="Havoc"], QPushButton#navActive[element="Havoc"] {{ background-color: #642C43; border-color: #E85D75; color: #FFE8EE; }}
+    QPushButton#nav[element="Spectro"], QPushButton#navActive[element="Spectro"] {{ background-color: #665522; border-color: #FFD76A; color: #FFF8D6; }}
+    QPushButton#nav[element="Aero"]:hover, QPushButton#navActive[element="Aero"]:hover {{ background-color: #1E8068; }}
+    QPushButton#nav[element="Glacio"]:hover, QPushButton#navActive[element="Glacio"]:hover {{ background-color: #397A9D; }}
+    QPushButton#nav[element="Electro"]:hover, QPushButton#navActive[element="Electro"]:hover {{ background-color: #644B91; }}
+    QPushButton#nav[element="Fusion"]:hover, QPushButton#navActive[element="Fusion"]:hover {{ background-color: #975039; }}
+    QPushButton#nav[element="Havoc"]:hover, QPushButton#navActive[element="Havoc"]:hover {{ background-color: #873B58; }}
+    QPushButton#nav[element="Spectro"]:hover, QPushButton#navActive[element="Spectro"]:hover {{ background-color: #87702D; }}
     QPushButton#nav[sidebarCharacter="true"], QPushButton#navActive[sidebarCharacter="true"] {{ padding-right: 32px; }}
     QToolButton#tabClose {{ color: {wallpaper_muted}; background: transparent; border: 1px solid transparent; border-radius: 4px; }}
     QToolButton#tabClose:hover {{ color: {TEXT}; background: {neon_soft}; border: 2px solid {selected_accent}; }}
