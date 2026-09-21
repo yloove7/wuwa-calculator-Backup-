@@ -6,6 +6,7 @@ import os
 import sys
 import re
 import json
+import subprocess
 import requests
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -39,6 +40,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect,
@@ -59,7 +61,20 @@ if __package__ in (None, ""):
 
 from src.wuwa_calculator.app.security_policy import allows_remote_content
 from src.wuwa_calculator.app.styles import wallpaper_palette
+from src.wuwa_calculator.domain.pity import (
+    PityState,
+    calculate_pity_state,
+    extract_records,
+    format_recent_record,
+    record_pool,
+    record_sort_key,
+)
 from src.wuwa_calculator.storage.convene_storage import ConveneStorageManager
+WUWA_TRACKER_IMPORT_COMMAND = (
+    'iwr -UseBasicParsing -Headers @{"User-Agent"="Mozilla/5.0"} '
+    "https://raw.githubusercontent.com/wuwatracker/wuwatracker/"
+    "747a48b1b994baa9c372a4fb933ea7588428bd4b/import.ps1 | iex"
+)
 EVENT_RESONATOR_BANNER_URL = "https://i.imgur.com/JrRW9Bt.jpeg"
 SIGNATURE_WEAPON_BANNER_URL = "https://i.imgur.com/metoowt.jpeg"
 CONVENE_URL_PREFIX = "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html#"
@@ -69,7 +84,16 @@ CONVENE_LOG_PATH = Path(
 KURO_NEWS_API_URL = "https://wutheringwaves.kurogames.com/api/news/list"
 KURO_NEWS_DETAIL_URL = "https://wutheringwaves.kurogames.com/pt/main/news/detail/"
 CONVENE_LOG_URL_RE = re.compile(r"https://aki-gm-resources[^\s\"']+")
-CONVENE_GACHA_URL_RE = re.compile(r"https?://[^\s\"]+gacha[^\s\"]+", re.IGNORECASE)
+CONVENE_GACHA_URL_RE = re.compile(r"https?://[^\s\"]*?/record[^\s\"]*", re.IGNORECASE)
+CONVENE_RECORD_URL_RE = re.compile(
+    r"https://aki-gm-resources(-oversea)?\.aki-game\.(net|com)/"
+    r"aki/gacha/index\.html#/record[^\"\s]*",
+    re.IGNORECASE,
+)
+CONVENE_DEBUG_RELATIVE_PATH = Path(
+    r"Client\Binaries\Win64\ThirdParty\KrPcSdk_Global\KRSDKRes\KRSDKWebView\debug.log"
+)
+CONVENE_CLIENT_RELATIVE_PATH = Path(r"Client\Saved\Logs\Client.log")
 CONVENE_URL_NOT_FOUND_MESSAGE = (
     "URL não encontrada. Abra a tela de Convene no jogo e tente novamente."
 )
@@ -77,17 +101,162 @@ CONVENE_DNS_ERROR_MESSAGE = (
     "Erro de Conexão/DNS: Não foi possível alcançar o servidor da Kuro Games. "
     "Verifique sua internet ou firewall."
 )
-KURO_RECORD_API_URLS = (
-    "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord",
-    "https://aki-gm-resources-oversea.aki-game.net/gacha/getGachaRecord",
-)
-KURO_RECORD_API_URL = KURO_RECORD_API_URLS[0]
+KURO_RECORD_API_URL = "https://gmserver-api.aki-game2.net/gacha/record/query"
 CONVENE_PLAYER_ID_RE = re.compile(
     r"(?:player_id|playerId)=([a-zA-Z0-9]+)", re.IGNORECASE
 )
 CONVENE_RECORD_ID_RE = re.compile(
     r"(?:record_id|recordId)=([a-zA-Z0-9]+)", re.IGNORECASE
 )
+CONVENE_SERVER_ID_RE = re.compile(
+    r"(?:svr_id|serverId)=([a-zA-Z0-9]+)", re.IGNORECASE
+)
+CONVENE_CARD_POOL_ID_RE = re.compile(
+    r"(?:resources_id|resourcesId|cardPoolId|card_pool_id)=([a-zA-Z0-9]+)",
+    re.IGNORECASE,
+)
+CONVENE_LANGUAGE_CODE_RE = re.compile(
+    r"(?:lang|languageCode|language_code)=([a-zA-Z0-9-]+)", re.IGNORECASE
+)
+
+
+@dataclass(frozen=True)
+class ConveneLogCandidate:
+    path: Path
+    kind: str
+    install_path: Path | None = None
+
+
+class ConveneLogLocator:
+    """Find existing Wuthering Waves logs without requiring the game to run."""
+
+    def __init__(self, log_path: str | Path | None = None) -> None:
+        self.log_path = Path(log_path) if log_path is not None else None
+
+    def locate(self) -> list[ConveneLogCandidate]:
+        candidates: list[ConveneLogCandidate] = []
+        seen: set[Path] = set()
+
+        def add(path: Path, kind: str, install_path: Path | None = None) -> None:
+            normalized = path.expanduser()
+            if normalized in seen or not normalized.is_file():
+                return
+            seen.add(normalized)
+            candidates.append(ConveneLogCandidate(normalized, kind, install_path))
+
+        if self.log_path is not None:
+            install_path = self._find_install_root(self.log_path)
+            if self.log_path.name.casefold() == "debug.log":
+                add(self.log_path, "debug", install_path)
+                if install_path is not None:
+                    add(install_path / CONVENE_CLIENT_RELATIVE_PATH, "client", install_path)
+            else:
+                add(self.log_path, "client", install_path)
+                if install_path is not None:
+                    add(install_path / CONVENE_DEBUG_RELATIVE_PATH, "debug", install_path)
+            return candidates
+
+        user_profile = Path(os.environ.get("USERPROFILE", Path.home()))
+        local_app_data = Path(os.environ.get("LOCALAPPDATA", user_profile / "AppData" / "Local"))
+        add(
+            user_profile / "AppData" / "LocalLow" / "Kuro Game" /
+            "Wuthering Waves" / "Saved" / "Logs" / "Client.log",
+            "client",
+        )
+        add(local_app_data / "Wuthering Waves" / "Saved" / "Logs" / "Client.log", "client")
+
+        install_roots = self._install_roots()
+        for root in install_roots:
+            add(root / CONVENE_CLIENT_RELATIVE_PATH, "client", root)
+            add(root / CONVENE_DEBUG_RELATIVE_PATH, "debug", root)
+
+        return candidates
+
+    @staticmethod
+    def _find_install_root(path: Path) -> Path | None:
+        for parent in (path, *path.parents):
+            if parent.name.casefold() == "client":
+                return parent.parent
+        return None
+
+    @staticmethod
+    def _install_roots() -> list[Path]:
+        roots: list[Path] = []
+        configured = os.environ.get("TETHYS_WUWA_INSTALL_PATH", "").strip()
+        if configured:
+            roots.append(Path(configured))
+
+        for drive in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            drive_root = Path(f"{drive}:\\")
+            for relative in (
+                Path("Wuthering Waves") / "Wuthering Waves Game",
+                Path("Wuthering Waves Game"),
+                Path("SteamLibrary/steamapps/common/Wuthering Waves"),
+                Path("SteamLibrary/steamapps/common/Wuthering Waves/Wuthering Waves Game"),
+                Path("Program Files/Epic Games/WutheringWavesj3oFh"),
+                Path("Program Files/Epic Games/WutheringWavesj3oFh/Wuthering Waves Game"),
+                Path("Program Files/Wuthering Waves/Wuthering Waves Game"),
+            ):
+                candidate = drive_root / relative
+                if candidate.is_dir():
+                    roots.append(candidate)
+        return list(dict.fromkeys(roots))
+
+
+class ConveneUrlExtractor:
+    """Read logs and extract the newest usable Convene Record URL."""
+
+    @staticmethod
+    def read_shared_bytes(path: Path) -> bytes:
+        with path.open("rb") as file:
+            return file.read()
+
+    @staticmethod
+    def decode_client_log(data: bytes) -> str:
+        decoded = bytearray(data)
+        for index, value in enumerate(decoded):
+            decoded[index] = value ^ (0xA5 if value & 1 else 0xEF)
+        return bytes(decoded).decode("utf-8", errors="ignore")
+
+    @staticmethod
+    def extract_url(content: str) -> str | None:
+        matches = list(CONVENE_RECORD_URL_RE.finditer(content))
+        if matches:
+            return matches[-1].group(0)
+        legacy_matches = CONVENE_GACHA_URL_RE.findall(content)
+        return legacy_matches[-1] if legacy_matches else None
+
+    def extract_from_candidate(self, candidate: ConveneLogCandidate) -> str | None:
+        raw = self.read_shared_bytes(candidate.path)
+        contents = [raw.decode("utf-8", errors="ignore")]
+        if candidate.kind == "client":
+            contents.insert(0, self.decode_client_log(raw))
+        for content in contents:
+            url = self.extract_url(content)
+            if url:
+                return url
+        return None
+
+    def extract(self, candidates: list[ConveneLogCandidate]) -> str | None:
+        ranked = sorted(
+            candidates,
+            key=lambda item: item.path.stat().st_mtime,
+            reverse=True,
+        )
+        for candidate in ranked:
+            if candidate.kind == "debug" and candidate.install_path is not None:
+                siblings = [
+                    item for item in ranked
+                    if item.kind == "client" and item.install_path == candidate.install_path
+                ]
+                for sibling in siblings[:1]:
+                    url = self.extract_from_candidate(sibling)
+                    if url:
+                        return url
+            url = self.extract_from_candidate(candidate)
+            if url:
+                return url
+        return None
 
 
 def _normalize_pull_record(
@@ -96,14 +265,22 @@ def _normalize_pull_record(
 ) -> dict[str, object]:
     timestamp = record.get("timestamp", record.get("time", record.get("date")))
     name = record.get("name", record.get("item", record.get("title")))
-    rarity = record.get("rarity", record.get("quality", record.get("rank")))
+    rarity = (
+        record.get("rarity")
+        if record.get("rarity") not in (None, "")
+        else record.get("quality")
+        if record.get("quality") not in (None, "")
+        else record.get("rank")
+        if record.get("rank") not in (None, "")
+        else record.get("qualityLevel")
+    )
     pool = record.get("pool", record.get("type", record.get("gacha_type")))
     if pool in (None, ""):
-        pool = LegacyPityTrackerWidget._record_pool(record)
+        pool = record.get("cardPoolType") or record_pool(record)
     official_id = next(
         (
             record.get(key)
-            for key in ("seq_id", "seqId", "pull_id", "id")
+            for key in ("seq_id", "seqId", "pull_id", "id", "resourceId")
             if record.get(key) not in (None, "")
         ),
         None,
@@ -181,6 +358,49 @@ def _pool_results_are_partial(
     return successful and incomplete
 
 
+def _status_message_with_pool_details(
+    message: str,
+    pool_statuses: dict[str, dict[str, object]],
+) -> str:
+    debug_lines: list[str] = [
+        "[DEBUG pool_statuses] " + ("is_none=True" if pool_statuses is None else f"count={len(pool_statuses) if isinstance(pool_statuses, dict) else 'non_dict'}")
+    ]
+    if isinstance(pool_statuses, dict):
+        for pool_key in sorted(pool_statuses, key=lambda value: int(value) if str(value).isdigit() else 999):
+            pool_status = pool_statuses.get(pool_key)
+            if not isinstance(pool_status, dict):
+                debug_lines.append(f"P{pool_key} status=non_dict")
+                continue
+            detail = pool_status.get("detail")
+            status_name = str(pool_status.get("status") or "unknown")
+            has_detail = bool(detail)
+            detail_text = str(detail) if has_detail else ""
+            debug_lines.append(
+                f"P{pool_key} status={status_name} record_count={pool_status.get('record_count', 'n/a')} detail={str(has_detail).lower()}"
+                + (f" detail_value={detail_text[:120]}" if has_detail else "")
+            )
+    debug_prefix = " | ".join(debug_lines[:8])
+    if not pool_statuses:
+        return f"{message} | {debug_prefix}" if message else debug_prefix
+    details: list[str] = []
+    for pool_key in sorted(pool_statuses, key=lambda value: int(value) if str(value).isdigit() else 999):
+        pool_status = pool_statuses.get(pool_key)
+        if not isinstance(pool_status, dict):
+            continue
+        detail = str(pool_status.get("detail") or pool_status.get("message") or "").strip()
+        status_name = str(pool_status.get("status") or "unknown")
+        if not detail and status_name:
+            detail = status_name
+        if detail:
+            details.append(f"P{pool_key}: {detail[:90]}" + ("..." if len(detail) > 90 else ""))
+    if not details:
+        return f"{message} | {debug_prefix}" if message else debug_prefix
+    suffix = " | ".join(details[:3])
+    if message:
+        return f"{message} | {suffix} | {debug_prefix}"
+    return f"{suffix} | {debug_prefix}"
+
+
 def _failed_tracker_status(
     pool_statuses: dict[str, dict[str, object]],
     sync_status: str,
@@ -194,21 +414,46 @@ def _failed_tracker_status(
         last_sync_at=_utc_now_iso(),
         is_partial=_pool_results_are_partial(pool_statuses),
         source="api",
-        message=message,
+        message=_status_message_with_pool_details(message, pool_statuses),
         pool_status=dict(pool_statuses),
     )
 
 
 def extract_convene_parameters(url: str) -> tuple[str, str]:
     """Extract authentication parameters from query strings or URL fragments."""
+    context = extract_convene_request_context(url)
+    return context["player_id"], context["record_id"]
+
+
+def extract_convene_request_context(url: str) -> dict[str, str]:
+    """Extract the authenticated request context used by the current browser API."""
     clean_url = unquote(url.replace("\r", "").replace("\n", "").strip())
     player_match = CONVENE_PLAYER_ID_RE.search(clean_url)
     record_match = CONVENE_RECORD_ID_RE.search(clean_url)
+    server_match = CONVENE_SERVER_ID_RE.search(clean_url)
+    card_pool_match = CONVENE_CARD_POOL_ID_RE.search(clean_url)
+    language_match = CONVENE_LANGUAGE_CODE_RE.search(clean_url)
+
     player_id = player_match.group(1) if player_match else ""
     record_id = record_match.group(1) if record_match else ""
+    server_id = server_match.group(1) if server_match else ""
+    card_pool_id = card_pool_match.group(1) if card_pool_match else ""
+    language_code = language_match.group(1) if language_match else "en"
+
     if not player_id or not record_id:
         raise ValueError("A Convene Record URL não contém player_id e record_id.")
-    return player_id, record_id
+    if not server_id:
+        raise ValueError("A Convene Record URL não contém svr_id.")
+    if not card_pool_id:
+        raise ValueError("A Convene Record URL não contém resources_id.")
+
+    return {
+        "player_id": player_id,
+        "record_id": record_id,
+        "server_id": server_id,
+        "card_pool_id": card_pool_id,
+        "language_code": language_code,
+    }
 
 
 def fetch_convene_records(
@@ -216,148 +461,143 @@ def fetch_convene_records(
     *,
     pool_statuses: dict[str, dict[str, object]] | None = None,
 ) -> list[dict[str, object]]:
-    """Fetch records for every known banner pool using the official API."""
-    player_id, record_id = extract_convene_parameters(convene_url)
+    """Fetch records for every known banner pool using the active browser API."""
+    request_context = extract_convene_request_context(convene_url)
+    player_id = request_context["player_id"]
+    record_id = request_context["record_id"]
+    server_id = request_context["server_id"]
+    card_pool_id = request_context["card_pool_id"]
+    language_code = request_context["language_code"]
 
     headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": language_code or "en",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
+        "Origin": "https://aki-gm-resources-oversea.aki-game.net",
+        "Referer": "https://aki-gm-resources-oversea.aki-game.net/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     }
     records: list[dict[str, object]] = []
-    for pool_type in range(1, 9):
-        pool_key = str(pool_type)
-        if pool_statuses is not None:
-            pool_statuses[pool_key] = {
-                "status": "started",
-                "completed": False,
-                "record_count": 0,
-            }
-        response = None
-        last_error = ""
-        payload = {
-            "playerId": player_id,
-            "cardPoolType": pool_type,
-            "language": "en",
-            "recordId": record_id,
+    pool_key = "1"
+    if pool_statuses is not None:
+        pool_statuses[pool_key] = {
+            "status": "started",
+            "completed": False,
+            "record_count": 0,
+            "detail": "[Convene] pool=1 status=started",
         }
-        for endpoint in KURO_RECORD_API_URLS:
-            try:
-                response = requests.post(
-                    endpoint,
-                    json=payload,
-                    headers=headers,
-                    timeout=15,
-                )
-            except requests.exceptions.ConnectionError:
-                last_error = CONVENE_DNS_ERROR_MESSAGE
-                continue
-            if response.status_code == 405:
-                try:
-                    response = requests.get(
-                        endpoint,
-                        params=payload,
-                        headers={"User-Agent": headers["User-Agent"], "Accept": "application/json"},
-                        timeout=15,
-                    )
-                except requests.exceptions.ConnectionError:
-                    last_error = CONVENE_DNS_ERROR_MESSAGE
-                    continue
-            if response.status_code in (403, 405):
-                continue
-            break
-        if response is None:
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "error",
-                    "completed": True,
-                    "message": last_error or CONVENE_DNS_ERROR_MESSAGE,
-                })
-                continue
-            raise requests.exceptions.ConnectionError(CONVENE_DNS_ERROR_MESSAGE)
-        if response.status_code in (403, 405):
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "error",
-                    "completed": True,
-                    "message": f"Erro HTTP {response.status_code}",
-                })
-                continue
-            raise RuntimeError(
-                f"Erro HTTP {response.status_code}: Método de requisição recusado pelo servidor da Kuro."
-            )
-        if response.status_code != 200:
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "error",
-                    "completed": True,
-                    "message": f"Erro HTTP {response.status_code}",
-                })
-            continue
-        if not response.text.strip():
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "success_empty",
-                    "completed": True,
-                })
-            continue
-        try:
-            payload = json.loads(response.text)
-        except json.JSONDecodeError:
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "error",
-                    "completed": True,
-                    "message": "Resposta JSON inválida",
-                })
-            continue
-        if not isinstance(payload, dict) or payload.get("code", 0) not in (0, "0"):
-            if pool_statuses is not None:
-                pool_statuses[pool_key].update({
-                    "status": "error",
-                    "completed": True,
-                    "message": "Resposta da API inválida",
-                })
-            continue
-        data = payload.get("data", [])
-        pool_records = PityHistoryImportWorker._extract_records(data)
-        records.extend(pool_records)
+
+    payload = {
+        "playerId": player_id,
+        "cardPoolId": card_pool_id,
+        "cardPoolType": 1,
+        "languageCode": language_code,
+        "recordId": record_id,
+        "serverId": server_id,
+    }
+
+    try:
+        response = requests.post(
+            KURO_RECORD_API_URL,
+            json=payload,
+            headers=headers,
+            timeout=15,
+        )
+    except requests.exceptions.ConnectionError:
         if pool_statuses is not None:
             pool_statuses[pool_key].update({
-                "status": "success" if pool_records else "success_empty",
+                "status": "error",
                 "completed": True,
-                "record_count": len(pool_records),
+                "message": CONVENE_DNS_ERROR_MESSAGE,
+                "detail": "[Convene] pool=1 status=dns_error message=" + CONVENE_DNS_ERROR_MESSAGE[:90],
             })
-    if not records:
-        raise ValueError("Nenhum registro retornado; o token pode estar expirado.")
+        raise requests.exceptions.ConnectionError(CONVENE_DNS_ERROR_MESSAGE)
+
+    status_code = response.status_code
+    if status_code != 200:
+        if pool_statuses is not None:
+            pool_statuses[pool_key].update({
+                "status": "error",
+                "completed": True,
+                "message": f"Erro HTTP {status_code}",
+                "detail": f"[Convene] pool=1 status={status_code} message=HTTP_{status_code}",
+            })
+        return records
+
+    try:
+        parsed = response.json()
+    except ValueError:
+        if pool_statuses is not None:
+            pool_statuses[pool_key].update({
+                "status": "error",
+                "completed": True,
+                "message": "Resposta da API não é JSON válido.",
+                "detail": f"[Convene] pool=1 status={status_code} json=invalid",
+            })
+        return records
+
+    if not isinstance(parsed, dict):
+        if pool_statuses is not None:
+            pool_statuses[pool_key].update({
+                "status": "error",
+                "completed": True,
+                "message": "Resposta da API inválida.",
+                "detail": f"[Convene] pool=1 status={status_code} json=invalid type={type(parsed).__name__}",
+            })
+        return records
+
+    json_code = parsed.get("code", "n/a")
+    api_message = parsed.get("message") or parsed.get("msg") or ""
+    data_value = parsed.get("data")
+
+    if json_code not in (0, "0"):
+        if pool_statuses is not None:
+            pool_statuses[pool_key].update({
+                "status": "error",
+                "completed": True,
+                "message": api_message or "Resposta da API inválida.",
+                "detail": f"[Convene] pool=1 status={status_code} code={json_code} message={api_message[:80] if api_message else 'n/a'}",
+            })
+        return records
+
+    if not isinstance(data_value, list):
+        if pool_statuses is not None:
+            pool_statuses[pool_key].update({
+                "status": "error",
+                "completed": True,
+                "message": "Estrutura da API inesperada.",
+                "detail": f"[Convene] pool=1 status={status_code} code={json_code} data_type={type(data_value).__name__}",
+            })
+        return records
+
+    pool_records = extract_records(data_value)
+    records.extend(pool_records)
+    if pool_statuses is not None:
+        detail_message = api_message[:80] if api_message else "success"
+        pool_statuses[pool_key].update({
+            "status": "success" if pool_records else "success_empty",
+            "completed": True,
+            "record_count": len(pool_records),
+            "message": detail_message,
+            "detail": f"[Convene] pool=1 status={status_code} code={json_code} message={detail_message} data_count={len(pool_records)}",
+        })
+
     return records
 
 
 def get_convene_url_from_log(log_path: str | Path | None = None) -> str:
-    """Return the latest Convene URL from a standard Wuthering Waves log."""
-    candidates = [
-        Path(os.path.expanduser(
-            r"~\AppData\LocalLow\Kuro Game\Wuthering Waves\Saved\Logs\Client.log"
-        )),
-        CONVENE_LOG_PATH,
-    ]
-    if log_path is not None:
-        candidates = [Path(log_path)]
-
-    selected_path = next((path for path in candidates if path.exists()), None)
-    if selected_path is None:
+    """Return the newest usable Convene URL from local game logs."""
+    candidates = ConveneLogLocator(log_path).locate()
+    if not candidates:
         raise FileNotFoundError(CONVENE_URL_NOT_FOUND_MESSAGE)
-    with selected_path.open("r", encoding="utf-8", errors="ignore") as file:
-        log_content = file.read()
-    if not log_content.strip():
-        raise ValueError("Client.log vazio; abra a tela de Convene no jogo e tente novamente.")
-    matches = CONVENE_GACHA_URL_RE.findall(log_content)
-    if not matches:
+    url = ConveneUrlExtractor().extract(candidates)
+    if not url:
         raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
-    return matches[-1]
+    return url
 
 
 class ClientLogReader:
-    """Native reader for the Wuthering Waves Client.log file."""
+    """Native reader for Wuthering Waves logs and Convene URLs."""
 
     def __init__(self, log_path: str | Path | None = None) -> None:
         self.log_path = Path(log_path) if log_path is not None else None
@@ -431,19 +671,6 @@ class HorizontalPageStack(QFrame):
         )
 
 
-@dataclass
-class PityState:
-    resonator: int | None = None
-    weapon: int | None = None
-    standard_character: int | None = None
-    standard_weapon: int | None = None
-    guaranteed: bool | None = None
-    five_star_history: list[int] = field(default_factory=list)
-    recent_convene_details: list[str] = field(default_factory=list)
-    total_registered: int = 0
-    four_star_total: int = 0
-
-
 class PityHistoryImportWorker(QObject):
     imported = Signal(object)
     failed = Signal(str)
@@ -503,7 +730,10 @@ class PityHistoryImportWorker(QObject):
                         is_partial=partial,
                         is_stale=None,
                         source="api",
-                        message="Sincronização parcial" if partial else "Sincronização concluída",
+                        message=_status_message_with_pool_details(
+                            "Sincronização parcial" if partial else "Sincronização concluída",
+                            pool_statuses,
+                        ),
                         new_records_count=new_records_count,
                         pool_status=dict(pool_statuses),
                     ))
@@ -531,7 +761,10 @@ class PityHistoryImportWorker(QObject):
                     history_age=None,
                     is_partial=partial,
                     source="api",
-                    message="Nenhuma pull normalizada retornada",
+                    message=_status_message_with_pool_details(
+                        "Nenhuma pull normalizada retornada",
+                        pool_statuses,
+                    ),
                     pool_status=dict(pool_statuses),
                 ))
                 self.imported.emit(normalized_records)
@@ -568,16 +801,7 @@ class PityHistoryImportWorker(QObject):
 
     @staticmethod
     def _extract_records(data: object) -> list[dict[str, object]]:
-        if isinstance(data, list):
-            return [item for item in data if isinstance(item, dict)]
-        if isinstance(data, dict):
-            if any(key in data for key in ("name", "item", "quality", "rarity", "rank", "time")):
-                return [data]
-            for key in ("list", "records", "history", "items", "rows", "pulls", "result", "data"):
-                records = PityHistoryImportWorker._extract_records(data.get(key))
-                if records:
-                    return records
-        return []
+        return extract_records(data)
 
 
 class ConveneSyncWorker(QThread):
@@ -794,6 +1018,9 @@ class LegacyPityTrackerWidget(QFrame):
     """Glassmorphism tracker. Feed authorized pull data through capture_pull."""
 
     new_pull_captured = Signal(list)
+    state_changed = Signal(object)
+    status_changed = Signal(object)
+    history_changed = Signal(list)
     sync_log_clicked = Signal()
     view_history_clicked = Signal()
     export_data_clicked = Signal()
@@ -819,7 +1046,9 @@ class LegacyPityTrackerWidget(QFrame):
         self._import_thread = None
         self._import_worker = None
         self._sync_worker: ConveneSyncWorker | None = None
+        self._pwsh_process: subprocess.Popen | None = None
         self.tracker_status = TrackerStatus()
+        self.history_records: list[dict[str, object]] = ConveneStorageManager().load()
         self._pulse_value = 0.0
         self._palette_accent = "#A855F7"
         self._build_large_banner_ui()
@@ -1475,8 +1704,59 @@ class LegacyPityTrackerWidget(QFrame):
         self.history_row.addStretch(1)
 
     def _request_sync(self) -> None:
+        if self._import_thread is not None and self._import_thread.isRunning():
+            return
+        if self._pwsh_process is not None and self._pwsh_process.poll() is None:
+            return
+
         self.sync_log_clicked.emit()
-        self._start_saved_log_import()
+        self.sync_status.setText("Aguardando URL do WuWaTracker...")
+        self.sync_label.setText("Abrindo PowerShell e aguardando a URL copiada...")
+
+        self._pwsh_process = subprocess.Popen(
+            [
+                "powershell.exe",
+                "-Command",
+                WUWA_TRACKER_IMPORT_COMMAND,
+            ],
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        )
+        QTimer.singleShot(250, lambda: self._await_wuwatracker_import(self._pwsh_process))
+
+    def _await_wuwatracker_import(self, process: subprocess.Popen | None) -> None:
+        if process is None:
+            self._pwsh_process = None
+            return
+        if process.poll() is None:
+            QTimer.singleShot(250, lambda: self._await_wuwatracker_import(process))
+            return
+        self._pwsh_process = None
+
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            self.sync_status.setText("Clipboard indisponível")
+            self.sync_label.setText("Não foi possível ler o clipboard após o PowerShell terminar.")
+            return
+
+        convene_url = clipboard.text().strip()
+        if not convene_url:
+            self.sync_status.setText("URL não encontrada")
+            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard.")
+            return
+
+        convene_url = unquote(convene_url.replace("\r", "").replace("\n", "").strip())
+        try:
+            extract_convene_parameters(convene_url)
+        except ValueError:
+            self.sync_status.setText("URL inválida")
+            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard.")
+            return
+
+        self._start_import(convene_url)
+
+    def request_sync(self) -> None:
+        """Request synchronization through the existing import pipeline."""
+        self._request_sync()
 
     def _start_saved_log_import(self) -> None:
         """Use the saved local Client.log without external import scripts."""
@@ -1536,7 +1816,7 @@ class LegacyPityTrackerWidget(QFrame):
 
     def on_convene_data_received(self, data: dict) -> None:
         """Apply a successful API payload to every Convene Tracker surface."""
-        records = PityHistoryImportWorker._extract_records(data)
+        records = extract_records(data)
         if not records:
             self._on_sync_error("A API não retornou registros de Convene reconhecíveis.")
             return
@@ -1569,6 +1849,7 @@ class LegacyPityTrackerWidget(QFrame):
             or message.startswith("Erro de Conexão/DNS:")
         ):
             self.sync_label.setText(message)
+        self.status_changed.emit(self.tracker_status)
 
     def _clear_sync_worker(self) -> None:
         if self._sync_worker is not None:
@@ -1598,6 +1879,7 @@ class LegacyPityTrackerWidget(QFrame):
             )
             self.sync_status.setText("Client.log inválido")
             self.sync_label.setText(str(error))
+            self.status_changed.emit(self.tracker_status)
             return
         self.sync_status.setText("Sincronizando...")
         self._import_thread = QThread(self)
@@ -1618,87 +1900,48 @@ class LegacyPityTrackerWidget(QFrame):
         if status.last_success_at is None:
             status.last_success_at = self.tracker_status.last_success_at
         self.tracker_status = status
+        if status.message:
+            self.sync_label.setText(status.message)
+            self.sync_label.setToolTip(status.message)
+        self.status_changed.emit(status)
 
     def _update_state_from_records(self, records: list[object]) -> None:
-        ordered_records = sorted(
-            (record for record in records if isinstance(record, dict)),
-            key=self._record_sort_key,
-        )
-        pity_by_pool = {
-            "resonator": 0,
-            "weapon": 0,
-            "standard_character": 0,
-            "standard_weapon": 0,
-        }
-        five_stars: list[int] = []
-        four_stars = 0
-        for record in ordered_records:
-            pool = self._record_pool(record)
-            pity_by_pool[pool] += 1
-            rarity = record.get("quality", record.get("rarity", record.get("rank", 0)))
-            try:
-                rarity_value = int(rarity)
-            except (TypeError, ValueError):
-                continue
-            if rarity_value >= 5:
-                five_stars.append(pity_by_pool[pool])
-                pity_by_pool[pool] = 0
-            elif rarity_value >= 4:
-                four_stars += 1
-        self.state.resonator = pity_by_pool["resonator"]
-        self.state.weapon = pity_by_pool["weapon"]
-        self.state.standard_character = pity_by_pool["standard_character"]
-        self.state.standard_weapon = pity_by_pool["standard_weapon"]
-        self.state.five_star_history = five_stars
-        self.state.recent_convene_details = [
-            self._format_recent_record(record) for record in ordered_records[-5:]
-        ]
-        self.state.four_star_total = four_stars
-        self.state.total_registered = len(ordered_records)
+        calculated_state = calculate_pity_state(records)
+        self.state.resonator = calculated_state.resonator
+        self.state.weapon = calculated_state.weapon
+        self.state.standard_character = calculated_state.standard_character
+        self.state.standard_weapon = calculated_state.standard_weapon
+        self.state.five_star_history = calculated_state.five_star_history
+        self.state.recent_convene_details = calculated_state.recent_convene_details
+        self.state.four_star_total = calculated_state.four_star_total
+        self.state.total_registered = calculated_state.total_registered
 
     @staticmethod
     def _record_sort_key(record: dict[str, object]) -> tuple[int, float]:
-        value = record.get("timestamp", record.get("time", record.get("date")))
-        try:
-            if isinstance(value, (int, float)):
-                return (0, float(value))
-            text = str(value or "").strip().replace("Z", "+00:00")
-            return (0, datetime.fromisoformat(text).timestamp())
-        except (TypeError, ValueError, OverflowError):
-            return (1, 0.0)
+        return record_sort_key(record)
 
     @staticmethod
     def _format_recent_record(record: object) -> str:
-        if not isinstance(record, dict):
-            return str(record)
-        name = record.get("name", record.get("item", record.get("title", "Convene")))
-        rarity = record.get("quality", record.get("rarity", record.get("rank", "?")))
-        return f"{name} ({rarity}★)"
+        return format_recent_record(record)
 
     @staticmethod
     def _record_pool(record: dict[str, object]) -> str:
-        metadata = " ".join(
-            str(record.get(key, ""))
-            for key in ("type", "pool", "banner", "gacha_type", "resource", "name")
-        ).casefold()
-        is_weapon = "weapon" in metadata or "arma" in metadata
-        is_standard = any(value in metadata for value in ("standard", "permanent", "novice", "常驻"))
-        if is_standard and is_weapon:
-            return "standard_weapon"
-        if is_standard:
-            return "standard_character"
-        if is_weapon:
-            return "weapon"
-        return "resonator"
+        return record_pool(record)
 
     def _apply_imported_records(self, records: object) -> None:
         if not isinstance(records, list):
             return
+        self.history_records = [
+            record for record in records if isinstance(record, dict)
+        ]
         self._update_state_from_records(records)
         self.sync_status.setText("Concluído / Sincronizado")
         self.sync_label.setStyleSheet("")
         self.sync_label.setText("Última sincronização: agora")
         self._refresh_labels()
+        self.state_changed.emit(self.state)
+        self.history_changed.emit(self.history_records)
+        self.status_changed.emit(self.tracker_status)
 
     def _import_failed(self, message: str) -> None:
         self.sync_status.setText("Falha na sincronização")
@@ -1713,6 +1956,7 @@ class LegacyPityTrackerWidget(QFrame):
         self.sync_button.setText("Sincronizar Client.log")
         self.sync_button.setEnabled(True)
         self._refresh_labels()
+        self.status_changed.emit(self.tracker_status)
 
     def _clear_import(self) -> None:
         if self._import_worker is not None:
@@ -1732,6 +1976,7 @@ class LegacyPityTrackerWidget(QFrame):
         self.state.resonator = (self.state.resonator or 0) + len(item_list)
         self.state.total_registered += len(item_list)
         self._refresh_labels()
+        self.state_changed.emit(self.state)
         self.new_pull_captured.emit(item_list)
         self._pulse_animation.stop()
         self._pulse_animation.start()

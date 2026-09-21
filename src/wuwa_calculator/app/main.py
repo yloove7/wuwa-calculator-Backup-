@@ -840,6 +840,9 @@ class WuwaQtWindow(QMainWindow):
         tabs = QTabWidget()
         tabs.setObjectName("mainTabs")
         tabs.tabBar().hide()
+
+        from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget
+        self.convene_tracker_backend = LegacyPityTrackerWidget()
         
         def build_home() -> QWidget:
             from src.wuwa_calculator.app.home_tab import HomeTab
@@ -848,6 +851,10 @@ class WuwaQtWindow(QMainWindow):
         def build_teams() -> QWidget:
             from src.wuwa_calculator.app.teams_tab import TeamsTab
             return TeamsTab()
+
+        def build_convene_tracker() -> QWidget:
+            from src.wuwa_calculator.app.convene_tracker_tab import ConveneTrackerTab
+            return ConveneTrackerTab(self.convene_tracker_backend)
 
         def build_history() -> QWidget:
             from src.wuwa_calculator.app.history_tab import HistoryTab
@@ -863,6 +870,7 @@ class WuwaQtWindow(QMainWindow):
 
         self._tab_factories = (
             build_home,
+            build_convene_tracker,
             build_teams,
             build_history,
             build_multimedia,
@@ -874,6 +882,7 @@ class WuwaQtWindow(QMainWindow):
         )
         self._tab_titles = (
             "Banners",
+            "Convene Tracker",
             "Teams",
             "Histórico",
             "Mapeamento de Frequências",
@@ -886,13 +895,13 @@ class WuwaQtWindow(QMainWindow):
         for title in self._tab_titles:
             tabs.addTab(QWidget(), title)
         multimedia_tab = build_multimedia()
-        tabs.removeTab(3)
-        tabs.insertTab(3, multimedia_tab, self._tab_titles[3])
-        self._tab_widgets[3] = multimedia_tab
-        obs_test_tab = build_obs_test()
         tabs.removeTab(4)
-        tabs.insertTab(4, obs_test_tab, self._tab_titles[4])
-        self._tab_widgets[4] = obs_test_tab
+        tabs.insertTab(4, multimedia_tab, self._tab_titles[4])
+        self._tab_widgets[4] = multimedia_tab
+        obs_test_tab = build_obs_test()
+        tabs.removeTab(5)
+        tabs.insertTab(5, obs_test_tab, self._tab_titles[5])
+        self._tab_widgets[5] = obs_test_tab
         obs_test_tab.settingsChanged.connect(
             multimedia_tab.dps_panel.set_capture_settings
         )
@@ -916,6 +925,7 @@ class WuwaQtWindow(QMainWindow):
         self.sidebar_layout.setContentsMargins(14, 18, 14, 18)
         self.sidebar_layout.setSpacing(8)
         for index, label in enumerate(("⌂   Banners",
+                           "◉   Convene Tracker",
                                        "♣   Teams",
                                        "◷   Histórico",
                                        "⌁   Frequências",

@@ -326,28 +326,14 @@ class WuWaKuroBannerCard(QFrame):
             print(f"[WuWaKuroBannerCard] Pixmap isNull: {pixmap.isNull()}, size: {pixmap.size()}")
             
             if not pixmap.isNull():
-                # Redimensiona preservando TODO o conteúdo (sem cortar)
-                # Container: 960x440
-                # Estratégia: SEMPRE escala por ALTURA (440px) - nunca corta topo/bottom
-                # Se largura > 960, faz crop APENAS nas laterais
-                print(f"[WuWaKuroBannerCard] Escalando pixmap de {pixmap.size()} para altura 440px...")
-                
-                # Escala por altura mantendo proporção (preserva tudo vertical)
-                scaled_pixmap = pixmap.scaledToHeight(
-                    440, 
-                    Qt.SmoothTransformation
+                print(f"[WuWaKuroBannerCard] Ajustando pixmap inteiro ao limite 960x440...")
+                scaled_pixmap = pixmap.scaled(
+                    960,
+                    440,
+                    Qt.KeepAspectRatio,
+                    Qt.SmoothTransformation,
                 )
-                print(f"[WuWaKuroBannerCard] Após scaledToHeight(440): {scaled_pixmap.size()}")
-                
-                # Se largura > 960, faz crop APENAS nas laterais (centro)
-                if scaled_pixmap.width() > 960:
-                    crop_x = (scaled_pixmap.width() - 960) // 2
-                    print(f"[WuWaKuroBannerCard] Cortando {crop_x}px de cada lado (esquerda/direita)...")
-                    scaled_pixmap = scaled_pixmap.copy(crop_x, 0, 960, 440)
-                    print(f"[WuWaKuroBannerCard] Tamanho após crop: {scaled_pixmap.size()}")
-                else:
-                    # Largura < 960: mantém aspecto correto, sem esticar
-                    print(f"[WuWaKuroBannerCard] Imagem cabe perfeitamente (largura {scaled_pixmap.width()} < 960)")
+                print(f"[WuWaKuroBannerCard] Pixmap inteiro ajustado para: {scaled_pixmap.size()}")
 
                 self.banner_width = scaled_pixmap.width()
                 self.setFixedWidth(self.banner_width)

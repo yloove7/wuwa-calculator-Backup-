@@ -9,7 +9,9 @@ from PySide6.QtWidgets import QApplication
 
 from src.wuwa_calculator.app.pity_tracker import (
     CONVENE_DNS_ERROR_MESSAGE,
+    ConveneLogCandidate,
     ClientLogReader,
+    ConveneUrlExtractor,
     ConveneSyncWorker,
     LegacyPityTrackerWidget,
     NoticeManager,
@@ -26,6 +28,127 @@ from src.wuwa_calculator.app.wuwa_processing import (
 
 
 class ProcessingAndBannerTests(unittest.TestCase):
+    def test_client_log_locator_extracts_official_url_and_parameters(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            expected_url = (
+                "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/"
+                "index.html#/record?player_id=player1&record_id=record2"
+            )
+            log_path.write_text(f"noise {expected_url}", encoding="utf-8")
+
+            url = ClientLogReader(log_path).get_convene_url()
+
+            self.assertEqual(url, expected_url)
+            self.assertEqual(
+                extract_convene_parameters(url),
+                ("player1", "record2"),
+            )
+
+    def test_debug_log_is_used_when_client_log_has_no_url(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            client_path = root / "Client.log"
+            debug_path = root / "debug.log"
+            client_path.write_text("no convene url", encoding="utf-8")
+            debug_url = "https://aki-gm-resources.aki-game.com/aki/gacha/index.html#/record?playerId=p1&recordId=r2"
+            debug_path.write_text(debug_url, encoding="utf-8")
+            candidates = [
+                (client_path, "client"),
+                (debug_path, "debug"),
+            ]
+            typed_candidates = [
+                ConveneLogCandidate(path, kind, root)
+                for path, kind in candidates
+            ]
+
+            url = ConveneUrlExtractor().extract(typed_candidates)
+
+            self.assertEqual(url, debug_url)
+
+    def test_base_convene_page_is_rejected(self) -> None:
+        self.assertIsNone(
+            ConveneUrlExtractor.extract_url(
+                "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html"
+            )
+        )
+
+    def test_base_convene_page_with_query_is_rejected(self) -> None:
+        self.assertIsNone(
+            ConveneUrlExtractor.extract_url(
+                "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html?foo=bar"
+            )
+        )
+
+    def test_record_url_with_snake_case_parameters_is_accepted(self) -> None:
+        url = (
+            "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/"
+            "index.html#/record?player_id=123&record_id=456"
+        )
+
+        self.assertEqual(ConveneUrlExtractor.extract_url(url), url)
+
+    def test_record_url_with_camel_case_parameters_is_accepted(self) -> None:
+        url = (
+            "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/"
+            "index.html#/record?playerId=123&recordId=456"
+        )
+
+        self.assertEqual(ConveneUrlExtractor.extract_url(url), url)
+
+    def test_base_convene_page_does_not_replace_record_url(self) -> None:
+        record_url = (
+            "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/"
+            "index.html#/record?player_id=123&record_id=456"
+        )
+        content = f"{record_url}\nhttps://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html"
+
+        self.assertEqual(ConveneUrlExtractor.extract_url(content), record_url)
+
+    def test_only_base_convene_page_is_reported_as_missing(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_text(
+                "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError):
+                ClientLogReader(log_path).get_convene_url()
+
+    def test_client_log_xor_content_is_decoded(self) -> None:
+        expected = "https://aki-gm-resources.aki-game.net/aki/gacha/index.html#/record?player_id=p&record_id=r"
+        encoded_values = []
+        for target in expected.encode():
+            candidate = target ^ 0xA5
+            if not candidate & 1:
+                candidate = target ^ 0xEF
+            encoded_values.append(candidate)
+        encoded = bytes(encoded_values)
+
+        decoded = ConveneUrlExtractor.decode_client_log(encoded)
+
+        self.assertEqual(decoded, expected)
+
+    def test_missing_parameters_are_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            extract_convene_parameters(
+                "https://aki-gm-resources.aki-game.net/aki/gacha/index.html#/record?player_id=only"
+            )
+
+    def test_missing_log_is_reported_as_file_not_found(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            missing_path = Path(temporary_directory) / "Client.log"
+            with self.assertRaises(FileNotFoundError):
+                ClientLogReader(missing_path).get_convene_url()
+
+    def test_invalid_log_is_reported_without_crashing(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            log_path.write_bytes(b"\xff\xfe\x00corrupted")
+            with self.assertRaises(ValueError):
+                ClientLogReader(log_path).get_convene_url()
+
     def test_damage_calculation_uses_hits_casts_and_duration(self) -> None:
         result = calculate_damage(
             attack=1000,
@@ -81,8 +204,8 @@ class ProcessingAndBannerTests(unittest.TestCase):
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
             log_path.write_text(
-                "old https://aki-gm-resources.example/old/gacha?token=old\n"
-                "latest https://aki-gm-resources.example/latest/gacha?token=new",
+                "old https://aki-gm-resources.example/old/record?token=old\n"
+                "latest https://aki-gm-resources.example/latest/record?token=new",
                 encoding="utf-8",
             )
             response = Mock()
@@ -99,7 +222,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
                 worker.run()
 
             get.assert_called_once_with(
-                "https://aki-gm-resources.example/latest/gacha?token=new",
+                "https://aki-gm-resources.example/latest/record?token=new",
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
                     "Accept": "application/json, text/plain, */*",
@@ -112,7 +235,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_rejects_empty_api_response(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
             response = Mock(text="")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
@@ -126,7 +249,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_rejects_expired_json_response(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
             response = Mock(text="not-json")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
@@ -143,7 +266,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_reports_http_405(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/gacha?token=x", encoding="utf-8")
+            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
             response = Mock(status_code=405, text="Method Not Allowed")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
@@ -161,7 +284,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
         response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
         with patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response) as post:
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                "https://aki-gm-resources.example/record?player_id=player&record_id=record"
             )
 
         self.assertEqual(len(records), 8)
@@ -318,7 +441,7 @@ class ProcessingAndBannerTests(unittest.TestCase):
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
             expected_url = (
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                "https://aki-gm-resources.example/record?player_id=player&record_id=record"
             )
             log_path.write_text(f"Convene Record URL: {expected_url}", encoding="utf-8")
 

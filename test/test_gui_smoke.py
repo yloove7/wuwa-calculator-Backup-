@@ -29,7 +29,7 @@ class GuiSmokeTests(unittest.TestCase):
         cls.application = QApplication.instance() or QApplication([])
 
     def test_banner_card_renders_local_bytes(self) -> None:
-        image = QImage(32, 32, QImage.Format.Format_RGB32)
+        image = QImage(1920, 1080, QImage.Format.Format_RGB32)
         image.fill(0x224466)
         buffer = QBuffer()
         buffer.open(QIODevice.OpenModeFlag.WriteOnly)
@@ -46,6 +46,8 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertGreater(card.width(), 0)
         self.assertEqual(card.img_label.height(), 440)
         self.assertFalse(card.img_label.pixmap().isNull())
+        self.assertEqual(card.img_label.pixmap().height(), 440)
+        self.assertLessEqual(card.img_label.pixmap().width(), 960)
         card.deleteLater()
 
     def test_video_player_builds_without_media_backend(self) -> None:
