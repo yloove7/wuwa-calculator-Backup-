@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent
+_AUTO_UPDATE_CHECK_RAN = False
 
 
 def _run_git(*arguments: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -180,6 +181,12 @@ class DialogoAtualizacao(QDialog):
 
 def executar_verificacao_e_update() -> bool:
     """Prompt for pending updates and restart after a successful pull."""
+    global _AUTO_UPDATE_CHECK_RAN
+    if _AUTO_UPDATE_CHECK_RAN:
+        print("[UPDATER] Verificação de atualização já executada nesta inicialização; ignorando nova checagem.")
+        return False
+    _AUTO_UPDATE_CHECK_RAN = True
+
     app_temp = QApplication.instance()
     if app_temp is None:
         app_temp = QApplication(sys.argv)

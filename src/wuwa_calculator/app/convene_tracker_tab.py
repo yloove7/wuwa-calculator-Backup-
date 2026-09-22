@@ -58,12 +58,19 @@ class ConveneTrackerTab(QWidget):
             "QLabel#conveneTrackerSummaryValue { color: #E8F7FF; font-size: 20px; font-weight: 800; }"
             "QLabel#conveneTrackerSection { color: #F4F7FF; font-size: 12px; font-weight: 800; }"
             "QLabel#conveneTrackerMuted { color: #9DAFBE; font-size: 10px; }"
+            "QLabel#conveneTrackerMetricLabel { color: #D4E8F4; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; }"
+            "QLabel#conveneTrackerMetricValue { color: #F3F8FF; font-size: 22px; font-weight: 800; }"
+            "QLabel#conveneTrackerInfoValue { color: #EAF7FF; font-size: 15px; font-weight: 800; }"
+            "QLabel#conveneTrackerInfoCaption { color: #9DAFBE; font-size: 9px; font-weight: 700; letter-spacing: 0.4px; }"
             "QProgressBar { background: rgba(255,255,255,18); border: 0; border-radius: 3px; }"
             "QProgressBar::chunk { background: #69D6D0; border-radius: 3px; }"
-            "QTableWidget { background: rgba(10, 16, 24, 150); border: 0; "
-            "gridline-color: rgba(150, 190, 210, 35); color: #DCEAF0; }"
+            "QTableWidget#conveneHistoryTable { background: rgba(10, 16, 24, 150); border: 1px solid rgba(111, 180, 220, 26); "
+            "gridline-color: rgba(150, 190, 210, 30); color: #DCEAF0; selection-background-color: rgba(96, 165, 250, 80); "
+            "selection-color: #E8F7FF; alternate-background-color: rgba(18, 26, 34, 150); }"
             "QHeaderView::section { background: rgba(35, 52, 66, 210); color: #AFC6D2; "
             "border: 0; padding: 6px; font-size: 10px; font-weight: 700; }"
+            "QLabel#conveneHistoryEmpty { color: #C7D6E6; font-size: 11px; background: rgba(18, 26, 34, 130); "
+            "border: 1px solid rgba(111, 180, 220, 18); border-radius: 8px; padding: 10px; }"
         )
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -123,9 +130,9 @@ class ConveneTrackerTab(QWidget):
             panel_layout = QVBoxLayout(panel)
             panel_layout.setContentsMargins(12, 10, 12, 10)
             label = QLabel(self._pool_title(key))
-            label.setObjectName("muted")
+            label.setObjectName("conveneTrackerMetricLabel")
             value = QLabel("-- / 80")
-            value.setObjectName("conveneTrackerValue")
+            value.setObjectName("conveneTrackerMetricValue")
             progress = QProgressBar()
             progress.setRange(0, 80)
             progress.setTextVisible(False)
@@ -145,10 +152,14 @@ class ConveneTrackerTab(QWidget):
         self.guarantee_card.setObjectName("conveneTrackerPanel")
         guarantee_layout = QVBoxLayout(self.guarantee_card)
         guarantee_layout.setContentsMargins(16, 12, 16, 12)
-        guarantee_title = QLabel("STATUS DA GARANTIA")
+        guarantee_title = QLabel("GARANTIA")
         guarantee_title.setObjectName("conveneTrackerSection")
         guarantee_layout.addWidget(guarantee_title)
-        self.guarantee_label = QLabel("Garantia: --")
+        self.guarantee_caption = QLabel("Estado atual")
+        self.guarantee_caption.setObjectName("conveneTrackerInfoCaption")
+        guarantee_layout.addWidget(self.guarantee_caption)
+        self.guarantee_label = QLabel("--")
+        self.guarantee_label.setObjectName("conveneTrackerInfoValue")
         guarantee_layout.addWidget(self.guarantee_label)
         status_row.addWidget(self.guarantee_card, 1)
 
@@ -159,8 +170,12 @@ class ConveneTrackerTab(QWidget):
         recent_title = QLabel("ÚLTIMO 5★")
         recent_title.setObjectName("conveneTrackerSection")
         recent_layout.addWidget(recent_title)
+        self.last_five_caption = QLabel("Registro mais recente")
+        self.last_five_caption.setObjectName("conveneTrackerInfoCaption")
+        recent_layout.addWidget(self.last_five_caption)
         self.last_five_label = QLabel("Nenhum 5★ registrado")
-        self.last_five_label.setObjectName("conveneTrackerMuted")
+        self.last_five_label.setObjectName("conveneTrackerInfoValue")
+        self.last_five_label.setWordWrap(True)
         recent_layout.addWidget(self.last_five_label)
         status_row.addWidget(recent_card, 1)
         root.addLayout(status_row)
@@ -214,24 +229,27 @@ class ConveneTrackerTab(QWidget):
         history_title.setObjectName("conveneTrackerSection")
         history_layout.addWidget(history_title)
         self.history_table = QTableWidget(0, 4)
-        self.history_table.setHorizontalHeaderLabels(("Raridade", "Item", "Tipo", "Data"))
+        self.history_table.setObjectName("conveneHistoryTable")
+        self.history_table.setHorizontalHeaderLabels(("Raridade", "Item", "Pool", "Data"))
         self.history_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.history_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.history_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.history_table.verticalHeader().setVisible(False)
+        self.history_table.setAlternatingRowColors(True)
         self.history_table.setWordWrap(False)
         self.history_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.history_table.setShowGrid(True)
         header = self.history_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         header.setMinimumSectionSize(0)
         self.history_table.setColumnWidth(0, 76)
-        self.history_table.setColumnWidth(2, 118)
+        self.history_table.setColumnWidth(2, 120)
         self.history_table.setColumnWidth(3, 132)
         self.history_empty_label = QLabel("Nenhum registro de Convene disponível.")
-        self.history_empty_label.setObjectName("conveneTrackerMuted")
+        self.history_empty_label.setObjectName("conveneHistoryEmpty")
         self.history_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         history_layout.addWidget(self.history_table, 1)
         history_layout.addWidget(self.history_empty_label, 1)
@@ -261,18 +279,16 @@ class ConveneTrackerTab(QWidget):
                 f"QProgressBar::chunk {{ background: {self._pity_color(bounded_value)}; border-radius: 3px; }}"
             )
         guarantee = (
-            "SIM" if state.guaranteed is True
-            else "NÃO" if state.guaranteed is False
+            "Sim" if state.guaranteed is True
+            else "Não" if state.guaranteed is False
             else "--"
         )
-        self.guarantee_label.setText(f"Garantia: {guarantee}")
+        self.guarantee_label.setText(guarantee)
         self.guarantee_card.setProperty("guaranteed", state.guaranteed is True)
         self.guarantee_card.style().unpolish(self.guarantee_card)
         self.guarantee_card.style().polish(self.guarantee_card)
         recent = state.recent_convene_details[-1] if state.recent_convene_details else None
-        self.last_five_label.setText(
-            f"Último 5★: {recent}" if recent else "Nenhum 5★ registrado"
-        )
+        self.last_five_label.setText(recent if recent else "Nenhum 5★ registrado")
         self.summary_values["total"].setText(str(state.total_registered))
         self.summary_values["five"].setText(str(len(state.five_star_history)))
         self.summary_values["four"].setText(str(state.four_star_total))

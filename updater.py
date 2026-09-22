@@ -7,6 +7,7 @@ import sys
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parent
+_AUTO_UPDATE_CHECK_RAN = False
 
 
 def _run_git(*arguments: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
@@ -20,6 +21,12 @@ def _run_git(*arguments: str, **kwargs: object) -> subprocess.CompletedProcess[s
 
 def verificar_e_atualizar() -> bool:
     """Update the checkout and restart the application when a commit is newer."""
+    global _AUTO_UPDATE_CHECK_RAN
+    if _AUTO_UPDATE_CHECK_RAN:
+        print("[AUTO-UPDATER] Verificação de atualização já executada nesta inicialização; ignorando nova checagem.")
+        return False
+    _AUTO_UPDATE_CHECK_RAN = True
+
     print("[AUTO-UPDATER] Verificando atualizações no repositório...")
 
     try:

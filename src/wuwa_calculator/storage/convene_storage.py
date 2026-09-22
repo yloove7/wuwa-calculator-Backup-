@@ -37,6 +37,75 @@ class ConveneStorageManager:
             return []
         return self._sort_records(self._deduplicate(self._extract_records(payload)))
 
+    def load_context(self) -> dict[str, object] | None:
+        try:
+            if not self.path.exists() or os.path.getsize(self.path) <= 0:
+                return None
+        except OSError:
+            return None
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        context = payload.get("convene_context")
+        if not isinstance(context, dict):
+            return None
+        required = (
+            "player_id",
+            "record_id",
+            "server_id",
+            "card_pool_id",
+            "language_code",
+        )
+        if not all(str(key) in context for key in required):
+            return None
+        normalized = {
+            "player_id": str(context.get("player_id") or ""),
+            "record_id": str(context.get("record_id") or ""),
+            "server_id": str(context.get("server_id") or ""),
+            "card_pool_id": str(context.get("card_pool_id") or ""),
+            "language_code": str(context.get("language_code") or "en"),
+            "card_pool_type": int(context.get("card_pool_type") or 1),
+        }
+        if not all(normalized[key] for key in ("player_id", "record_id", "server_id", "card_pool_id")):
+            return None
+        return normalized
+
+    def save_context(self, context: dict[str, object] | None) -> None:
+        if not isinstance(context, dict):
+            return
+        required = (
+            "player_id",
+            "record_id",
+            "server_id",
+            "card_pool_id",
+        )
+        if not all(context.get(key) not in (None, "") for key in required):
+            return
+        document: dict[str, object] = {}
+        try:
+            if self.path.exists() and os.path.getsize(self.path) > 0:
+                existing = json.loads(self.path.read_text(encoding="utf-8"))
+                if isinstance(existing, dict):
+                    document = existing
+        except (OSError, json.JSONDecodeError):
+            document = {}
+        document["schema_version"] = 1
+        document["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        document["convene_context"] = {
+            "player_id": str(context.get("player_id") or ""),
+            "record_id": str(context.get("record_id") or ""),
+            "server_id": str(context.get("server_id") or ""),
+            "card_pool_id": str(context.get("card_pool_id") or ""),
+            "language_code": str(context.get("language_code") or "en"),
+            "card_pool_type": int(context.get("card_pool_type") or 1),
+        }
+        if "pulls" not in document or not isinstance(document["pulls"], list):
+            document["pulls"] = self.load()
+        self._write_document(document)
+
     def merge(self, records: Iterable[object]) -> list[dict[str, object]]:
         merged, _new_records_count = self.merge_with_metadata(records)
         return merged

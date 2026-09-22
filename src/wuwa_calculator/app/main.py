@@ -1171,6 +1171,8 @@ class WuwaQtWindow(QMainWindow):
             current_widget.show()
             current_widget.update()
         self._active_main_index = index
+        if self.tabs.tabText(index) == "Convene Tracker" and hasattr(self, "convene_tracker_backend"):
+            self.convene_tracker_backend.refresh_convene_context_from_log()
 
     def _set_sidebar_active(self, active_label: str) -> None:
         for label, button in self.sidebar_buttons.items():

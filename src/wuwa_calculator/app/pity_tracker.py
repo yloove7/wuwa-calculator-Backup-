@@ -101,6 +101,7 @@ CONVENE_DNS_ERROR_MESSAGE = (
     "Erro de Conexão/DNS: Não foi possível alcançar o servidor da Kuro Games. "
     "Verifique sua internet ou firewall."
 )
+BRAVE_CDP_URL = "http://127.0.0.1:9222/json/list"
 KURO_RECORD_API_URL = "https://gmserver-api.aki-game2.net/gacha/record/query"
 CONVENE_PLAYER_ID_RE = re.compile(
     r"(?:player_id|playerId)=([a-zA-Z0-9]+)", re.IGNORECASE
@@ -280,7 +281,7 @@ def _normalize_pull_record(
     official_id = next(
         (
             record.get(key)
-            for key in ("seq_id", "seqId", "pull_id", "id", "resourceId")
+            for key in ("seq_id", "seqId", "pull_id", "id")
             if record.get(key) not in (None, "")
         ),
         None,
@@ -453,7 +454,32 @@ def extract_convene_request_context(url: str) -> dict[str, str]:
         "server_id": server_id,
         "card_pool_id": card_pool_id,
         "language_code": language_code,
+        "card_pool_type": 1,
     }
+
+
+def build_convene_url_from_context(context: dict[str, object] | None) -> str | None:
+    """Rebuild the active Convene URL from a previously saved request context."""
+    if not isinstance(context, dict):
+        return None
+    player_id = str(context.get("player_id") or "").strip()
+    record_id = str(context.get("record_id") or "").strip()
+    server_id = str(context.get("server_id") or "").strip()
+    card_pool_id = str(context.get("card_pool_id") or "").strip()
+    language_code = str(context.get("language_code") or "en").strip() or "en"
+    if not all((player_id, record_id, server_id, card_pool_id)):
+        return None
+    card_pool_type = context.get("card_pool_type", 1)
+    try:
+        card_pool_type_value = int(card_pool_type)
+    except (TypeError, ValueError):
+        card_pool_type_value = 1
+    return (
+        "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/index.html#/record?"
+        f"svr_id={server_id}&player_id={player_id}&lang={language_code}&gacha_id=100081&"
+        f"gacha_type={card_pool_type_value}&svr_area=global&record_id={record_id}&"
+        f"resources_id={card_pool_id}&platform=PC"
+    )
 
 
 def fetch_convene_records(
@@ -495,7 +521,23 @@ def fetch_convene_records(
         "recordId": record_id,
         "serverId": server_id,
     }
+    context_payload = {
+        "player_id": player_id,
+        "record_id": record_id,
+        "server_id": server_id,
+        "card_pool_id": card_pool_id,
+        "language_code": language_code,
+        "card_pool_type": 1,
+    }
 
+    print(
+        "[CONVENE REQUEST] "
+        f"endpoint={KURO_RECORD_API_URL} "
+        "payload="
+        f"playerId={player_id} cardPoolId={card_pool_id} "
+        f"cardPoolType={payload['cardPoolType']} "
+        f"languageCode={language_code} recordId={record_id} serverId={server_id}"
+    )
     try:
         response = requests.post(
             KURO_RECORD_API_URL,
@@ -549,6 +591,26 @@ def fetch_convene_records(
     json_code = parsed.get("code", "n/a")
     api_message = parsed.get("message") or parsed.get("msg") or ""
     data_value = parsed.get("data")
+    if isinstance(data_value, list):
+        newest_record = None
+        oldest_record = None
+        for item in data_value:
+            if not isinstance(item, dict):
+                continue
+            if newest_record is None or str(item.get("time", item.get("timestamp", item.get("date", ""))) or "") >= str(newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) or ""):
+                newest_record = item
+            if oldest_record is None or str(item.get("time", item.get("timestamp", item.get("date", ""))) or "") <= str(oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) or ""):
+                oldest_record = item
+        newest_time = newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) if isinstance(newest_record, dict) else ""
+        oldest_time = oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) if isinstance(oldest_record, dict) else ""
+        newest_name = newest_record.get("name", newest_record.get("item", newest_record.get("title", ""))) if isinstance(newest_record, dict) else ""
+        oldest_name = oldest_record.get("name", oldest_record.get("item", oldest_record.get("title", ""))) if isinstance(oldest_record, dict) else ""
+        print(
+            "[CONVENE RESPONSE] "
+            f"status={status_code} code={json_code} message={api_message} "
+            f"data_count={len(data_value)} newest_time={newest_time} newest_name={newest_name} "
+            f"oldest_time={oldest_time} oldest_name={oldest_name} record_id={record_id}"
+        )
 
     if json_code not in (0, "0"):
         if pool_statuses is not None:
@@ -570,6 +632,16 @@ def fetch_convene_records(
             })
         return records
 
+    if json_code in (0, "0"):
+        try:
+            ConveneStorageManager().save_context(context_payload)
+            print(
+                "[Convene] Persisted matching context. "
+                f"record_id={record_id} count={len(data_value)} oldest={oldest_time if oldest_time else 'n/a'} newest={newest_time if newest_time else 'n/a'}"
+            )
+        except Exception as error:  # pragma: no cover - diagnostic-only persistence guard
+            print(f"[Convene] Failed to persist context: {error}")
+
     pool_records = extract_records(data_value)
     records.extend(pool_records)
     if pool_statuses is not None:
@@ -585,15 +657,91 @@ def fetch_convene_records(
     return records
 
 
+def get_brave_cdp_convene_url(timeout: float = 2.0) -> str | None:
+    """Probe the active Brave debug session for the current Convene Record URL."""
+    try:
+        response = requests.get(BRAVE_CDP_URL, timeout=timeout)
+    except requests.RequestException:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        pages = response.json()
+    except ValueError:
+        return None
+    if not isinstance(pages, list):
+        return None
+    for page in reversed(pages):
+        if not isinstance(page, dict):
+            continue
+        url = str(page.get("url") or "").strip()
+        if not url:
+            continue
+        lowered = url.lower()
+        if "aki-gm-resources" in lowered and "/record" in lowered:
+            return url
+    return None
+
+
 def get_convene_url_from_log(log_path: str | Path | None = None) -> str:
-    """Return the newest usable Convene URL from local game logs."""
+    """Prefer the live Brave CDP URL, then fall back to local logs and persisted context."""
+    brave_url = get_brave_cdp_convene_url()
+    if brave_url:
+        context = extract_convene_request_context(brave_url)
+        print("[CONVENE SOURCE] source=brave_cdp")
+        print(
+            "[CONVENE CONTEXT] "
+            f"player_id={context.get('player_id', '')} record_id={context.get('record_id', '')} "
+            f"server_id={context.get('server_id', '')} card_pool_id={context.get('card_pool_id', '')} "
+            f"language={context.get('language_code', '')}"
+        )
+        return brave_url
+
+    print("[CONVENE SOURCE] source=brave_cdp_missing -> falling_back_to_log")
     candidates = ConveneLogLocator(log_path).locate()
     if not candidates:
+        persisted_context = ConveneStorageManager().load_context()
+        persisted_url = build_convene_url_from_context(persisted_context)
+        if persisted_context and persisted_url:
+            print("[CONVENE SOURCE] source=persisted_context")
+            print(
+                "[CONVENE CONTEXT] "
+                f"player_id={persisted_context.get('player_id', '')} record_id={persisted_context.get('record_id', '')} "
+                f"server_id={persisted_context.get('server_id', '')} card_pool_id={persisted_context.get('card_pool_id', '')} "
+                f"language={persisted_context.get('language_code', 'en')} card_pool_type={persisted_context.get('card_pool_type', 1)}"
+            )
+            return persisted_url
+        print("[CONVENE SOURCE] source=none")
+        print("[CONVENE ERROR] no_brave_url_no_log_no_persisted_context")
         raise FileNotFoundError(CONVENE_URL_NOT_FOUND_MESSAGE)
+
     url = ConveneUrlExtractor().extract(candidates)
-    if not url:
-        raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
-    return url
+    if url:
+        context = extract_convene_request_context(url)
+        print("[CONVENE SOURCE] source=client_log")
+        print(
+            "[CONVENE CONTEXT] "
+            f"player_id={context.get('player_id', '')} record_id={context.get('record_id', '')} "
+            f"server_id={context.get('server_id', '')} card_pool_id={context.get('card_pool_id', '')} "
+            f"language={context.get('language_code', '')}"
+        )
+        return url
+
+    print("[CONVENE SOURCE] source=client_log_missing -> falling_back_to_persisted_context")
+    persisted_context = ConveneStorageManager().load_context()
+    persisted_url = build_convene_url_from_context(persisted_context)
+    if persisted_context and persisted_url:
+        print("[CONVENE SOURCE] source=persisted_context")
+        print(
+            "[CONVENE CONTEXT] "
+            f"player_id={persisted_context.get('player_id', '')} record_id={persisted_context.get('record_id', '')} "
+            f"server_id={persisted_context.get('server_id', '')} card_pool_id={persisted_context.get('card_pool_id', '')} "
+            f"language={persisted_context.get('language_code', 'en')} card_pool_type={persisted_context.get('card_pool_type', 1)}"
+        )
+        return persisted_url
+    print("[CONVENE SOURCE] source=none")
+    print("[CONVENE ERROR] no_brave_url_no_log_no_persisted_context")
+    raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
 
 
 class ClientLogReader:
@@ -696,10 +844,10 @@ class PityHistoryImportWorker(QObject):
                 self.history_url,
                 pool_statuses=pool_statuses,
             )
+            extracted_records = [record for record in raw_records if isinstance(record, dict)]
             normalized_records = [
                 _normalize_pull_record(record)
-                for record in raw_records
-                if isinstance(record, dict)
+                for record in extracted_records
             ]
             persistable_records = [
                 record for record in normalized_records
@@ -1065,6 +1213,25 @@ class LegacyPityTrackerWidget(QFrame):
         self._pulse_animation.setEndValue(0.0)
         self._pulse_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
+    def refresh_convene_context_from_log(self) -> None:
+        """Refresh persisted Convene context from the local Client.log when it differs."""
+        try:
+            candidates = ConveneLogLocator().locate()
+            if not candidates:
+                return
+            url = ConveneUrlExtractor().extract(candidates)
+            if not url:
+                return
+            new_context = extract_convene_request_context(url)
+            persisted_context = ConveneStorageManager().load_context()
+            if persisted_context is None:
+                ConveneStorageManager().save_context(new_context)
+                return
+            if new_context != persisted_context:
+                ConveneStorageManager().save_context(new_context)
+        except (FileNotFoundError, OSError, ValueError, TypeError):
+            return
+
     def _build_large_banner_ui(self) -> None:
         self.setStyleSheet(
             "QFrame#pityTracker { background-color: rgba(18, 22, 30, 224); "
@@ -1352,148 +1519,6 @@ class LegacyPityTrackerWidget(QFrame):
                 effect.setColor(shadow_color)
         self._refresh_labels()
 
-    def _build_ui(self) -> None:
-        self.setStyleSheet(
-            "QFrame#pityTracker { background: rgba(15, 17, 26, 224); "
-            "border: 1px solid rgba(168, 85, 247, 215); border-radius: 16px; }"
-            "QFrame#pityTile { background: rgba(9, 12, 22, 120); "
-            "border: 1px solid rgba(6, 182, 212, 130); border-radius: 10px; }"
-            "QLabel#pityCardTitle { color: #FFFFFF; font-size: 9px; font-weight: 900; }"
-            "QLabel#pityValue { color: #FFFFFF; font-size: 22px; font-weight: 900; "
-            "padding: 0; min-height: 27px; }"
-            "QLabel#pityResonatorAvatar, QLabel#pityWeaponAvatar { background: rgba(8, 10, 18, 220); "
-            "border-radius: 18px; padding: 1px; }"
-            "QLabel#pityStandardIcon { color: #7DD3FC; background: rgba(14, 165, 233, 35); "
-            "border: 1px solid #38BDF8; border-radius: 18px; padding: 1px; }"
-            "QLabel#pityBadge { color: #9DEBFF; background: rgba(6, 182, 212, 35); "
-            "border: 1px solid rgba(6, 182, 212, 130); border-radius: 9px; "
-            "padding: 4px 8px; font-size: 9px; font-weight: 900; }"
-            "QLabel#pitySubtitle { color: #10b981; font-size: 10px; font-weight: 800; }"
-            "QLabel#pityMeta { color: #C9C6D9; font-size: 9px; }"
-            "QLabel#pityHistory { color: #E7D7FF; font-size: 9px; }"
-            "QPushButton#pityIconButton { color: #CFEFFF; background: rgba(9, 20, 35, 180); "
-            "border: 1px solid rgba(96, 165, 250, 150); border-radius: 8px; "
-            "font-size: 14px; font-weight: 900; padding: 0; }"
-            "QPushButton#pityIconButton:hover, QPushButton#pityFooter:hover { "
-            "background: rgba(6, 182, 212, 55); border-color: #7DEBFF; }"
-            "QPushButton#pityFooter { color: #CFEFFF; background: rgba(9, 20, 35, 180); "
-            "border: 1px solid rgba(6, 182, 212, 120); border-radius: 8px; "
-            "padding: 6px 8px; font-size: 9px; font-weight: 800; }"
-            "QLabel#pityHistoryBadge { color: #F8E7FF; background: rgba(168, 85, 247, 90); "
-            "border: 1px solid #A855F7; border-radius: 10px; font-size: 8px; font-weight: 900; }"
-        )
-        root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 9)
-        root.setSpacing(7)
-
-        header = QHBoxLayout()
-        header.setSpacing(5)
-        tracker_badge = QLabel("[ CONVENE TRACKER ]")
-        tracker_badge.setObjectName("pityBadge")
-        header.addWidget(tracker_badge)
-        header.addStretch(1)
-        sync_button = QPushButton("↻")
-        sync_button.setObjectName("pityIconButton")
-        sync_button.setFixedSize(28, 28)
-        sync_button.setToolTip("Sync Log")
-        sync_button.clicked.connect(self._request_sync)
-        self.sync_button = sync_button
-        export_button = QPushButton("⇩")
-        export_button.setObjectName("pityIconButton")
-        export_button.setFixedSize(28, 28)
-        export_button.setToolTip("Export")
-        export_button.clicked.connect(self.export_data_clicked)
-        header.addWidget(sync_button)
-        header.addWidget(export_button)
-        root.addLayout(header)
-
-        subtitle = QLabel("●  Sniffer em Tempo Real: ONLINE")
-        subtitle.setObjectName("pitySubtitle")
-        root.addWidget(subtitle)
-
-        self.sync_label = QLabel("◷  Última sincronização por Log: --")
-        self.sync_label.setObjectName("pityMeta")
-        self.sync_label.hide()
-        pity_grid = QGridLayout()
-        pity_grid.setContentsMargins(0, 0, 0, 0)
-        pity_grid.setHorizontalSpacing(6)
-        pity_grid.setVerticalSpacing(6)
-
-        self.resonator_card = self._make_pity_tile("RESONATOR", "pityResonatorAvatar")
-        self.resonator_avatar = QLabel(self.resonator_card)
-        self.resonator_avatar.setObjectName("pityResonatorAvatar")
-        self.resonator_avatar.setGeometry(108, 28, 36, 36)
-        self.resonator_avatar.setFixedSize(36, 36)
-        self.resonator_avatar.setScaledContents(True)
-        resonator_value = QLabel(self.resonator_card)
-        resonator_value.setObjectName("pityValue")
-        self.resonator_value = resonator_value
-        self.resonator_value.setGeometry(10, 27, 94, 29)
-        self.resonator_progress = self._make_progress()
-        self.resonator_progress.setGeometry(10, 61, 94, 5)
-        self.guarantee_label = QLabel(self.resonator_card)
-        self.guarantee_label.setObjectName("pityMeta")
-        self.guarantee_label.setGeometry(10, 70, 130, 16)
-        pity_grid.addWidget(self.resonator_card, 0, 0)
-
-        self.weapon_card = self._make_pity_tile("WEAPON", "pityWeaponAvatar")
-        self.weapon_avatar = QLabel(self.weapon_card)
-        self.weapon_avatar.setObjectName("pityWeaponAvatar")
-        self.weapon_avatar.setGeometry(108, 28, 36, 36)
-        self.weapon_avatar.setFixedSize(36, 36)
-        self.weapon_avatar.setScaledContents(True)
-        self.weapon_value = QLabel(self.weapon_card)
-        self.weapon_value.setObjectName("pityValue")
-        self.weapon_value.setGeometry(10, 27, 94, 29)
-        self.weapon_progress = self._make_progress()
-        self.weapon_progress.setGeometry(10, 61, 94, 5)
-        pity_grid.addWidget(self.weapon_card, 0, 1)
-
-        self.standard_character_card = self._make_pity_tile("STD CHAR", "pityStandardIcon")
-        self.standard_character_icon = QLabel("◆", self.standard_character_card)
-        self.standard_character_icon.setObjectName("pityStandardIcon")
-        self.standard_character_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.standard_character_icon.setGeometry(108, 28, 36, 36)
-        self.standard_character_icon.setFixedSize(36, 36)
-        self.standard_character_icon.setScaledContents(True)
-        self.standard_character = QLabel(self.standard_character_card)
-        self.standard_character.setObjectName("pityValue")
-        self.standard_character.setGeometry(10, 27, 94, 29)
-        pity_grid.addWidget(self.standard_character_card, 1, 0)
-
-        self.standard_weapon_card = self._make_pity_tile("STD WEAPON", "pityStandardIcon")
-        self.standard_weapon_icon = QLabel("◆", self.standard_weapon_card)
-        self.standard_weapon_icon.setObjectName("pityStandardIcon")
-        self.standard_weapon_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.standard_weapon_icon.setGeometry(108, 28, 36, 36)
-        self.standard_weapon_icon.setFixedSize(36, 36)
-        self.standard_weapon_icon.setScaledContents(True)
-        self.standard_weapon = QLabel(self.standard_weapon_card)
-        self.standard_weapon.setObjectName("pityValue")
-        self.standard_weapon.setGeometry(10, 27, 94, 29)
-        pity_grid.addWidget(self.standard_weapon_card, 1, 1)
-        root.addLayout(pity_grid)
-
-        footer_row = QHBoxLayout()
-        footer_row.setSpacing(5)
-        recent_label = QLabel("Recent Convene Details")
-        recent_label.setObjectName("pityMeta")
-        footer_row.addWidget(recent_label)
-        self.history_row = QHBoxLayout()
-        self.history_row.setSpacing(4)
-        footer_row.addLayout(self.history_row)
-        footer_row.addStretch(1)
-        root.addLayout(footer_row)
-        footer_stats = QLabel()
-        footer_stats.setObjectName("pityMeta")
-        root.addWidget(footer_stats)
-        self.footer_stats = footer_stats
-        history_button = QPushButton("Ver Histórico Completo  >")
-        history_button.setObjectName("pityFooter")
-        history_button.clicked.connect(self.view_history_clicked)
-        root.addWidget(history_button)
-        self._refresh_labels()
-
     @staticmethod
     def _make_pity_tile(title: str, avatar_name: str) -> QFrame:
         tile = QFrame()
@@ -1721,7 +1746,7 @@ class LegacyPityTrackerWidget(QFrame):
             ],
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
-        QTimer.singleShot(250, lambda: self._await_wuwatracker_import(self._pwsh_process))
+        self._await_wuwatracker_import(self._pwsh_process)
 
     def _await_wuwatracker_import(self, process: subprocess.Popen | None) -> None:
         if process is None:
@@ -1732,24 +1757,28 @@ class LegacyPityTrackerWidget(QFrame):
             return
         self._pwsh_process = None
 
-        clipboard = QApplication.clipboard()
-        if clipboard is None:
-            self.sync_status.setText("Clipboard indisponível")
-            self.sync_label.setText("Não foi possível ler o clipboard após o PowerShell terminar.")
+        brave_url = get_brave_cdp_convene_url()
+        if brave_url:
+            self._start_import(brave_url)
             return
 
-        convene_url = clipboard.text().strip()
+        clipboard = QApplication.clipboard()
+        convene_url = ""
+        if clipboard is not None:
+            convene_url = clipboard.text().strip()
+        if convene_url:
+            convene_url = unquote(convene_url.replace("\r", "").replace("\n", "").strip())
+
         if not convene_url:
             self.sync_status.setText("URL não encontrada")
-            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard.")
+            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard ou no Brave ativo.")
             return
 
-        convene_url = unquote(convene_url.replace("\r", "").replace("\n", "").strip())
         try:
             extract_convene_parameters(convene_url)
         except ValueError:
             self.sync_status.setText("URL inválida")
-            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard.")
+            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard ou no Brave ativo.")
             return
 
         self._start_import(convene_url)
@@ -1759,7 +1788,19 @@ class LegacyPityTrackerWidget(QFrame):
         self._request_sync()
 
     def _start_saved_log_import(self) -> None:
-        """Use the saved local Client.log without external import scripts."""
+        """Use the active Brave CDP URL first, then the saved local Client.log fallback."""
+        brave_url = get_brave_cdp_convene_url()
+        if brave_url:
+            self.tracker_status = TrackerStatus(
+                log_status="valid",
+                sync_status="running",
+                source="api",
+            )
+            self.sync_status.setText("URL do Brave encontrada")
+            self.sync_label.setText("Consultando os registros salvos...")
+            self._start_import(brave_url)
+            return
+
         try:
             convene_url = ClientLogReader().get_convene_url()
         except FileNotFoundError as error:
