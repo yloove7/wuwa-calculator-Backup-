@@ -26,6 +26,17 @@ from src.wuwa_calculator.app.wuwa_processing import (
     parse_number,
 )
 
+CONVENE_TEST_URL = (
+    "https://aki-gm-resources.example/record?playerId=player&recordId=record&"
+    "serverId=server&cardPoolId=pool&languageCode=en"
+)
+
+
+def _convene_response(data: list[dict[str, object]], status_code: int = 200) -> Mock:
+    response = Mock(status_code=status_code, text="")
+    response.json.return_value = {"code": 0, "message": "success", "data": data}
+    return response
+
 
 class ProcessingAndBannerTests(unittest.TestCase):
     def test_client_log_locator_extracts_official_url_and_parameters(self) -> None:
@@ -33,11 +44,16 @@ class ProcessingAndBannerTests(unittest.TestCase):
             log_path = Path(temporary_directory) / "Client.log"
             expected_url = (
                 "https://aki-gm-resources-oversea.aki-game.net/aki/gacha/"
-                "index.html#/record?player_id=player1&record_id=record2"
+                "index.html#/record?player_id=player1&record_id=record2&"
+                "svr_id=server1&resources_id=pool1&lang=en"
             )
             log_path.write_text(f"noise {expected_url}", encoding="utf-8")
 
-            url = ClientLogReader(log_path).get_convene_url()
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ):
+                url = ClientLogReader(log_path).get_convene_url()
 
             self.assertEqual(url, expected_url)
             self.assertEqual(
@@ -113,7 +129,13 @@ class ProcessingAndBannerTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertRaises(ValueError):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch(
+                "src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.load_context",
+                return_value=None,
+            ), self.assertRaises(ValueError):
                 ClientLogReader(log_path).get_convene_url()
 
     def test_client_log_xor_content_is_decoded(self) -> None:
@@ -139,14 +161,26 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_missing_log_is_reported_as_file_not_found(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             missing_path = Path(temporary_directory) / "Client.log"
-            with self.assertRaises(FileNotFoundError):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch(
+                "src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.load_context",
+                return_value=None,
+            ), self.assertRaises(FileNotFoundError):
                 ClientLogReader(missing_path).get_convene_url()
 
     def test_invalid_log_is_reported_without_crashing(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
             log_path.write_bytes(b"\xff\xfe\x00corrupted")
-            with self.assertRaises(ValueError):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch(
+                "src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.load_context",
+                return_value=None,
+            ), self.assertRaises(ValueError):
                 ClientLogReader(log_path).get_convene_url()
 
     def test_damage_calculation_uses_hits_casts_and_duration(self) -> None:
@@ -204,8 +238,10 @@ class ProcessingAndBannerTests(unittest.TestCase):
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
             log_path.write_text(
-                "old https://aki-gm-resources.example/old/record?token=old\n"
-                "latest https://aki-gm-resources.example/latest/record?token=new",
+                "old https://aki-gm-resources.example/old/record?playerId=old&recordId=old&"
+                "serverId=server&cardPoolId=pool&languageCode=en\n"
+                "latest https://aki-gm-resources.example/latest/record?playerId=new&recordId=new&"
+                "serverId=server&cardPoolId=pool&languageCode=en",
                 encoding="utf-8",
             )
             response = Mock()
@@ -218,11 +254,15 @@ class ProcessingAndBannerTests(unittest.TestCase):
             worker.success_signal.connect(received.append)
             worker.error_signal.connect(errors.append)
 
-            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response) as get:
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response) as get:
                 worker.run()
 
             get.assert_called_once_with(
-                "https://aki-gm-resources.example/latest/record?token=new",
+                "https://aki-gm-resources.example/latest/record?playerId=new&recordId=new&"
+                "serverId=server&cardPoolId=pool&languageCode=en",
                 headers={
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
                     "Accept": "application/json, text/plain, */*",
@@ -235,13 +275,20 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_rejects_empty_api_response(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
-            response = Mock(text="")
+            log_path.write_text(
+                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
+                "serverId=server&cardPoolId=pool&languageCode=en",
+                encoding="utf-8",
+            )
+            response = Mock(status_code=200, text="")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
             worker.error_signal.connect(errors.append)
 
-            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
                 worker.run()
 
             self.assertEqual(errors, ["Sessão expirada. Acesse o Convene no jogo para revalidar."])
@@ -249,13 +296,20 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_rejects_expired_json_response(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
-            response = Mock(text="not-json")
+            log_path.write_text(
+                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
+                "serverId=server&cardPoolId=pool&languageCode=en",
+                encoding="utf-8",
+            )
+            response = Mock(status_code=200, text="not-json")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
             worker.error_signal.connect(errors.append)
 
-            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
                 worker.run()
 
             self.assertEqual(
@@ -266,13 +320,20 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_convene_sync_worker_reports_http_405(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text("https://aki-gm-resources.example/latest/record?token=x", encoding="utf-8")
+            log_path.write_text(
+                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
+                "serverId=server&cardPoolId=pool&languageCode=en",
+                encoding="utf-8",
+            )
             response = Mock(status_code=405, text="Method Not Allowed")
             worker = ConveneSyncWorker(log_path)
             errors: list[str] = []
             worker.error_signal.connect(errors.append)
 
-            with patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
                 worker.run()
 
             self.assertEqual(
@@ -281,18 +342,35 @@ class ProcessingAndBannerTests(unittest.TestCase):
             )
 
     def test_fetch_convene_records_posts_each_banner_pool(self) -> None:
-        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
-        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response) as post:
+        responses = [
+            _convene_response([{"timestamp": "2026-01-01", "name": "Pull", "rarity": 3}])
+            for _ in range(4)
+        ]
+        pool_statuses: dict[str, dict[str, object]] = {}
+        with patch("src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.save_context"), \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=responses) as post:
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/record?player_id=player&record_id=record"
+                CONVENE_TEST_URL,
+                pool_statuses=pool_statuses,
             )
 
-        self.assertEqual(len(records), 8)
-        self.assertEqual(post.call_count, 8)
-        first_payload = post.call_args_list[0].kwargs["json"]
-        self.assertEqual(first_payload["playerId"], "player")
-        self.assertEqual(first_payload["recordId"], "record")
-        self.assertEqual(first_payload["cardPoolType"], 1)
+        self.assertEqual(post.call_count, 4)
+        payloads = [call.kwargs["json"] for call in post.call_args_list]
+        self.assertEqual([payload["cardPoolType"] for payload in payloads], [1, 2, 3, 4])
+        required_context = {"playerId", "cardPoolId", "recordId", "serverId", "languageCode"}
+        self.assertTrue(all(required_context.issubset(payload) for payload in payloads))
+        self.assertEqual(
+            [{key: payload[key] for key in required_context} for payload in payloads],
+            [{key: payloads[0][key] for key in required_context}] * 4,
+        )
+        self.assertEqual(
+            [record["pool"] for record in records],
+            ["resonator", "weapon", "standard_character", "standard_weapon"],
+        )
+        self.assertEqual(
+            [pool_statuses[str(pool)]["status"] for pool in range(1, 5)],
+            ["success", "success", "success", "success"],
+        )
 
     def test_legacy_tracker_derives_recent_history_from_cronological_records(self) -> None:
         app = QApplication.instance() or QApplication([])
@@ -347,7 +425,8 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_extract_convene_parameters_reads_hash_fragment(self) -> None:
         player_id, record_id = extract_convene_parameters(
             "https://aki-gm-resources.example/aki/gacha/index.html/#/record?"
-            "player_id=playerhash&record_id=recordhash&cardPoolType=1"
+            "player_id=playerhash&record_id=recordhash&svr_id=serverhash&"
+            "resources_id=poolhash&lang=en&cardPoolType=1"
         )
 
         self.assertEqual(player_id, "playerhash")
@@ -356,76 +435,89 @@ class ProcessingAndBannerTests(unittest.TestCase):
     def test_extract_convene_parameters_cleans_encoded_camel_case_url(self) -> None:
         player_id, record_id = extract_convene_parameters(
             "  https://aki-gm-resources.example/gacha/#/record?"
-            "playerId=Player123%0D%0A&recordId=Record456  \r\n"
+            "playerId=Player123%0D%0A&recordId=Record456&serverId=Server789&"
+            "cardPoolId=Pool012&languageCode=en  \r\n"
         )
 
         self.assertEqual(player_id, "Player123")
         self.assertEqual(record_id, "Record456")
 
     def test_fetch_convene_records_falls_back_after_dns_failure(self) -> None:
-        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
-
-        def post(endpoint: str, **kwargs):
-            if endpoint == "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord":
+        def post(_endpoint: str, **kwargs):
+            if kwargs["json"]["cardPoolType"] == 3:
                 raise requests.exceptions.ConnectionError("NameResolutionError")
-            return response
+            return _convene_response([{"timestamp": "2026-01-01", "name": "Pull", "rarity": 3}])
 
-        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post) as mocked_post:
+        pool_statuses: dict[str, dict[str, object]] = {}
+        with patch("src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.save_context"), \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post):
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                CONVENE_TEST_URL,
+                pool_statuses=pool_statuses,
             )
 
-        self.assertEqual(len(records), 8)
-        self.assertEqual(mocked_post.call_count, 16)
-        self.assertEqual(mocked_post.call_args_list[1].args[0], "https://aki-gm-resources-oversea.aki-game.net/gacha/getGachaRecord")
+        self.assertEqual(len(records), 3)
+        self.assertEqual([record["pool"] for record in records], ["resonator", "weapon", "standard_weapon"])
+        self.assertEqual(pool_statuses["1"]["status"], "success")
+        self.assertEqual(pool_statuses["2"]["status"], "success")
+        self.assertEqual(pool_statuses["3"]["status"], "error")
+        self.assertEqual(pool_statuses["4"]["status"], "success")
 
     def test_fetch_convene_records_falls_back_after_http_405(self) -> None:
-        response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
-
-        def post(endpoint: str, **kwargs):
-            if endpoint == "https://gm-server-gacha.aki-game.net/gacha/getGachaRecord":
+        def post(_endpoint: str, **kwargs):
+            if kwargs["json"]["cardPoolType"] == 2:
                 return Mock(status_code=405, text="Method Not Allowed")
-            return response
+            return _convene_response([{"timestamp": "2026-01-01", "name": "Pull", "rarity": 3}])
 
-        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post) as mocked_post:
+        pool_statuses: dict[str, dict[str, object]] = {}
+        with patch("src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.save_context"), \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post):
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                CONVENE_TEST_URL,
+                pool_statuses=pool_statuses,
             )
 
-        self.assertEqual(len(records), 8)
-        self.assertEqual(mocked_post.call_count, 16)
+        self.assertEqual(len(records), 3)
+        self.assertEqual(pool_statuses["1"]["status"], "success")
+        self.assertEqual(pool_statuses["2"]["status"], "error")
+        self.assertEqual(pool_statuses["3"]["status"], "success")
+        self.assertEqual(pool_statuses["4"]["status"], "success")
 
     def test_fetch_convene_records_uses_get_when_post_is_not_allowed(self) -> None:
-        post_response = Mock(status_code=405, text="Method Not Allowed")
-        get_response = Mock(status_code=200, text='{"code": 0, "data": [{"rarity": 5}]}')
-        with patch(
-            "src.wuwa_calculator.app.pity_tracker.requests.post",
-            return_value=post_response,
-        ), patch(
-            "src.wuwa_calculator.app.pity_tracker.requests.get",
-            return_value=get_response,
-        ) as get:
+        def post(_endpoint: str, **kwargs):
+            if kwargs["json"]["cardPoolType"] == 4:
+                return Mock(status_code=405, text="Method Not Allowed")
+            return _convene_response([{"timestamp": "2026-01-01", "name": "Pull", "rarity": 3}])
+
+        pool_statuses: dict[str, dict[str, object]] = {}
+        with patch("src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.save_context"), \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.post", side_effect=post) as mocked_post, \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.get") as get:
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                CONVENE_TEST_URL,
+                pool_statuses=pool_statuses,
             )
 
-        self.assertEqual(len(records), 8)
-        self.assertEqual(get.call_count, 8)
-        self.assertEqual(get.call_args.kwargs["params"]["playerId"], "player")
-        self.assertEqual(get.call_args.kwargs["params"]["recordId"], "record")
+        self.assertEqual(mocked_post.call_count, 4)
+        self.assertEqual(len(records), 3)
+        get.assert_not_called()
+        self.assertEqual(pool_statuses["4"]["status"], "error")
 
-    def test_fetch_convene_records_extracts_nested_api_record_shapes(self) -> None:
-        response = Mock(
-            status_code=200,
-            text='{"code": 0, "data": {"result": {"rows": [{"rarity": 5, "name": "Qingxiao"}]}}}',
-        )
-        with patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response):
+    def test_fetch_convene_records_extracts_list_api_record_shape(self) -> None:
+        response = Mock(status_code=200, text="")
+        response.json.return_value = {
+            "code": 0,
+            "message": "success",
+            "data": [{"rarity": 5, "name": "Qingxiao"}],
+        }
+        with patch("src.wuwa_calculator.app.pity_tracker.ConveneStorageManager.save_context"), \
+                patch("src.wuwa_calculator.app.pity_tracker.requests.post", return_value=response):
             records = fetch_convene_records(
-                "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                CONVENE_TEST_URL
             )
 
-        self.assertEqual(len(records), 8)
         self.assertEqual(records[0]["name"], "Qingxiao")
+        self.assertEqual(records[0]["rarity"], 5)
 
     def test_fetch_convene_records_reports_dns_failure_after_all_fallbacks(self) -> None:
         with patch(
@@ -434,18 +526,23 @@ class ProcessingAndBannerTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(requests.exceptions.ConnectionError, "Erro de Conexão/DNS"):
                 fetch_convene_records(
-                    "https://aki-gm-resources.example/gacha?player_id=player&record_id=record"
+                    CONVENE_TEST_URL
                 )
 
     def test_client_log_reader_works_with_game_closed(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
             expected_url = (
-                "https://aki-gm-resources.example/record?player_id=player&record_id=record"
+                "https://aki-gm-resources.example/record?player_id=player&record_id=record&"
+                "serverId=server&cardPoolId=pool&languageCode=en"
             )
             log_path.write_text(f"Convene Record URL: {expected_url}", encoding="utf-8")
 
-            self.assertEqual(ClientLogReader(log_path).get_convene_url(), expected_url)
+            with patch(
+                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
+                return_value=None,
+            ):
+                self.assertEqual(ClientLogReader(log_path).get_convene_url(), expected_url)
 
 if __name__ == "__main__":
     unittest.main()

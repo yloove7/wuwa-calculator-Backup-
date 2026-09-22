@@ -52,6 +52,26 @@ class TethysTrackerBackendTests(unittest.TestCase):
                 self.assertEqual(normalized["raw"], raw)
                 self.assertEqual(normalized["dedup_key"], "id:official-1")
 
+    def test_normalize_pull_record_preserves_all_canonical_pool_tags(self) -> None:
+        pools = (
+            "resonator",
+            "weapon",
+            "standard_character",
+            "standard_weapon",
+        )
+
+        normalized = [
+            _normalize_pull_record({
+                "timestamp": f"2026-01-0{index + 1}",
+                "name": f"Pull {index}",
+                "rarity": 3,
+                "pool": pool,
+            })
+            for index, pool in enumerate(pools)
+        ]
+
+        self.assertEqual([record["pool"] for record in normalized], list(pools))
+
     def test_official_id_dedup_keeps_distinct_records(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             storage = StorageManager(Path(temporary_directory) / "history.json")
@@ -147,16 +167,22 @@ class TethysTrackerBackendTests(unittest.TestCase):
             {"timestamp": "2026-01-02", "pool": "weapon", "rarity": 3, "name": "W"},
             {"timestamp": "2026-01-03", "pool": "weapon", "rarity": 5, "name": "W5"},
             {"timestamp": "2026-01-04", "pool": "resonator", "rarity": 3, "name": "R2"},
+            {"timestamp": "2026-01-05", "pool": "standard_character", "rarity": 3, "name": "C"},
+            {"timestamp": "2026-01-06", "pool": "standard_weapon", "rarity": 3, "name": "S"},
         ])
 
         self.assertEqual(widget.state.resonator, 2)
         self.assertEqual(widget.state.weapon, 0)
+        self.assertEqual(widget.state.standard_character, 1)
+        self.assertEqual(widget.state.standard_weapon, 1)
         self.assertEqual(widget.state.five_star_history, [2])
 
     def test_partial_api_status_is_structured(self) -> None:
         statuses = {
             "1": {"status": "success", "completed": True, "record_count": 1},
-            "2": {"status": "error", "completed": True, "record_count": 0},
+            "2": {"status": "success_empty", "completed": True, "record_count": 0},
+            "3": {"status": "error", "completed": True, "record_count": 0},
+            "4": {"status": "success", "completed": True, "record_count": 1},
         }
         status = _failed_tracker_status(
             statuses,
@@ -168,7 +194,73 @@ class TethysTrackerBackendTests(unittest.TestCase):
         self.assertTrue(status.is_partial)
         self.assertEqual(status.sync_status, "partial")
         self.assertEqual(status.pool_status["1"]["status"], "success")
-        self.assertEqual(status.pool_status["2"]["status"], "error")
+        self.assertEqual(status.pool_status["2"]["status"], "success_empty")
+        self.assertEqual(status.pool_status["3"]["status"], "error")
+        self.assertEqual(status.pool_status["4"]["status"], "success")
+
+    def test_worker_keeps_records_when_one_pool_is_success_empty(self) -> None:
+        def fake_fetch(_url: str, *, pool_statuses: dict[str, dict[str, object]]):
+            pool_statuses.update({
+                "1": {"status": "success", "completed": True, "record_count": 1},
+                "2": {"status": "success_empty", "completed": True, "record_count": 0},
+                "3": {"status": "success", "completed": True, "record_count": 1},
+                "4": {"status": "success", "completed": True, "record_count": 1},
+            })
+            return [
+                {"timestamp": "2026-01-01", "name": "R", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-02", "name": "C", "rarity": 3, "pool": "standard_character"},
+                {"timestamp": "2026-01-03", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+            ]
+
+        statuses: list[TrackerStatus] = []
+        imported: list[list[dict[str, object]]] = []
+        worker = PityHistoryImportWorker("https://example.invalid/record")
+        worker.status.connect(statuses.append)
+        worker.imported.connect(imported.append)
+        def merge_records(records: list[dict[str, object]]):
+            return list(records), len(records)
+
+        with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", side_effect=fake_fetch), \
+                patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records):
+            worker.run()
+
+        self.assertEqual(len(imported[0]), 3)
+        self.assertEqual(statuses[-1].sync_status, "success")
+        self.assertEqual(statuses[-1].pool_status["2"]["status"], "success_empty")
+
+    def test_worker_aggregates_successful_pools_around_one_error(self) -> None:
+        def fake_fetch(_url: str, *, pool_statuses: dict[str, dict[str, object]]):
+            pool_statuses.update({
+                "1": {"status": "success", "completed": True, "record_count": 2},
+                "2": {"status": "success", "completed": True, "record_count": 1},
+                "3": {"status": "error", "completed": True, "record_count": 0},
+                "4": {"status": "success", "completed": True, "record_count": 1},
+            })
+            return [
+                {"timestamp": "2026-01-01", "name": "R1", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-02", "name": "R2", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-03", "name": "W", "rarity": 3, "pool": "weapon"},
+                {"timestamp": "2026-01-04", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+            ]
+
+        statuses: list[TrackerStatus] = []
+        imported: list[list[dict[str, object]]] = []
+        worker = PityHistoryImportWorker("https://example.invalid/record")
+        worker.status.connect(statuses.append)
+        worker.imported.connect(imported.append)
+        def merge_records(records: list[dict[str, object]]):
+            return list(records), len(records)
+
+        with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", side_effect=fake_fetch), \
+                patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records):
+            worker.run()
+
+        self.assertEqual(len(imported[0]), 4)
+        self.assertEqual(statuses[-1].sync_status, "partial")
+        self.assertEqual(statuses[-1].pool_status["3"]["status"], "error")
+        self.assertEqual(statuses[-1].pool_status["1"]["status"], "success")
+        self.assertEqual(statuses[-1].pool_status["2"]["status"], "success")
+        self.assertEqual(statuses[-1].pool_status["4"]["status"], "success")
 
     def test_persistence_failure_still_emits_normalized_records(self) -> None:
         def fake_fetch(_url: str, *, pool_statuses: dict[str, dict[str, object]]):

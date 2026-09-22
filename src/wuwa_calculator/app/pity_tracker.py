@@ -504,23 +504,6 @@ def fetch_convene_records(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     }
     records: list[dict[str, object]] = []
-    pool_key = "1"
-    if pool_statuses is not None:
-        pool_statuses[pool_key] = {
-            "status": "started",
-            "completed": False,
-            "record_count": 0,
-            "detail": "[Convene] pool=1 status=started",
-        }
-
-    payload = {
-        "playerId": player_id,
-        "cardPoolId": card_pool_id,
-        "cardPoolType": 1,
-        "languageCode": language_code,
-        "recordId": record_id,
-        "serverId": server_id,
-    }
     context_payload = {
         "player_id": player_id,
         "record_id": record_id,
@@ -529,131 +512,168 @@ def fetch_convene_records(
         "language_code": language_code,
         "card_pool_type": 1,
     }
+    pool_names = {
+        1: "resonator",
+        2: "weapon",
+        3: "standard_character",
+        4: "standard_weapon",
+    }
+    connection_errors: list[requests.exceptions.ConnectionError] = []
+    context_saved = False
 
-    print(
-        "[CONVENE REQUEST] "
-        f"endpoint={KURO_RECORD_API_URL} "
-        "payload="
-        f"playerId={player_id} cardPoolId={card_pool_id} "
-        f"cardPoolType={payload['cardPoolType']} "
-        f"languageCode={language_code} recordId={record_id} serverId={server_id}"
-    )
-    try:
-        response = requests.post(
-            KURO_RECORD_API_URL,
-            json=payload,
-            headers=headers,
-            timeout=15,
-        )
-    except requests.exceptions.ConnectionError:
+    for pool_type, pool_name in pool_names.items():
+        pool_key = str(pool_type)
         if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": CONVENE_DNS_ERROR_MESSAGE,
-                "detail": "[Convene] pool=1 status=dns_error message=" + CONVENE_DNS_ERROR_MESSAGE[:90],
-            })
-        raise requests.exceptions.ConnectionError(CONVENE_DNS_ERROR_MESSAGE)
+            pool_statuses[pool_key] = {
+                "status": "started",
+                "completed": False,
+                "record_count": 0,
+                "detail": f"[Convene] pool={pool_type} status=started",
+            }
 
-    status_code = response.status_code
-    if status_code != 200:
-        if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": f"Erro HTTP {status_code}",
-                "detail": f"[Convene] pool=1 status={status_code} message=HTTP_{status_code}",
-            })
-        return records
+        payload = {
+            "playerId": player_id,
+            "cardPoolId": card_pool_id,
+            "cardPoolType": pool_type,
+            "languageCode": language_code,
+            "recordId": record_id,
+            "serverId": server_id,
+        }
 
-    try:
-        parsed = response.json()
-    except ValueError:
-        if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": "Resposta da API não é JSON válido.",
-                "detail": f"[Convene] pool=1 status={status_code} json=invalid",
-            })
-        return records
-
-    if not isinstance(parsed, dict):
-        if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": "Resposta da API inválida.",
-                "detail": f"[Convene] pool=1 status={status_code} json=invalid type={type(parsed).__name__}",
-            })
-        return records
-
-    json_code = parsed.get("code", "n/a")
-    api_message = parsed.get("message") or parsed.get("msg") or ""
-    data_value = parsed.get("data")
-    if isinstance(data_value, list):
-        newest_record = None
-        oldest_record = None
-        for item in data_value:
-            if not isinstance(item, dict):
-                continue
-            if newest_record is None or str(item.get("time", item.get("timestamp", item.get("date", ""))) or "") >= str(newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) or ""):
-                newest_record = item
-            if oldest_record is None or str(item.get("time", item.get("timestamp", item.get("date", ""))) or "") <= str(oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) or ""):
-                oldest_record = item
-        newest_time = newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) if isinstance(newest_record, dict) else ""
-        oldest_time = oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) if isinstance(oldest_record, dict) else ""
-        newest_name = newest_record.get("name", newest_record.get("item", newest_record.get("title", ""))) if isinstance(newest_record, dict) else ""
-        oldest_name = oldest_record.get("name", oldest_record.get("item", oldest_record.get("title", ""))) if isinstance(oldest_record, dict) else ""
         print(
-            "[CONVENE RESPONSE] "
-            f"status={status_code} code={json_code} message={api_message} "
-            f"data_count={len(data_value)} newest_time={newest_time} newest_name={newest_name} "
-            f"oldest_time={oldest_time} oldest_name={oldest_name} record_id={record_id}"
+            "[CONVENE REQUEST] "
+            f"endpoint={KURO_RECORD_API_URL} "
+            "payload="
+            f"playerId={player_id} cardPoolId={card_pool_id} "
+            f"cardPoolType={payload['cardPoolType']} "
+            f"languageCode={language_code} recordId={record_id} serverId={server_id}"
         )
-
-    if json_code not in (0, "0"):
-        if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": api_message or "Resposta da API inválida.",
-                "detail": f"[Convene] pool=1 status={status_code} code={json_code} message={api_message[:80] if api_message else 'n/a'}",
-            })
-        return records
-
-    if not isinstance(data_value, list):
-        if pool_statuses is not None:
-            pool_statuses[pool_key].update({
-                "status": "error",
-                "completed": True,
-                "message": "Estrutura da API inesperada.",
-                "detail": f"[Convene] pool=1 status={status_code} code={json_code} data_type={type(data_value).__name__}",
-            })
-        return records
-
-    if json_code in (0, "0"):
         try:
-            ConveneStorageManager().save_context(context_payload)
-            print(
-                "[Convene] Persisted matching context. "
-                f"record_id={record_id} count={len(data_value)} oldest={oldest_time if oldest_time else 'n/a'} newest={newest_time if newest_time else 'n/a'}"
+            response = requests.post(
+                KURO_RECORD_API_URL,
+                json=payload,
+                headers=headers,
+                timeout=15,
             )
-        except Exception as error:  # pragma: no cover - diagnostic-only persistence guard
-            print(f"[Convene] Failed to persist context: {error}")
+        except requests.exceptions.ConnectionError as error:
+            connection_errors.append(error)
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": CONVENE_DNS_ERROR_MESSAGE,
+                    "detail": f"[Convene] pool={pool_type} status=dns_error message=" + CONVENE_DNS_ERROR_MESSAGE[:90],
+                })
+            continue
 
-    pool_records = extract_records(data_value)
-    records.extend(pool_records)
-    if pool_statuses is not None:
-        detail_message = api_message[:80] if api_message else "success"
-        pool_statuses[pool_key].update({
-            "status": "success" if pool_records else "success_empty",
-            "completed": True,
-            "record_count": len(pool_records),
-            "message": detail_message,
-            "detail": f"[Convene] pool=1 status={status_code} code={json_code} message={detail_message} data_count={len(pool_records)}",
-        })
+        status_code = response.status_code
+        if status_code != 200:
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": f"Erro HTTP {status_code}",
+                    "detail": f"[Convene] pool={pool_type} status={status_code} message=HTTP_{status_code}",
+                })
+            continue
 
+        try:
+            parsed = response.json()
+        except ValueError:
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": "Resposta da API não é JSON válido.",
+                    "detail": f"[Convene] pool={pool_type} status={status_code} json=invalid",
+                })
+            continue
+
+        if not isinstance(parsed, dict):
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": "Resposta da API inválida.",
+                    "detail": f"[Convene] pool={pool_type} status={status_code} json=invalid type={type(parsed).__name__}",
+                })
+            continue
+
+        json_code = parsed.get("code", "n/a")
+        api_message = parsed.get("message") or parsed.get("msg") or ""
+        data_value = parsed.get("data")
+        if isinstance(data_value, list):
+            newest_record = None
+            oldest_record = None
+            for item in data_value:
+                if not isinstance(item, dict):
+                    continue
+                item_time = str(item.get("time", item.get("timestamp", item.get("date", ""))) or "")
+                if newest_record is None or item_time >= str(newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) or ""):
+                    newest_record = item
+                if oldest_record is None or item_time <= str(oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) or ""):
+                    oldest_record = item
+            newest_time = newest_record.get("time", newest_record.get("timestamp", newest_record.get("date", ""))) if isinstance(newest_record, dict) else ""
+            oldest_time = oldest_record.get("time", oldest_record.get("timestamp", oldest_record.get("date", ""))) if isinstance(oldest_record, dict) else ""
+            newest_name = newest_record.get("name", newest_record.get("item", newest_record.get("title", ""))) if isinstance(newest_record, dict) else ""
+            oldest_name = oldest_record.get("name", oldest_record.get("item", oldest_record.get("title", ""))) if isinstance(oldest_record, dict) else ""
+            print(
+                "[CONVENE RESPONSE] "
+                f"status={status_code} code={json_code} message={api_message} "
+                f"data_count={len(data_value)} newest_time={newest_time} newest_name={newest_name} "
+                f"oldest_time={oldest_time} oldest_name={oldest_name} record_id={record_id}"
+            )
+
+        if json_code not in (0, "0"):
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": api_message or "Resposta da API inválida.",
+                    "detail": f"[Convene] pool={pool_type} status={status_code} code={json_code} message={api_message[:80] if api_message else 'n/a'}",
+                })
+            continue
+
+        if not isinstance(data_value, list):
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": "Estrutura da API inesperada.",
+                    "detail": f"[Convene] pool={pool_type} status={status_code} code={json_code} data_type={type(data_value).__name__}",
+                })
+            continue
+
+        if not context_saved:
+            try:
+                ConveneStorageManager().save_context(context_payload)
+                context_saved = True
+                print(
+                    "[Convene] Persisted matching context. "
+                    f"record_id={record_id} count={len(data_value)} oldest={oldest_time if oldest_time else 'n/a'} newest={newest_time if newest_time else 'n/a'}"
+                )
+            except Exception as error:  # pragma: no cover - diagnostic-only persistence guard
+                print(f"[Convene] Failed to persist context: {error}")
+
+        pool_records = extract_records(data_value)
+        tagged_records = []
+        for record in pool_records:
+            tagged_record = dict(record)
+            tagged_record["pool"] = pool_name
+            tagged_records.append(tagged_record)
+        records.extend(tagged_records)
+        if pool_statuses is not None:
+            detail_message = api_message[:80] if api_message else "success"
+            pool_statuses[pool_key].update({
+                "status": "success" if tagged_records else "success_empty",
+                "completed": True,
+                "record_count": len(tagged_records),
+                "message": detail_message,
+                "detail": f"[Convene] pool={pool_type} status={status_code} code={json_code} message={detail_message} data_count={len(tagged_records)}",
+            })
+
+    if not records and len(connection_errors) == len(pool_names):
+        raise requests.exceptions.ConnectionError(CONVENE_DNS_ERROR_MESSAGE)
     return records
 
 

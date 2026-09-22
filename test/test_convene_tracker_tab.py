@@ -114,14 +114,14 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
         self.assertEqual(tab.pity_values["resonator"].text(), "70 / 80")
         self.assertEqual(tab.pity_bars["resonator"].value(), 70)
-        self.assertEqual(tab.guarantee_label.text(), "Garantia: SIM")
-        self.assertEqual(tab.status_message_label.text(), "Falha ao localizar a URL")
+        self.assertEqual(tab.guarantee_label.text(), "Sim")
+        self.assertEqual(tab.status_message_label.text(), "✕ Não foi possível sincronizar o histórico.")
 
         tracker.state.guaranteed = None
         tracker.state.recent_convene_details = []
         tracker.state_changed.emit(tracker.state)
         tracker.history_changed.emit([])
-        self.assertEqual(tab.guarantee_label.text(), "Garantia: --")
+        self.assertEqual(tab.guarantee_label.text(), "--")
         self.assertEqual(tab.last_five_label.text(), "Nenhum 5★ registrado")
         self.assertEqual(tab.history_table.rowCount(), 0)
         tracker.deleteLater()
@@ -131,6 +131,7 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tracker = LegacyPityTrackerWidget()
         tab = ConveneTrackerTab(tracker)
         records = [
+            {"rarity": 5, "timestamp": "invalid"},
             {
                 "rarity": 5,
                 "name": "Jinhsi",
@@ -158,19 +159,19 @@ class ConveneTrackerTabTests(unittest.TestCase):
         self.assertEqual(tab.history_table.columnCount(), 4)
         self.assertEqual(tab.history_table.horizontalHeaderItem(0).text(), "Raridade")
         self.assertEqual(tab.history_table.item(0, 0).text(), "★★★★★")
-        self.assertEqual(tab.history_table.item(0, 1).text(), "Jinhsi")
-        self.assertEqual(tab.history_table.item(0, 2).text(), "Resonator")
-        self.assertEqual(tab.history_table.item(0, 3).text(), "20/09/2026 22:31")
-        self.assertEqual(tab.history_table.item(1, 0).text(), "★★★★")
-        self.assertEqual(tab.history_table.item(1, 1).text(), "Variation")
-        self.assertEqual(tab.history_table.item(1, 2).text(), "Weapon")
-        self.assertEqual(tab.history_table.item(1, 3).text(), "20/09/2026 22:29")
-        self.assertEqual(tab.history_table.item(2, 0).text(), "★★★")
-        self.assertEqual(tab.history_table.item(2, 1).text(), "Originite")
-        self.assertEqual(tab.history_table.item(2, 2).text(), "Standard Character")
-        self.assertEqual(tab.history_table.item(2, 3).text(), "20/09/2026 00:00")
-        self.assertEqual(tab.history_table.item(3, 1).text(), "Desconhecido")
-        self.assertEqual(tab.history_table.item(3, 3).text(), "invalid")
+        self.assertEqual(tab.history_table.item(0, 1).text(), "Desconhecido")
+        self.assertEqual(tab.history_table.item(0, 2).text(), "--")
+        self.assertEqual(tab.history_table.item(0, 3).text(), "invalid")
+        self.assertEqual(tab.history_table.item(1, 0).text(), "★★★")
+        self.assertEqual(tab.history_table.item(1, 1).text(), "Originite")
+        self.assertEqual(tab.history_table.item(1, 2).text(), "Standard Character")
+        self.assertEqual(tab.history_table.item(1, 3).text(), "20/09/2026 00:00")
+        self.assertEqual(tab.history_table.item(2, 0).text(), "★★★★")
+        self.assertEqual(tab.history_table.item(2, 1).text(), "Variation")
+        self.assertEqual(tab.history_table.item(2, 2).text(), "Weapon")
+        self.assertEqual(tab.history_table.item(2, 3).text(), "20/09/2026 22:29")
+        self.assertEqual(tab.history_table.item(3, 1).text(), "Jinhsi")
+        self.assertEqual(tab.history_table.item(3, 3).text(), "20/09/2026 22:31")
         self.assertNotIn("Pity", [
             tab.history_table.horizontalHeaderItem(index).text()
             for index in range(tab.history_table.columnCount())
@@ -187,6 +188,7 @@ class ConveneTrackerTabTests(unittest.TestCase):
         long_name = "A" * 500
         records = [
             {"rarity": 5, "name": long_name, "pool": "resonator", "timestamp": "2026-09-20T22:31:00Z"},
+        ] + [
             {"rarity": 4, "name": f"Item {index}", "pool": "weapon", "timestamp": f"2026-09-20T22:{index:02d}:00Z"}
             for index in range(1, 20)
         ]
@@ -225,9 +227,9 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tab = ConveneTrackerTab(tracker)
         records = [
             {"rarity": 5, "name": "Five", "pool": "resonator", "timestamp": "2026-09-19T10:00:00Z"},
-            {"quality": 4, "item": "Four", "type": "weapon", "time": "2026-09-20T11:00:00Z"},
-            {"rank": 3, "title": "Three", "gacha_type": "standard_character", "date": "2026-09-20"},
+            {"quality": 4, "item": "Four", "type": "weapon", "time": "2026-09-19T11:00:00Z"},
             {"rarity": 6, "name": "Unknown", "date": "invalid"},
+            {"rank": 3, "title": "Three", "gacha_type": "standard_character", "date": "2026-09-20"},
         ]
         original_records = [dict(record) for record in records]
         tracker.history_records = records
@@ -342,12 +344,12 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tracker = LegacyPityTrackerWidget()
         tracker._import_thread = Mock()
         tracker._import_thread.isRunning.return_value = True
-        tracker._request_sync = Mock()
 
-        tracker.request_sync()
-        tracker.request_sync()
+        with patch("src.wuwa_calculator.app.pity_tracker.subprocess.Popen") as popen:
+            tracker.request_sync()
+            tracker.request_sync()
 
-        tracker._request_sync.assert_not_called()
+        popen.assert_not_called()
         tracker.deleteLater()
 
     def test_invalid_url_emits_status_changed(self) -> None:

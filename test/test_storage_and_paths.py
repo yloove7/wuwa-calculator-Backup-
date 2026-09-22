@@ -91,7 +91,12 @@ class PathsAndStorageTests(unittest.TestCase):
             source = root / "backup.json"
             destination = root / "convene_history.json"
             source.write_text(json.dumps({
-                "history": [{"time": "2026-01-01", "name": "Jingran"}],
+                "history": [{
+                    "time": "2026-01-01",
+                    "name": "Jingran",
+                    "pool": "resonator",
+                    "rarity": 5,
+                }],
             }), encoding="utf-8")
 
             imported = ConveneStorageManager(destination).import_json(source)
