@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QProgressBar,
     QScrollArea,
@@ -228,6 +230,45 @@ class ConveneTrackerTab(QWidget):
         history_title = QLabel("HISTÓRICO RECENTE")
         history_title.setObjectName("conveneTrackerSection")
         history_layout.addWidget(history_title)
+
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(8)
+        self.history_rarity_filter = QComboBox()
+        self.history_rarity_filter.addItems(["Todos", "5★", "4★", "3★"])
+        self.history_rarity_filter.setCurrentText("Todos")
+        self.history_pool_filter = QComboBox()
+        self.history_pool_filter.addItems(
+            ["Todos", "Resonator", "Weapon", "Standard Character", "Standard Weapon"]
+        )
+        self.history_pool_filter.setCurrentText("Todos")
+        self.history_search_edit = QLineEdit()
+        self.history_search_edit.setPlaceholderText("Pesquisar personagem ou arma...")
+        self.history_search_edit.setClearButtonEnabled(True)
+        self.history_clear_button = QPushButton("Limpar")
+        filter_row.addWidget(self.history_rarity_filter)
+        filter_row.addWidget(self.history_pool_filter)
+        filter_row.addWidget(self.history_search_edit, 1)
+        filter_row.addWidget(self.history_clear_button)
+        history_layout.addLayout(filter_row)
+
+        self.history_rarity_filter.currentIndexChanged.connect(
+            lambda _index: self._on_history_changed(self.tracker.history_records)
+        )
+        self.history_pool_filter.currentIndexChanged.connect(
+            lambda _index: self._on_history_changed(self.tracker.history_records)
+        )
+        self.history_search_edit.textChanged.connect(
+            lambda _text: self._on_history_changed(self.tracker.history_records)
+        )
+        self.history_clear_button.clicked.connect(
+            lambda: (
+                self.history_rarity_filter.setCurrentText("Todos"),
+                self.history_pool_filter.setCurrentText("Todos"),
+                self.history_search_edit.clear(),
+                self._on_history_changed(self.tracker.history_records),
+            )
+        )
+
         self.history_table = QTableWidget(0, 4)
         self.history_table.setObjectName("conveneHistoryTable")
         self.history_table.setHorizontalHeaderLabels(("Raridade", "Item", "Pool", "Data"))
@@ -248,6 +289,7 @@ class ConveneTrackerTab(QWidget):
         self.history_table.setColumnWidth(0, 76)
         self.history_table.setColumnWidth(2, 120)
         self.history_table.setColumnWidth(3, 132)
+        self.history_table.viewport().installEventFilter(self)
         self.history_empty_label = QLabel("Nenhum registro de Convene disponível.")
         self.history_empty_label.setObjectName("conveneHistoryEmpty")
         self.history_empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -311,22 +353,68 @@ class ConveneTrackerTab(QWidget):
         else:
             self.status_label.setText("Última sincronização: --")
 
-        message = {
-            "running": "Sincronização em andamento...",
-            "success": "✓ Sincronização concluída",
-            "success_no_new": "✓ Sincronização concluída",
-            "error": "Não foi possível sincronizar o histórico.",
-            "offline": "Não foi possível conectar ao serviço.",
-        }.get(status.sync_status, "Sincronização")
+        new_records_count = getattr(status, "new_records_count", 0) or 0
+        if status.sync_status == "success":
+            message = (
+                f"✓ Sincronização concluída — {new_records_count} novos registros"
+                if new_records_count > 0
+                else "✓ Sincronização concluída — 0 novos registros"
+            )
+        else:
+            message = {
+                "running": "Sincronização em andamento...",
+                "success_no_new": "✓ Sincronização concluída — nenhum registro novo",
+                "success_empty": "⚠ Nenhum registro de Convene encontrado",
+                "partial": "⚠ Sincronização parcial",
+                "error": "✕ Não foi possível sincronizar o histórico.",
+                "offline": "⚠ Não foi possível conectar ao serviço.",
+            }.get(status.sync_status, "Sincronização")
         self.status_message_label.setText(message)
         self.refresh_button.setEnabled(status.sync_status not in {"running"})
 
+    def _apply_history_filters(self, records: list[dict[str, object]]) -> list[dict[str, object]]:
+        rarity_filter = self.history_rarity_filter.currentText()
+        pool_filter = self.history_pool_filter.currentText()
+        search_filter = self.history_search_edit.text().strip().casefold()
+
+        filtered: list[dict[str, object]] = []
+        for record in records:
+            rarity_value = self._first_value(record, "rarity", "quality", "rank", "qualityLevel")
+            if rarity_filter != "Todos":
+                try:
+                    rarity_number = int(str(rarity_value).strip())
+                except (TypeError, ValueError):
+                    continue
+                expected_rarity = {"5★": 5, "4★": 4, "3★": 3}.get(rarity_filter)
+                if expected_rarity is None or rarity_number != expected_rarity:
+                    continue
+
+            pool_value = self._first_value(record, "pool", "type", "gacha_type")
+            if pool_filter != "Todos":
+                canonical_pool = self._format_pool(pool_value).casefold().replace(" ", "_")
+                expected_pool = pool_filter.casefold().replace(" ", "_")
+                if canonical_pool != expected_pool:
+                    continue
+
+            if search_filter:
+                item_name = str(self._first_value(record, "name", "item", "title") or "").casefold()
+                if search_filter not in item_name:
+                    continue
+
+            filtered.append(record)
+        return filtered
+
     def _on_history_changed(self, records: list[dict[str, object]]) -> None:
         valid_records = [record for record in records if isinstance(record, dict)]
-        self.history_empty_label.setVisible(not valid_records)
-        self.history_table.setVisible(bool(valid_records))
-        self.history_table.setRowCount(len(valid_records))
-        for row, record in enumerate(reversed(valid_records)):
+        filtered_records = self._apply_history_filters(valid_records)
+        if not valid_records:
+            self.history_empty_label.setText("Nenhum registro de Convene disponível.")
+        elif not filtered_records:
+            self.history_empty_label.setText("Nenhum registro corresponde aos filtros atuais.")
+        self.history_empty_label.setVisible(not filtered_records)
+        self.history_table.setVisible(bool(filtered_records))
+        self.history_table.setRowCount(len(filtered_records))
+        for row, record in enumerate(reversed(filtered_records)):
             rarity_value = self._first_value(record, "rarity", "quality", "rank")
             rarity_text = self._format_rarity(rarity_value)
             values = (
@@ -415,6 +503,24 @@ class ConveneTrackerTab(QWidget):
             if value not in (None, ""):
                 return str(value)
         return ""
+
+    def eventFilter(self, watched: QWidget, event: QEvent) -> bool:
+        if watched is self.history_table.viewport() and event.type() == QEvent.Type.Wheel:
+            scrollbar = self.history_table.verticalScrollBar()
+            if scrollbar is None:
+                return False
+            delta = event.angleDelta().y()
+            value = scrollbar.value()
+            minimum = scrollbar.minimum()
+            maximum = scrollbar.maximum()
+            can_scroll_up = value > minimum
+            can_scroll_down = value < maximum
+            if delta > 0 and can_scroll_up:
+                return False
+            if delta < 0 and can_scroll_down:
+                return False
+            return True
+        return super().eventFilter(watched, event)
 
     @staticmethod
     def _format_rarity(value: str) -> str:

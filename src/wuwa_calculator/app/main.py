@@ -457,8 +457,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(close_button, 0, Qt.AlignmentFlag.AlignRight)
 
 
+from version import APP_VERSION
+
+
 class AboutDialog(QDialog):
-    VERSION = "1.4.0"
+    VERSION = APP_VERSION
 
     def __init__(self, host: QWidget) -> None:
         super().__init__(host)
