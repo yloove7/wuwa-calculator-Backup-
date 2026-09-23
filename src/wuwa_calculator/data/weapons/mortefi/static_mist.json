@@ -1,0 +1,17 @@
+{
+  "name": "Mortefi",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Mortefi",
+    "description": "Passiva da arma de Mortefi registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Mortefi",
+    "description": "Weapon passive for Mortefi stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

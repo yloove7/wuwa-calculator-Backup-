@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\Projeto\wuwa-calculator-main\build-vs2022-py313\CMakeFiles\49c1e3c5220965782cb178ea1e8ab712\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{935DC076-E737-3BAB-98AD-829939E72E13}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

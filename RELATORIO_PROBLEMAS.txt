@@ -1,0 +1,45 @@
+RELATORIO ATUAL DE PROBLEMAS
+Projeto: Wuwa Calculator / Tethys System
+Data: 2026-09-18
+
+Objetivo
+-------
+Registrar somente problemas ou verificacoes ainda pendentes no estado atual do projeto.
+Os itens resolvidos foram separados em RELATORIOS_RESOLVIDOS.txt.
+
+1. PENDENTE: validacao real do motor OCR e da analise de video
+----------------------------------------------------------------
+Estado:
+- O modulo OCR agora carrega PaddleOCR somente quando uma imagem e analisada.
+- Parsers OCR de numeros, atributos e personagem possuem testes unitarios.
+- O player QtMultimedia e o worker de video possuem smoke tests controlados.
+- Ainda nao foi executada uma imagem real pelo PaddleOCR.
+- Ainda nao foi reproduzido um video real nem executada uma analise OpenCV completa.
+
+Impacto:
+- Ainda nao e possivel afirmar que modelos PaddleOCR, codecs, audio, video e deteccao de dano funcionam de ponta a ponta neste ambiente.
+- Essa verificacao exige arquivos reais de imagem/video e execucao manual controlada.
+
+2. PENDENTE: validacao manual dos fluxos completos da GUI
+------------------------------------------------------------
+Estado:
+- Componentes visuais podem ser construidos em Qt offscreen sem falha.
+- O banner e o player possuem smoke tests sem rede e sem video real.
+- Ainda nao foram percorridos manualmente Home, Teams, Historico, dialogs, importacao/exportacao pela interface e multimidia dentro da janela principal.
+
+Impacto:
+- Sinais, navegacao entre abas, dialogs, carregamento de dados e interacoes completas continuam sem validacao manual ponta a ponta.
+- A aplicacao principal nao foi iniciada automaticamente nesta verificacao.
+
+CHECAGENS ATUAIS
+----------------
+- validate_data.py: passou; 62 personagens sem faltas.
+- unittest discover: passou; 13 testes.
+- compileall de main.py, src, validate_data.py e test: passou.
+- Importacao do launcher sem iniciar a GUI: passou.
+- Smoke tests PySide6 offscreen: passaram; banner e player.
+- Parsers OCR sem carregar PaddleOCR: passaram; numeros, atributos e personagem.
+- Migracao de dados legados: passou; 3 equipes, 1 rotacao e cache de banner no storage oficial.
+- Catalogo de banners: Qingxiao encontrado e imagem carregada com HTTP 200.
+- Diagnosticos dos modulos alterados: nenhum erro.
+- Nenhum teste em loop foi executado em segundo plano via Pylance MCP.

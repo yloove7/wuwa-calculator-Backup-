@@ -1,0 +1,17 @@
+{
+  "name": "Changli",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Changli",
+    "description": "Passiva da arma de Changli registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Changli",
+    "description": "Weapon passive for Changli stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

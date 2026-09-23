@@ -1,0 +1,74 @@
+RELATORIOS RESOLVIDOS
+Projeto: Wuwa Calculator / Tethys System
+Data: 2026-09-18
+
+1. RESOLVIDO: validate_data.py nao executava
+------------------------------------------------
+Correcao:
+- Imports ajustados para src.wuwa_calculator.data.
+- A raiz do projeto foi adicionada ao sys.path.
+- O script passou a validar 62 personagens sem dados faltantes.
+
+2. RESOLVIDO: locais de armazenamento inconsistentes
+------------------------------------------------------
+Correcao:
+- O diretorio oficial passou a ser src/wuwa_calculator/storage/user_data/.
+- Teams, historico e cache de banner usam o helper central de caminhos.
+- README.md e README.txt foram atualizados.
+
+3. RESOLVIDO: caminhos de assets dependentes do contexto
+----------------------------------------------------------
+Correcao:
+- Criado src/wuwa_calculator/utils/paths.py com get_asset_path.
+- Wallpaper, icone de fechamento, paleta, politica de imagens locais e gerador de icones usam a raiz real do projeto.
+- A resolucao nao depende do diretorio atual do terminal.
+
+4. RESOLVIDO: Qingxiao nao aparecia no banner anterior
+--------------------------------------------------------
+Correcao:
+- A Home deixou de descartar banners passados com mais de 7 dias.
+- Qingxiao foi encontrado no catalogo e sua imagem foi baixada com sucesso.
+- A URL do Imgur respondeu HTTP 200 e entregou 457319 bytes.
+- Layout, componentes PySide6 e QSS permaneceram intactos.
+
+5. RESOLVIDO: dados legados fora do diretorio oficial
+------------------------------------------------------
+Correcao:
+- Teams, historico e cache de banner migram automaticamente os dados legados quando o storage oficial esta vazio.
+- A migracao confirmou 3 equipes, 1 rotacao e cache de banner no diretorio oficial.
+- Os arquivos antigos foram preservados como fonte de migracao, sem apagar dados.
+
+6. RESOLVIDO: cobertura basica de testes unitarios
+---------------------------------------------------
+Cobertura adicionada:
+- Paths e localizacao do storage.
+- Round-trip de equipes e historico.
+- Calculo de dano e DPS.
+- Calculo de etapa de rotacao.
+- Parsing de numeros e timestamps.
+- Normalizacao de banners.
+
+Resultado:
+- 13 testes unitarios e de smoke passaram.
+- Nenhum teste de UI foi criado ou executado.
+
+7. RESOLVIDO: integracao de importacao e exportacao de historico
+------------------------------------------------------------------
+Cobertura adicionada:
+- Importacao de historico valido com equipes e rotacoes.
+- Exportacao para um novo arquivo JSON.
+- Rejeicao de JSON invalido.
+
+8. RESOLVIDO PARCIALMENTE: smoke test de componentes visuais
+--------------------------------------------------------------
+Correcao aplicada:
+- Criado smoke test PySide6 com plataforma offscreen.
+- Banner e player QtMultimedia sao construidos sem iniciar a aplicacao principal.
+- O teste nao altera componentes, layouts ou QSS.
+
+9. RESOLVIDO: inicializacao pesada do OCR no import
+---------------------------------------------------
+Correcao aplicada:
+- PaddleOCR passou a ser inicializado somente quando uma imagem real for analisada.
+- Parsers OCR podem ser testados sem carregar modelos ou executar rede.
+- O parser agora trata separadores de milhar e decimal, incluindo 1.234,5, 1,500 e 1,25.

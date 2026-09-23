@@ -1,0 +1,17 @@
+{
+  "name": "Zani",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Zani",
+    "description": "Passiva da arma de Zani registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Zani",
+    "description": "Weapon passive for Zani stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Variation",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 77.0,
+    "passive_name": "Ária Incessante",
+    "description": "Ao lançar a Habilidade de Ressonância, restaura 8 de Energia de Concerto. Este efeito pode ser ativado 1 vez(es) a cada 20s.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Ceaseless Aria",
+    "description": "When Resonance Skill is cast, restore 8 Concerto Energy. This effect can be triggered 1 time(s) every 20s.",
+    "effects": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Lynae",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lynae",
+    "description": "Passiva da arma de Lynae registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lynae",
+    "description": "Weapon passive for Lynae stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

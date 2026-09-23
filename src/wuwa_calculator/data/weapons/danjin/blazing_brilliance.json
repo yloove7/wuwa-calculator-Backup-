@@ -1,0 +1,17 @@
+{
+  "name": "Danjin",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Danjin",
+    "description": "Passiva da arma de Danjin registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Danjin",
+    "description": "Weapon passive for Danjin stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

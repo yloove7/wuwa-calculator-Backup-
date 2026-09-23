@@ -1,0 +1,56 @@
+DEPENDENCIAS INSTALADAS NO AMBIENTE DO PROJETO
+===============================================
+Projeto: Wuwa Calculator / Tethys System
+Python: 3.13.15
+Interpretador: C:\Users\ApenasSeiso\AppData\Local\Programs\Python\Python313\python.exe
+Data do inventario: 2026-09-18
+
+DEPENDENCIAS DIRETAS DO PROJETO
+--------------------------------
+PySide6==6.11.2
+pyqtgraph==0.14.0
+numpy==2.3.5
+opencv-python==5.0.0.93
+pillow==12.3.0
+protobuf==3.20.3
+rapidocr-onnxruntime==1.2.3
+onnxruntime==1.26.0
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+
+DEPENDENCIAS NATIVAS/COMPILADAS INSTALADAS
+-------------------------------------------
+PySide6_Addons==6.11.2
+PySide6_Essentials==6.11.2
+shiboken6==6.11.2
+opencv-contrib-python==4.10.0.84
+opencv-python-headless==5.0.0.93
+pyclipper==1.4.0
+shapely==2.1.2
+scipy==1.18.1
+pybind11==3.1.0
+ninja==1.13.2
+
+DEPENDENCIAS TRANSITIVAS IMPORTANTES DO OCR/PADDLE
+---------------------------------------------------
+paddlex==3.7.2
+torch==2.14.0
+torchvision==0.29.0
+scikit-image==0.26.0
+python-bidi==0.6.11
+modelscope==1.40.0
+
+RUNTIMES E OBSERVACOES
+----------------------
+- PySide6 fornece QtCore, QtGui, QtWidgets, QtNetwork, QtMultimedia e QtMultimediaWidgets.
+- OpenCV, NumPy, Pillow, ONNX Runtime, PaddlePaddle, Shapely, SciPy e PyClipper possuem componentes nativos/compilados.
+- O player ativo usa QtMultimedia. python-vlc==3.0.21203 tambem esta instalado, mas pertence ao player legado e nao e necessario para o caminho ativo.
+- ffpyplayer==4.5.3 esta instalado como suporte multimidia adicional, mas nao e import direto do caminho principal.
+- O aviso sobre ccache vem do PaddlePaddle e nao indica dependencia ausente do projeto.
+- Nao instalar simultaneamente opencv-python, opencv-contrib-python e opencv-python-headless em um novo ambiente. Use apenas opencv-python, conforme requirements.txt.
+
+VALIDACAO
+---------
+- As dependencias instalaveis estao declaradas em requirements.txt.
+- pip check: nenhuma dependencia quebrada no ambiente atual.
+- As versoes exatas acima refletem o ambiente instalado nesta maquina; requirements.txt continua usando faixas para instalacao normal.

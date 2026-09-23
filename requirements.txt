@@ -1,0 +1,25 @@
+# Dependências Multiplataforma
+PySide6>=6.5.0
+pyqtgraph>=0.13.3
+opencv-python>=4.8.0
+windows-capture>=2.0.1; platform_system == "Windows"
+mss>=9.0.0; platform_system != "Windows"
+numpy>=1.26.0
+onnxruntime>=1.16.0
+
+# Captura Dinâmica por Sistema
+
+# Dependências extras do projeto
+requests>=2.31.0
+pillow>=10.0.0
+protobuf>=3.20.2,<4.0.0
+scipy>=1.18.0
+scikit-image>=0.26.0
+shapely>=2.1.0
+pyclipper>=1.4.0
+rapidocr-onnxruntime>=1.2.3
+python-bidi>=0.6.0
+pybind11>=3.1.0
+ninja>=1.13.0
+python-vlc>=3.0.0
+ffpyplayer>=4.5.0
