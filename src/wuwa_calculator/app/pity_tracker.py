@@ -70,10 +70,13 @@ from src.wuwa_calculator.domain.pity import (
     record_sort_key,
 )
 from src.wuwa_calculator.storage.convene_storage import ConveneStorageManager
+<<<<<<< HEAD
 from src.wuwa_calculator.utils.convene_datetime import (
     KURO_TIMEZONE,
     parse_convene_datetime,
 )
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 WUWA_TRACKER_IMPORT_COMMAND = (
     'iwr -UseBasicParsing -Headers @{"User-Agent"="Mozilla/5.0"} '
     "https://raw.githubusercontent.com/wuwatracker/wuwatracker/"
@@ -332,6 +335,7 @@ def _utc_now_iso() -> str:
 
 
 def _history_age(records: list[dict[str, object]]) -> float | None:
+<<<<<<< HEAD
     timestamps: list[datetime] = []
     for record in records:
         value = record.get("timestamp", record.get("time", record.get("date")))
@@ -341,6 +345,22 @@ def _history_age(records: list[dict[str, object]]) -> float | None:
     if not timestamps:
         return None
     return max(0.0, (datetime.now(KURO_TIMEZONE) - max(timestamps)).total_seconds())
+=======
+    timestamps: list[float] = []
+    for record in records:
+        value = record.get("timestamp", record.get("time", record.get("date")))
+        try:
+            if isinstance(value, (int, float)):
+                timestamps.append(float(value))
+            else:
+                text = str(value or "").strip().replace("Z", "+00:00")
+                timestamps.append(datetime.fromisoformat(text).timestamp())
+        except (TypeError, ValueError, OverflowError):
+            continue
+    if not timestamps:
+        return None
+    return max(0.0, datetime.now(timezone.utc).timestamp() - max(timestamps))
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 
 def _pool_results_are_partial(
@@ -868,6 +888,7 @@ class PityHistoryImportWorker(QObject):
                 _normalize_pull_record(record)
                 for record in extracted_records
             ]
+<<<<<<< HEAD
             now = datetime.now(KURO_TIMEZONE)
             month_start = now.replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
@@ -903,6 +924,10 @@ class PityHistoryImportWorker(QObject):
             ]
             persistable_records = [
                 record for record in current_month_records
+=======
+            persistable_records = [
+                record for record in normalized_records
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                 if record.get("is_pull", True)
             ]
             partial = _pool_results_are_partial(pool_statuses)
@@ -913,7 +938,11 @@ class PityHistoryImportWorker(QObject):
                         persistable_records
                     )
                     non_pull_records = [
+<<<<<<< HEAD
                         record for record in current_month_records
+=======
+                        record for record in normalized_records
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                         if not record.get("is_pull", True)
                     ]
                     self.status.emit(TrackerStatus(
@@ -950,6 +979,7 @@ class PityHistoryImportWorker(QObject):
                         message=f"Falha ao persistir histórico: {error}",
                         pool_status=dict(pool_statuses),
                     ))
+<<<<<<< HEAD
                     existing_history = ConveneStorageManager().load()
                     self.imported.emit([*existing_history, *current_month_records])
             else:
@@ -959,17 +989,35 @@ class PityHistoryImportWorker(QObject):
                     sync_status="partial" if partial else "success_no_new",
                     last_sync_at=finished_at,
                     last_success_at=None if partial else finished_at,
+=======
+                    self.imported.emit(normalized_records)
+            else:
+                self.status.emit(TrackerStatus(
+                    api_status="success_empty",
+                    history_status="unchanged",
+                    sync_status="success_no_new",
+                    last_sync_at=finished_at,
+                    last_success_at=finished_at,
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                     history_age=None,
                     is_partial=partial,
                     source="api",
                     message=_status_message_with_pool_details(
+<<<<<<< HEAD
                         "Sincronização parcial" if partial else "Nenhuma pull normalizada retornada",
+=======
+                        "Nenhuma pull normalizada retornada",
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                         pool_statuses,
                     ),
                     pool_status=dict(pool_statuses),
                 ))
+<<<<<<< HEAD
                 existing_history = ConveneStorageManager().load()
                 self.imported.emit([*existing_history, *current_month_records])
+=======
+                self.imported.emit(normalized_records)
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         except requests.exceptions.ConnectionError:
             message = CONVENE_DNS_ERROR_MESSAGE
             print(f"[Convene] {message}")
@@ -2654,4 +2702,8 @@ class PityTrackerWidget(QFrame):
         for index in range(self.notice_layout.count() - 1):
             widget = self.notice_layout.itemAt(index).widget()
             if isinstance(widget, NoticeRow):
+<<<<<<< HEAD
                 widget.update_remaining(getattr(widget, "end_at", ""))
+=======
+                widget.update_remaining(getattr(widget, "end_at", ""))
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3

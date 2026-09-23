@@ -12,7 +12,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+<<<<<<< HEAD
 from src.wuwa_calculator.utils.convene_datetime import parse_convene_datetime
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 from src.wuwa_calculator.utils.paths import get_user_data_path
 
 CONVENE_HISTORY_FILE = get_user_data_path("convene_history.json")
@@ -312,9 +315,19 @@ class ConveneStorageManager:
         def sort_key(item: tuple[int, dict[str, object]]) -> tuple[int, float, int]:
             index, record = item
             value = record.get("timestamp", record.get("time", record.get("date")))
+<<<<<<< HEAD
             parsed = parse_convene_datetime(value)
             if parsed is None:
                 return (1, 0.0, index)
             return (0, parsed.timestamp(), index)
+=======
+            try:
+                if isinstance(value, (int, float)):
+                    return (0, float(value), index)
+                text = str(value or "").strip().replace("Z", "+00:00")
+                return (0, datetime.fromisoformat(text).timestamp(), index)
+            except (TypeError, ValueError, OverflowError):
+                return (1, 0.0, index)
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
         return [record for _, record in sorted(enumerate(records), key=sort_key)]

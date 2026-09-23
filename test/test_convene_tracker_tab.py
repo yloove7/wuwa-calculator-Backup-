@@ -7,7 +7,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QScrollArea
 
 from src.wuwa_calculator.app.convene_tracker_tab import ConveneTrackerTab
+<<<<<<< HEAD
 from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget, TrackerStatus
+=======
+from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 
 class ConveneTrackerTabTests(unittest.TestCase):
@@ -15,6 +19,7 @@ class ConveneTrackerTabTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.application = QApplication.instance() or QApplication([])
 
+<<<<<<< HEAD
     def test_last_sync_timestamp_is_presented_in_kuro_timezone(self) -> None:
         tracker = LegacyPityTrackerWidget()
         tab = ConveneTrackerTab(tracker)
@@ -43,6 +48,8 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tracker.deleteLater()
         tab.deleteLater()
 
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
     def test_tab_consumes_tracker_state_history_and_refresh(self) -> None:
         tracker = LegacyPityTrackerWidget()
         tab = ConveneTrackerTab(tracker)
@@ -88,7 +95,11 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
         self.assertEqual(
             tab.last_five_label.text(),
+<<<<<<< HEAD
             "Último 5★: Newest Five · Weapon · 20/09/2026 06:00",
+=======
+            "Último 5★: Newest Five · Weapon · 20/09/2026 11:00",
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         )
         self.assertEqual(records, original_records)
         tracker.deleteLater()
@@ -110,7 +121,11 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
                 self.assertEqual(
                     tab.last_five_label.text(),
+<<<<<<< HEAD
                     "Último 5★: Fallback Five · Weapon · 20/09/2026 08:00",
+=======
+                    "Último 5★: Fallback Five · Weapon · 20/09/2026 13:00",
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                 )
                 tracker.deleteLater()
                 tab.deleteLater()
@@ -148,7 +163,10 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tracker.state.guaranteed = None
         tracker.state.recent_convene_details = []
         tracker.state_changed.emit(tracker.state)
+<<<<<<< HEAD
         tracker.history_records = []
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         tracker.history_changed.emit([])
         self.assertEqual(tab.guarantee_label.text(), "--")
         self.assertEqual(tab.last_five_label.text(), "Nenhum 5★ registrado")
@@ -198,9 +216,15 @@ class ConveneTrackerTabTests(unittest.TestCase):
         self.assertEqual(tab.history_table.item(2, 0).text(), "★★★★")
         self.assertEqual(tab.history_table.item(2, 1).text(), "Variation")
         self.assertEqual(tab.history_table.item(2, 2).text(), "Weapon")
+<<<<<<< HEAD
         self.assertEqual(tab.history_table.item(2, 3).text(), "20/09/2026 17:29")
         self.assertEqual(tab.history_table.item(3, 1).text(), "Jinhsi")
         self.assertEqual(tab.history_table.item(3, 3).text(), "20/09/2026 17:31")
+=======
+        self.assertEqual(tab.history_table.item(2, 3).text(), "20/09/2026 22:29")
+        self.assertEqual(tab.history_table.item(3, 1).text(), "Jinhsi")
+        self.assertEqual(tab.history_table.item(3, 3).text(), "20/09/2026 22:31")
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         self.assertNotIn("Pity", [
             tab.history_table.horizontalHeaderItem(index).text()
             for index in range(tab.history_table.columnCount())
@@ -272,7 +296,11 @@ class ConveneTrackerTabTests(unittest.TestCase):
         self.assertIn("Three", summary["latest"].text())
         self.assertIn("Standard Character", summary["latest"].text())
         self.assertIn("20/09/2026 00:00", summary["latest"].text())
+<<<<<<< HEAD
         self.assertIn("19/09/2026 05:00", summary["period"].text())
+=======
+        self.assertIn("19/09/2026 10:00", summary["period"].text())
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         self.assertIn("20/09/2026 00:00", summary["period"].text())
         self.assertEqual(records, original_records)
         tracker.deleteLater()
@@ -332,8 +360,13 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
         tracker.history_changed.emit(records)
 
+<<<<<<< HEAD
         self.assertIn("31/12/1969 19:00", tab.history_summary_values["period"].text())
         self.assertIn("20/09/2026 10:00", tab.history_summary_values["period"].text())
+=======
+        self.assertIn("01/01/1970 00:00", tab.history_summary_values["period"].text())
+        self.assertIn("20/09/2026 15:00", tab.history_summary_values["period"].text())
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         self.assertEqual(records, original_records)
         tracker.deleteLater()
         tab.deleteLater()

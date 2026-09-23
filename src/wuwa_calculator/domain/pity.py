@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
+<<<<<<< HEAD
 
 from src.wuwa_calculator.utils.convene_datetime import parse_convene_datetime
+=======
+from datetime import datetime
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 
 @dataclass
@@ -31,10 +35,20 @@ def extract_records(data: object) -> list[dict[str, object]]:
 
 def record_sort_key(record: dict[str, object]) -> tuple[int, float]:
     value = record.get("timestamp", record.get("time", record.get("date")))
+<<<<<<< HEAD
     parsed = parse_convene_datetime(value)
     if parsed is None:
         return (1, 0.0)
     return (0, parsed.timestamp())
+=======
+    try:
+        if isinstance(value, (int, float)):
+            return (0, float(value))
+        text = str(value or "").strip().replace("Z", "+00:00")
+        return (0, datetime.fromisoformat(text).timestamp())
+    except (TypeError, ValueError, OverflowError):
+        return (1, 0.0)
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 
 def format_recent_record(record: object) -> str:

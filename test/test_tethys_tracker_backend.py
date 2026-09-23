@@ -207,9 +207,15 @@ class TethysTrackerBackendTests(unittest.TestCase):
                 "4": {"status": "success", "completed": True, "record_count": 1},
             })
             return [
+<<<<<<< HEAD
                 {"timestamp": "2026-09-01", "name": "R", "rarity": 3, "pool": "resonator"},
                 {"timestamp": "2026-09-02", "name": "C", "rarity": 3, "pool": "standard_character"},
                 {"timestamp": "2026-09-03", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+=======
+                {"timestamp": "2026-01-01", "name": "R", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-02", "name": "C", "rarity": 3, "pool": "standard_character"},
+                {"timestamp": "2026-01-03", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
             ]
 
         statuses: list[TrackerStatus] = []
@@ -221,8 +227,12 @@ class TethysTrackerBackendTests(unittest.TestCase):
             return list(records), len(records)
 
         with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", side_effect=fake_fetch), \
+<<<<<<< HEAD
                 patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records), \
                 patch.object(ConveneStorageManager, "load", return_value=[]):
+=======
+                patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records):
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
             worker.run()
 
         self.assertEqual(len(imported[0]), 3)
@@ -238,10 +248,17 @@ class TethysTrackerBackendTests(unittest.TestCase):
                 "4": {"status": "success", "completed": True, "record_count": 1},
             })
             return [
+<<<<<<< HEAD
                 {"timestamp": "2026-09-01", "name": "R1", "rarity": 3, "pool": "resonator"},
                 {"timestamp": "2026-09-02", "name": "R2", "rarity": 3, "pool": "resonator"},
                 {"timestamp": "2026-09-03", "name": "W", "rarity": 3, "pool": "weapon"},
                 {"timestamp": "2026-09-04", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+=======
+                {"timestamp": "2026-01-01", "name": "R1", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-02", "name": "R2", "rarity": 3, "pool": "resonator"},
+                {"timestamp": "2026-01-03", "name": "W", "rarity": 3, "pool": "weapon"},
+                {"timestamp": "2026-01-04", "name": "S", "rarity": 3, "pool": "standard_weapon"},
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
             ]
 
         statuses: list[TrackerStatus] = []
@@ -253,8 +270,12 @@ class TethysTrackerBackendTests(unittest.TestCase):
             return list(records), len(records)
 
         with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", side_effect=fake_fetch), \
+<<<<<<< HEAD
                 patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records), \
                 patch.object(ConveneStorageManager, "load", return_value=[]):
+=======
+                patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=merge_records):
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
             worker.run()
 
         self.assertEqual(len(imported[0]), 4)
@@ -264,6 +285,7 @@ class TethysTrackerBackendTests(unittest.TestCase):
         self.assertEqual(statuses[-1].pool_status["2"]["status"], "success")
         self.assertEqual(statuses[-1].pool_status["4"]["status"], "success")
 
+<<<<<<< HEAD
     def test_worker_keeps_history_and_reports_partial_when_no_current_records(self) -> None:
         local_history = [{
             "timestamp": "2026-08-31 23:59:59",
@@ -298,12 +320,18 @@ class TethysTrackerBackendTests(unittest.TestCase):
         self.assertTrue(statuses[-1].is_partial)
         merge.assert_not_called()
 
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
     def test_persistence_failure_still_emits_normalized_records(self) -> None:
         def fake_fetch(_url: str, *, pool_statuses: dict[str, dict[str, object]]):
             pool_statuses["1"] = {"status": "success", "completed": True, "record_count": 1}
             return [{
                 "seq_id": "1",
+<<<<<<< HEAD
                 "timestamp": "2026-09-01",
+=======
+                "timestamp": "2026-01-01",
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
                 "name": "Qingxiao",
                 "rarity": 5,
                 "pool": "resonator",
@@ -315,8 +343,12 @@ class TethysTrackerBackendTests(unittest.TestCase):
         worker.status.connect(statuses.append)
         worker.imported.connect(imported.append)
         with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", side_effect=fake_fetch), \
+<<<<<<< HEAD
                 patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=OSError("disk full")), \
                 patch.object(ConveneStorageManager, "load", return_value=[]):
+=======
+                patch.object(ConveneStorageManager, "merge_with_metadata", side_effect=OSError("disk full")):
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
             worker.run()
 
         self.assertEqual(statuses[-1].history_status, "error")

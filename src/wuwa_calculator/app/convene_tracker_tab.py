@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+<<<<<<< HEAD
 from datetime import datetime
+=======
+from datetime import datetime, timezone
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 from PySide6.QtCore import QEvent, Qt
 from PySide6.QtGui import QColor
@@ -27,10 +31,13 @@ from PySide6.QtWidgets import (
 from src.wuwa_calculator.app.components import Card, TitleLabel
 from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget, TrackerStatus
 from src.wuwa_calculator.domain.pity import PityState
+<<<<<<< HEAD
 from src.wuwa_calculator.utils.convene_datetime import (
     KURO_TIMEZONE,
     parse_convene_datetime,
 )
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
 
 class ConveneTrackerTab(QWidget):
@@ -231,7 +238,11 @@ class ConveneTrackerTab(QWidget):
         history_card.setObjectName("conveneTrackerPanel")
         history_layout = QVBoxLayout(history_card)
         history_layout.setContentsMargins(16, 12, 16, 12)
+<<<<<<< HEAD
         history_title = QLabel("HISTÓRICO DE GIROS")
+=======
+        history_title = QLabel("HISTÓRICO RECENTE")
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         history_title.setObjectName("conveneTrackerSection")
         history_layout.addWidget(history_title)
 
@@ -352,10 +363,15 @@ class ConveneTrackerTab(QWidget):
 
     def _on_status_changed(self, status: TrackerStatus) -> None:
         if status.last_sync_at:
+<<<<<<< HEAD
             stamp = self._format_last_sync_at(status.last_sync_at)
             self.status_label.setText(
                 f"Última sincronização: {stamp}" if stamp else "Última sincronização: --"
             )
+=======
+            stamp = status.last_sync_at.replace("T", " ")
+            self.status_label.setText(f"Última sincronização: {stamp}")
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
         else:
             self.status_label.setText("Última sincronização: --")
 
@@ -378,6 +394,7 @@ class ConveneTrackerTab(QWidget):
         self.status_message_label.setText(message)
         self.refresh_button.setEnabled(status.sync_status not in {"running"})
 
+<<<<<<< HEAD
     @staticmethod
     def _format_last_sync_at(value: object) -> str | None:
         if not isinstance(value, str):
@@ -390,6 +407,8 @@ class ConveneTrackerTab(QWidget):
         except (OverflowError, TypeError, ValueError):
             return None
 
+=======
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
     def _apply_history_filters(self, records: list[dict[str, object]]) -> list[dict[str, object]]:
         rarity_filter = self.history_rarity_filter.currentText()
         pool_filter = self.history_pool_filter.currentText()
@@ -565,13 +584,41 @@ class ConveneTrackerTab(QWidget):
 
     @staticmethod
     def _parse_timestamp_value(value: str) -> datetime | None:
+<<<<<<< HEAD
         return parse_convene_datetime(value)
+=======
+        if not value:
+            return None
+        try:
+            if value.replace(".", "", 1).isdigit():
+                return datetime.fromtimestamp(float(value), timezone.utc)
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except (TypeError, ValueError, OverflowError, OSError):
+            return None
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
 
     @staticmethod
     def _format_timestamp(value: str) -> str:
         if not value:
             return "--"
+<<<<<<< HEAD
         parsed = parse_convene_datetime(value)
         if parsed is None:
             return value
         return parsed.astimezone(KURO_TIMEZONE).strftime("%d/%m/%Y %H:%M")
+=======
+        try:
+            if value.replace(".", "", 1).isdigit():
+                parsed = datetime.fromtimestamp(float(value), timezone.utc)
+            else:
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
+        except (TypeError, ValueError, OverflowError, OSError):
+            return value
+
+>>>>>>> ca9337b6812adf36dd7ff2e1304ae5b2512f43f3
