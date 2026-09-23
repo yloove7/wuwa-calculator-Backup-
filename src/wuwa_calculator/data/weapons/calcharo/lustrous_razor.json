@@ -1,0 +1,17 @@
+{
+  "name": "Calcharo",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Calcharo",
+    "description": "Passiva da arma de Calcharo registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Calcharo",
+    "description": "Weapon passive for Calcharo stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

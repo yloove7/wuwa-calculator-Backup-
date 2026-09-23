@@ -1,0 +1,17 @@
+{
+  "name": "Xuanling",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Xuanling",
+    "description": "Passiva da arma de Xuanling registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Xuanling",
+    "description": "Weapon passive for Xuanling stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

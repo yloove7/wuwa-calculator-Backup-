@@ -1,0 +1,17 @@
+{
+  "name": "Lingyang",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lingyang",
+    "description": "Passiva da arma de Lingyang registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Lingyang",
+    "description": "Weapon passive for Lingyang stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

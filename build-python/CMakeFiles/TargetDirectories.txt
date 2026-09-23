@@ -1,0 +1,2 @@
+D:/Projeto/wuwa-calculator-main/build-python/CMakeFiles/edit_cache.dir
+D:/Projeto/wuwa-calculator-main/build-python/CMakeFiles/rebuild_cache.dir

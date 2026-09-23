@@ -1,0 +1,23 @@
+{
+  "name": "Zhezhi",
+  "PT-BR": {
+    "base_atk": 412.0,
+    "energy_regen": 76.9,
+    "passive_name": "Zhezhi",
+    "description": "Passiva da arma de Zhezhi, focada em suporte e bônus de equipe.",
+    "effects": [
+      "Ao ativar a Habilidade de Ressonância, aumenta temporariamente a eficiência do time.",
+      "Durante a presença em campo, o grupo recebe ganho de dano e recuperação de energia."
+    ]
+  },
+  "EN": {
+    "base_atk": 412.0,
+    "energy_regen": 76.9,
+    "passive_name": "Zhezhi",
+    "description": "Weapon passive for Zhezhi, focused on team support and combat amplification.",
+    "effects": [
+      "When the Resonance Skill is activated, the team gains a temporary efficiency boost.",
+      "While on the field, the party gains increased damage and energy recovery."
+    ]
+  }
+}

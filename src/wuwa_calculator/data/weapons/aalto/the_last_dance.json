@@ -1,0 +1,17 @@
+{
+  "name": "A Última Dança",
+  "PT-BR": {
+    "base_atk": 500,
+    "energy_regen": 72.0,
+    "passive_name": "Elogio Silencioso",
+    "description": "Aumenta em 12% o ATQ. Ao lançar a Habilidade Intro ou a Liberação de Ressonância, aumenta o bônus de Dano de Habilidade de Ressonância em 48% por 5s.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 500,
+    "energy_regen": 72.0,
+    "passive_name": "Silent Eulogy",
+    "description": "Increases ATK by 12%. When using an Intro Skill or Resonance Release, increases Resonance Skill DMG Bonus by 48% for 5s.",
+    "effects": []
+  }
+}

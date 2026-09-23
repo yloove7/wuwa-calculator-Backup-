@@ -1,0 +1,17 @@
+{
+  "name": "Jiyan",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Jiyan",
+    "description": "Passiva da arma de Jiyan registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Jiyan",
+    "description": "Weapon passive for Jiyan stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

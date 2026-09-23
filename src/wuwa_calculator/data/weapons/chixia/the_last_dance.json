@@ -1,0 +1,17 @@
+{
+  "name": "Chixia",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Chixia",
+    "description": "Passiva da arma de Chixia registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Chixia",
+    "description": "Weapon passive for Chixia stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Mornye",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Mornye",
+    "description": "Passiva da arma de Mornye registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Mornye",
+    "description": "Weapon passive for Mornye stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

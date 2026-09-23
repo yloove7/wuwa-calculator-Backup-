@@ -1,0 +1,17 @@
+{
+  "name": "Xiangli Yao",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Xiangli Yao",
+    "description": "Passiva da arma de Xiangli Yao registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Xiangli Yao",
+    "description": "Weapon passive for Xiangli Yao stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

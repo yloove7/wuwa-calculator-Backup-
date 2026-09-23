@@ -1,0 +1,1869 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineSystem.cmake:218 (message)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      The system is: Windows - 10.0.26200 - AMD64
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:501 (find_file)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:538 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "file"
+    variable: "src_in"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "CMakeCXXCompilerId.cpp.in"
+    candidate_directories:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/"
+    found: "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeCXXCompilerId.cpp.in"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      Vers├úo do MSBuild 17.14.51+25f168cee para .NET Framework
+      Compila├º├úo de 21/09/2026 01:13:14 iniciada.
+      
+      Projeto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\4.4.3\\CompilerIdCXX\\CompilerIdCXX.vcxproj" no n├│ 1 (destinos padr├úo).
+      PrepareForBuild:
+        Criando o diret├│rio "Debug\\".
+        A sa├¡da estruturada est├í habilitada. A formata├º├úo do diagn├│stico do compilador refletir├í a hierarquia de erros. Consulte https://aka.ms/cpp/structured-output para obter mais detalhes.
+        Criando o diret├│rio "Debug\\CompilerIdCXX.tlog\\".
+      InitializeBuildStatus:
+        Criando "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" porque "AlwaysCreate" foi especificado.
+        Tocando "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+      ClCompile:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+        CompilerIdCXX.vcxproj -> D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\4.4.3\\CompilerIdCXX\\CompilerIdCXX.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_CXX_COMPILER=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        Excluindo o arquivo "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+        Tocando "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate".
+      Projeto de compila├º├úo pronto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\4.4.3\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (destinos padr├úo).
+      
+      Compila├º├úo com ├¬xito.
+          0 Aviso(s)
+          0 Erro(s)
+      
+      Tempo Decorrido 00:00:00.89
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.vcxproj"
+      
+      The CXX compiler identification is MSVC, found in:
+        D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/4.4.3/CompilerIdCXX/CompilerIdCXX.exe
+      
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:64 (__resolve_tool_path)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:102 (__resolve_linker_path)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+    searched_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.com"
+    found: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.exe"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:64 (__resolve_tool_path)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:103 (__resolve_linker_path)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lld-link"
+    candidate_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+    searched_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lld-link.com"
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lld-link.exe"
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/lld-link"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/lld-link"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/lld-link"
+      - "C:/Windows/System32/lld-link.com"
+      - "C:/Windows/System32/lld-link.exe"
+      - "C:/Windows/System32/lld-link"
+      - "C:/Windows/lld-link.com"
+      - "C:/Windows/lld-link.exe"
+      - "C:/Windows/lld-link"
+      - "C:/Windows/System32/wbem/lld-link.com"
+      - "C:/Windows/System32/wbem/lld-link.exe"
+      - "C:/Windows/System32/wbem/lld-link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link"
+      - "C:/Windows/System32/OpenSSH/lld-link.com"
+      - "C:/Windows/System32/OpenSSH/lld-link.exe"
+      - "C:/Windows/System32/OpenSSH/lld-link"
+      - "C:/Program Files/dotnet/lld-link.com"
+      - "C:/Program Files/dotnet/lld-link.exe"
+      - "C:/Program Files/dotnet/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link"
+      - "C:/flutter/bin/lld-link.com"
+      - "C:/flutter/bin/lld-link.exe"
+      - "C:/flutter/bin/lld-link"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link"
+      - "C:/Program Files/Git/cmd/lld-link.com"
+      - "C:/Program Files/Git/cmd/lld-link.exe"
+      - "C:/Program Files/Git/cmd/lld-link"
+      - "C:/Program Files/nodejs/lld-link.com"
+      - "C:/Program Files/nodejs/lld-link.exe"
+      - "C:/Program Files/nodejs/lld-link"
+      - "C:/Program Files/CMake/bin/lld-link.com"
+      - "C:/Program Files/CMake/bin/lld-link.exe"
+      - "C:/Program Files/CMake/bin/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/lld-link"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/lld-link.com"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/lld-link.exe"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/lld-link"
+      - "D:/Nova pasta/Cursor/resources/app/bin/lld-link.com"
+      - "D:/Nova pasta/Cursor/resources/app/bin/lld-link.exe"
+      - "D:/Nova pasta/Cursor/resources/app/bin/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/lld-link"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/lld-link.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/lld-link.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/lld-link"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.com"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link.exe"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/lld-link"
+    found: false
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_LINKER"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+    searched_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.com"
+    found: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/link.exe"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_MT"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "mt"
+    candidate_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+    searched_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/mt.com"
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/mt.exe"
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/mt"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/mt"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/mt"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/mt.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/mt.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/mt"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/mt.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/mt.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/mt"
+      - "C:/Windows/System32/mt.com"
+      - "C:/Windows/System32/mt.exe"
+      - "C:/Windows/System32/mt"
+      - "C:/Windows/mt.com"
+      - "C:/Windows/mt.exe"
+      - "C:/Windows/mt"
+      - "C:/Windows/System32/wbem/mt.com"
+      - "C:/Windows/System32/wbem/mt.exe"
+      - "C:/Windows/System32/wbem/mt"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt"
+      - "C:/Windows/System32/OpenSSH/mt.com"
+      - "C:/Windows/System32/OpenSSH/mt.exe"
+      - "C:/Windows/System32/OpenSSH/mt"
+      - "C:/Program Files/dotnet/mt.com"
+      - "C:/Program Files/dotnet/mt.exe"
+      - "C:/Program Files/dotnet/mt"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt"
+      - "C:/flutter/bin/mt.com"
+      - "C:/flutter/bin/mt.exe"
+      - "C:/flutter/bin/mt"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt"
+      - "C:/Program Files/Git/cmd/mt.com"
+      - "C:/Program Files/Git/cmd/mt.exe"
+      - "C:/Program Files/Git/cmd/mt"
+      - "C:/Program Files/nodejs/mt.com"
+      - "C:/Program Files/nodejs/mt.exe"
+      - "C:/Program Files/nodejs/mt"
+      - "C:/Program Files/CMake/bin/mt.com"
+      - "C:/Program Files/CMake/bin/mt.exe"
+      - "C:/Program Files/CMake/bin/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/mt"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/mt.com"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/mt.exe"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/mt"
+      - "D:/Nova pasta/Cursor/resources/app/bin/mt.com"
+      - "D:/Nova pasta/Cursor/resources/app/bin/mt.exe"
+      - "D:/Nova pasta/Cursor/resources/app/bin/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/mt"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/mt"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/mt.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/mt.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/mt"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt.com"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt.exe"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/mt"
+    found: false
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeFindBinUtils.cmake:247 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_AR"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lib"
+    candidate_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+    searched_directories:
+      - "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lib.com"
+    found: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/lib.exe"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineRCCompiler.cmake:40 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Platform/Windows-MSVC.cmake:592 (enable_language)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Platform/Windows-MSVC.cmake:565 (__windows_compiler_msvc_enable_rc)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Platform/Windows-MSVC-CXX.cmake:6 (__windows_compiler_msvc)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeCXXInformation.cmake:48 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_RC_COMPILER"
+    description: "RC compiler"
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "rc"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/sbin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Program Files/bin/"
+      - "C:/Program Files/sbin/"
+      - "C:/Program Files/"
+      - "C:/Program Files (x86)/bin/"
+      - "C:/Program Files (x86)/sbin/"
+      - "C:/Program Files (x86)/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Program Files/CMake/sbin/"
+      - "C:/Program Files/CMake/"
+      - "C:/Program Files/tethys_native/bin/"
+      - "C:/Program Files/tethys_native/sbin/"
+      - "C:/Program Files/tethys_native/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/sbin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/sbin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/sbin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/rc"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/rc"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/rc"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/rc.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/rc.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/rc"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/rc.com"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/rc.exe"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/rc"
+      - "C:/Windows/System32/rc.com"
+      - "C:/Windows/System32/rc.exe"
+      - "C:/Windows/System32/rc"
+      - "C:/Windows/rc.com"
+      - "C:/Windows/rc.exe"
+      - "C:/Windows/rc"
+      - "C:/Windows/System32/wbem/rc.com"
+      - "C:/Windows/System32/wbem/rc.exe"
+      - "C:/Windows/System32/wbem/rc"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc"
+      - "C:/Windows/System32/OpenSSH/rc.com"
+      - "C:/Windows/System32/OpenSSH/rc.exe"
+      - "C:/Windows/System32/OpenSSH/rc"
+      - "C:/Program Files/dotnet/rc.com"
+      - "C:/Program Files/dotnet/rc.exe"
+      - "C:/Program Files/dotnet/rc"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc"
+      - "C:/flutter/bin/rc.com"
+      - "C:/flutter/bin/rc.exe"
+      - "C:/flutter/bin/rc"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc"
+      - "C:/Program Files/Git/cmd/rc.com"
+      - "C:/Program Files/Git/cmd/rc.exe"
+      - "C:/Program Files/Git/cmd/rc"
+      - "C:/Program Files/nodejs/rc.com"
+      - "C:/Program Files/nodejs/rc.exe"
+      - "C:/Program Files/nodejs/rc"
+      - "C:/Program Files/CMake/bin/rc.com"
+      - "C:/Program Files/CMake/bin/rc.exe"
+      - "C:/Program Files/CMake/bin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/rc"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/rc.com"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/rc.exe"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/rc"
+      - "D:/Nova pasta/Cursor/resources/app/bin/rc.com"
+      - "D:/Nova pasta/Cursor/resources/app/bin/rc.exe"
+      - "D:/Nova pasta/Cursor/resources/app/bin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/rc"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/rc"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/rc.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/rc.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/rc"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/rc.com"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/rc.exe"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/rc"
+      - "C:/Program Files/bin/rc.com"
+      - "C:/Program Files/bin/rc.exe"
+      - "C:/Program Files/bin/rc"
+      - "C:/Program Files/sbin/rc.com"
+      - "C:/Program Files/sbin/rc.exe"
+      - "C:/Program Files/sbin/rc"
+      - "C:/Program Files/rc.com"
+      - "C:/Program Files/rc.exe"
+      - "C:/Program Files/rc"
+      - "C:/Program Files (x86)/bin/rc.com"
+      - "C:/Program Files (x86)/bin/rc.exe"
+      - "C:/Program Files (x86)/bin/rc"
+      - "C:/Program Files (x86)/sbin/rc.com"
+      - "C:/Program Files (x86)/sbin/rc.exe"
+      - "C:/Program Files (x86)/sbin/rc"
+      - "C:/Program Files (x86)/rc.com"
+      - "C:/Program Files (x86)/rc.exe"
+      - "C:/Program Files (x86)/rc"
+      - "C:/Program Files/CMake/bin/rc.com"
+      - "C:/Program Files/CMake/bin/rc.exe"
+      - "C:/Program Files/CMake/bin/rc"
+      - "C:/Program Files/CMake/sbin/rc.com"
+      - "C:/Program Files/CMake/sbin/rc.exe"
+      - "C:/Program Files/CMake/sbin/rc"
+      - "C:/Program Files/CMake/rc.com"
+      - "C:/Program Files/CMake/rc.exe"
+      - "C:/Program Files/CMake/rc"
+      - "C:/Program Files/tethys_native/bin/rc.com"
+      - "C:/Program Files/tethys_native/bin/rc.exe"
+      - "C:/Program Files/tethys_native/bin/rc"
+      - "C:/Program Files/tethys_native/sbin/rc.com"
+      - "C:/Program Files/tethys_native/sbin/rc.exe"
+      - "C:/Program Files/tethys_native/sbin/rc"
+      - "C:/Program Files/tethys_native/rc.com"
+      - "C:/Program Files/tethys_native/rc.exe"
+      - "C:/Program Files/tethys_native/rc"
+    found: false
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerABI.cmake:123 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838"
+      binary: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: false
+      stdout: |
+        Change Dir: 'D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838'
+        
+        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_54c13.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Vers├úo do MSBuild 17.14.51+25f168cee para .NET Framework
+        Compila├º├úo de 21/09/2026 01:13:16 iniciada.
+        
+        Projeto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\cmTC_54c13.vcxproj" no n├│ 1 (destinos padr├úo).
+        PrepareForBuild:
+          A sa├¡da estruturada est├í habilitada. A formata├º├úo do diagn├│stico do compilador refletir├í a hierarquia de erros. Consulte https://aka.ms/cpp/structured-output para obter mais detalhes.
+          Criando o diret├│rio "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\Debug\\".
+          Criando o diret├│rio "cmTC_54c13.dir\\Debug\\cmTC_54c13.tlog\\".
+        InitializeBuildStatus:
+          Criando "cmTC_54c13.dir\\Debug\\cmTC_54c13.tlog\\unsuccessfulbuild" porque "AlwaysCreate" foi especificado.
+          Tocando "cmTC_54c13.dir\\Debug\\cmTC_54c13.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_54c13.dir\\Debug\\\\" /Fd"cmTC_54c13.dir\\Debug\\vc143.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.4\\Modules\\CMakeCXXCompilerABI.cpp"
+          Microsoft (R) C/C++ Optimizing Compiler Vers├úo 19.44.35228 para x64
+          Copyright (C) Microsoft Corporation. Todos os direitos reservados.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_54c13.dir\\Debug\\\\" /Fd"cmTC_54c13.dir\\Debug\\vc143.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.4\\Modules\\CMakeCXXCompilerABI.cpp"
+          CMakeCXXCompilerABI.cpp
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /OUT:"D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\Debug\\cmTC_54c13.exe" /INCREMENTAL /ILK:"cmTC_54c13.dir\\Debug\\cmTC_54c13.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838/Debug/cmTC_54c13.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838/Debug/cmTC_54c13.lib" /MACHINE:X64  /machine:x64 cmTC_54c13.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_54c13.vcxproj -> D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\Debug\\cmTC_54c13.exe
+        FinalizeBuildStatus:
+          Excluindo o arquivo "cmTC_54c13.dir\\Debug\\cmTC_54c13.tlog\\unsuccessfulbuild".
+          Tocando "cmTC_54c13.dir\\Debug\\cmTC_54c13.tlog\\cmTC_54c13.lastbuildstate".
+        Projeto de compila├º├úo pronto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\cmTC_54c13.vcxproj" (destinos padr├úo).
+        
+        Compila├º├úo com ├¬xito.
+            0 Aviso(s)
+            0 Erro(s)
+        
+        Tempo Decorrido 00:00:00.66
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerABI.cmake:291 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Parsed CXX implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
+        link line: [  C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /OUT:"D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-wj0838\\Debug\\cmTC_54c13.exe" /INCREMENTAL /ILK:"cmTC_54c13.dir\\Debug\\cmTC_54c13.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838/Debug/cmTC_54c13.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-wj0838/Debug/cmTC_54c13.lib" /MACHINE:X64  /machine:x64 cmTC_54c13.dir\\Debug\\CMakeCXXCompilerABI.obj] ==> linker [C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe]
+        linker tool for 'CXX': C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe 
+        implicit libs: []
+        implicit objs: []
+        implicit dirs: []
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Internal/CMakeDetermineLinkerId.cmake:41 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeDetermineCompilerABI.cmake:337 (cmake_determine_linker_id)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Running the CXX compiler's linker: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe" "-v"
+      Microsoft (R) Incremental Linker Version 14.44.35228.0
+      Copyright (C) Microsoft Corporation.  All rights reserved.
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:2631 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython.cmake:749 (include)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "program"
+    variable: "_Python_EXECUTABLE_DEBUG"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python3.13_d"
+      - "python3_d"
+      - "python_d"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3.13_d.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3.13_d.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3.13_d"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3_d.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3_d.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python3_d"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python_d.com"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python_d.exe"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python_d"
+    found: false
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:3399 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython.cmake:749 (include)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "library"
+    variable: "_Python_LIBRARY_RELEASE"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: false
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python313"
+      - "python3.13"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/python3.13/config-3.13/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/lib/"
+    found: "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/python313.lib"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files/tethys_native/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:3595 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython.cmake:749 (include)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "library"
+    variable: "_Python_LIBRARY_DEBUG"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python313_d"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+    found: false
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files/tethys_native/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:1531 (find_library)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:3613 (_python_find_runtime_library)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython.cmake:749 (include)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "library"
+    variable: "_Python_RUNTIME_LIBRARY_RELEASE"
+    description: "Path to a library."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "python313"
+      - "python3.13"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/debugCommand/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/Code/User/globalStorage/github.copilot-chat/copilotCli/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/bin/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/java8path/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/bin/"
+      - "C:/Program Files (x86)/Common Files/Oracle/Java/javapath/"
+      - "C:/Windows/System32/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/bin/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/bin/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/bin/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/bin/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files/dotnet/bin/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/bin/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/bin/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/flutter/bin/bin/"
+      - "C:/flutter/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/bin/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Git/cmd/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/nodejs/bin/"
+      - "C:/Program Files/nodejs/"
+      - "C:/Program Files/CMake/bin/bin/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/Scripts/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python310/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Eclipse Adoptium/jdk-21.0.7.6-hotspot/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Python/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/bin/"
+      - "C:/Users/ApenasSeiso/.dotnet/tools/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Links/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/bin/"
+      - "D:/Nova pasta/Cursor/resources/app/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Ollama/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Roaming/npm/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/NuGet/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build-shared/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/bin/"
+      - "C:/Users/ApenasSeiso/.vscode/extensions/ms-python.debugpy-2026.6.0-win32-x64/bundled/scripts/noConfigScripts/"
+      - "C:/Program Files/lib/bin/"
+      - "C:/Program Files/lib/"
+      - "C:/Program Files/bin/"
+      - "C:/Program Files/"
+      - "C:/Program Files (x86)/lib/bin/"
+      - "C:/Program Files (x86)/lib/"
+      - "C:/Program Files (x86)/bin/"
+      - "C:/Program Files (x86)/"
+      - "C:/Program Files/CMake/lib/bin/"
+      - "C:/Program Files/CMake/lib/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Program Files/CMake/"
+      - "C:/Program Files/tethys_native/lib/bin/"
+      - "C:/Program Files/tethys_native/lib/"
+      - "C:/Program Files/tethys_native/bin/"
+      - "C:/Program Files/tethys_native/"
+      - "C:/Program Files/tethys_native/bin/bin/"
+      - "C:/Program Files/tethys_native/bin/"
+      - "/bin/bin/"
+      - "/bin/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/lib/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/libs/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/bin/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/bin/"
+    found: "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/python313.dll"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_LIBRARY_PATH:
+        - "C:/Program Files/tethys_native/bin"
+        - "C:/Program Files/CMake/bin"
+        - "/bin"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython/Support.cmake:3934 (find_path)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/FindPython.cmake:749 (include)"
+      - "CMakeLists.txt:18 (find_package)"
+    mode: "path"
+    variable: "_Python_INCLUDE_DIR"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: false
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "Python.h"
+    candidate_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/include/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Include/"
+    searched_directories:
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/include/Python.h"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/Python.h"
+    found: "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Include/"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Internal/CheckSourceCompiles.cmake:81 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "C:/Program Files/CMake/share/cmake-4.4/Modules/CheckCXXCompilerFlag.cmake:103 (cmake_check_compiler_flag)"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:338 (check_cxx_compiler_flag)"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:414 (_pybind11_return_if_cxx_and_linker_flags_work)"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Common.cmake:448 (_pybind11_generate_lto)"
+      - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Config.cmake:257 (include)"
+      - "CMakeLists.txt:19 (find_package)"
+    checks:
+      - "Performing Test HAS_MSVC_GL_LTCG"
+    directories:
+      source: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-s4q6bv"
+      binary: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-s4q6bv"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "HAS_MSVC_GL_LTCG"
+      cached: true
+      stdout: |
+        Change Dir: 'D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-s4q6bv'
+        
+        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_0f88d.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Vers├úo do MSBuild 17.14.51+25f168cee para .NET Framework
+        Compila├º├úo de 21/09/2026 01:13:18 iniciada.
+        
+        Projeto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\cmTC_0f88d.vcxproj" no n├│ 1 (destinos padr├úo).
+        PrepareForBuild:
+          A sa├¡da estruturada est├í habilitada. A formata├º├úo do diagn├│stico do compilador refletir├í a hierarquia de erros. Consulte https://aka.ms/cpp/structured-output para obter mais detalhes.
+          Criando o diret├│rio "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\Debug\\".
+          Criando o diret├│rio "cmTC_0f88d.dir\\Debug\\cmTC_0f88d.tlog\\".
+        InitializeBuildStatus:
+          Criando "cmTC_0f88d.dir\\Debug\\cmTC_0f88d.tlog\\unsuccessfulbuild" porque "AlwaysCreate" foi especificado.
+          Tocando "cmTC_0f88d.dir\\Debug\\cmTC_0f88d.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /std:c++17 /Fo"cmTC_0f88d.dir\\Debug\\\\" /Fd"cmTC_0f88d.dir\\Debug\\vc143.pdb" /external:W1 /TP /errorReport:queue "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\src.cxx"
+          Microsoft (R) C/C++ Optimizing Compiler Vers├úo 19.44.35228 para x64
+          Copyright (C) Microsoft Corporation. Todos os direitos reservados.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /GL /D _MBCS /D WIN32 /D _WINDOWS /D HAS_MSVC_GL_LTCG /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /std:c++17 /Fo"cmTC_0f88d.dir\\Debug\\\\" /Fd"cmTC_0f88d.dir\\Debug\\vc143.pdb" /external:W1 /TP /errorReport:queue "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\src.cxx"
+          src.cxx
+        Link:
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /OUT:"D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\Debug\\cmTC_0f88d.exe" /INCREMENTAL /ILK:"cmTC_0f88d.dir\\Debug\\cmTC_0f88d.ilk" /NOLOGO "-LTCG" kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-s4q6bv/Debug/cmTC_0f88d.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/CMakeScratch/TryCompile-s4q6bv/Debug/cmTC_0f88d.lib" /MACHINE:X64  /machine:x64 cmTC_0f88d.dir\\Debug\\src.obj
+        LINK : warning LNK4075: ignorando '/INCREMENTAL' devido a especifica├º├úo '/LTCG' [D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\cmTC_0f88d.vcxproj]
+          Gerando c├│digo
+          Finalizada a gera├º├úo de c├│digo
+          cmTC_0f88d.vcxproj -> D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\Debug\\cmTC_0f88d.exe
+        FinalizeBuildStatus:
+          Excluindo o arquivo "cmTC_0f88d.dir\\Debug\\cmTC_0f88d.tlog\\unsuccessfulbuild".
+          Tocando "cmTC_0f88d.dir\\Debug\\cmTC_0f88d.tlog\\cmTC_0f88d.lastbuildstate".
+        Projeto de compila├º├úo pronto "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\cmTC_0f88d.vcxproj" (destinos padr├úo).
+        
+        Compila├º├úo com ├¬xito.
+        
+        "D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\cmTC_0f88d.vcxproj" (destino padr├úo) (1) ->
+        (Link destino) -> 
+          LINK : warning LNK4075: ignorando '/INCREMENTAL' devido a especifica├º├úo '/LTCG' [D:\\Projeto\\wuwa-calculator-main\\build-vs2022-py313\\CMakeFiles\\CMakeScratch\\TryCompile-s4q6bv\\cmTC_0f88d.vcxproj]
+        
+            1 Aviso(s)
+            0 Erro(s)
+        
+        Tempo Decorrido 00:00:00.66
+        
+      exitCode: 0
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "CMakeLists.txt:19 (find_package)"
+    name: "pybind11"
+    configs:
+      -
+        filename: "pybind11.cps"
+        kind: "cps"
+      -
+        filename: "pybind11Config.cmake"
+        kind: "cmake"
+      -
+        filename: "pybind11-config.cmake"
+        kind: "cmake"
+    version_request:
+      exact: false
+    settings:
+      required: "optional"
+      quiet: true
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "pybind11"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/pkgRedirects/pybind11Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/pkgRedirects/pybind11-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/pkgRedirects/lib/cps/pybind11.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/pkgRedirects/share/cps/pybind11.cps"
+        mode: "cps"
+        reason: "no_exist"
+    found:
+      path: "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11/pybind11Config.cmake"
+      mode: "config"
+      version: "3.1.0"
+    search_context:
+      CMAKE_PREFIX_PATH:
+        - "C:/Users/ApenasSeiso/AppData/Local/Programs/Python/Python313/Lib/site-packages/pybind11/share/cmake/pybind11"
+      ENV{PATH}:
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\debugCommand"
+        - "c:\\Users\\ApenasSeiso\\AppData\\Roaming\\Code\\User\\globalStorage\\github.copilot-chat\\copilotCli"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\java8path"
+        - "C:\\Program Files (x86)\\Common Files\\Oracle\\Java\\javapath"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\flutter\\bin"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\nodejs\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python313\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\Scripts\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Python\\Python310\\"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Eclipse Adoptium\\jdk-21.0.7.6-hotspot\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Python\\bin"
+        - "C:\\Users\\ApenasSeiso\\.dotnet\\tools"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Links"
+        - "C:\\flutter\\bin"
+        - "D:\\Nova pasta\\Cursor\\resources\\app\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Programs\\Ollama"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Roaming\\npm"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\NuGet"
+        - "C:\\Users\\ApenasSeiso\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.1-full_build-shared\\bin"
+        - "c:\\Users\\ApenasSeiso\\.vscode\\extensions\\ms-python.debugpy-2026.6.0-win32-x64\\bundled\\scripts\\noConfigScripts"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files/tethys_native"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files/tethys_native"
+...

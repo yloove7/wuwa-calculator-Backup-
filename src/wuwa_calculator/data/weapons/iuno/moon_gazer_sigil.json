@@ -1,0 +1,17 @@
+{
+  "name": "Iuno",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Iuno",
+    "description": "Passiva da arma de Iuno registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Iuno",
+    "description": "Weapon passive for Iuno stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

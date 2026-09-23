@@ -1,0 +1,17 @@
+{
+  "name": "Spectral Trigger",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Gatilho Espectral",
+    "description": "Passiva da arma de Lucy registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Spectral Trigger",
+    "description": "Weapon passive for Lucy stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

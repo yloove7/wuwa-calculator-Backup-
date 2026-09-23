@@ -1,0 +1,23 @@
+{
+  "name": "Yangyang Xuanling",
+  "PT-BR": {
+    "base_atk": 412.0,
+    "energy_regen": 76.9,
+    "passive_name": "Yangyang Xuanling",
+    "description": "Passiva da arma de Yangyang Xuanling, com efeito principal focado em suporte e bônus de equipe.",
+    "effects": [
+      "Quando a Habilidade de Ressonância é ativada, remove parte da carga de energia e concede bônus temporário ao time.",
+      "Durante a presença em campo, a equipe recebe aumento de dano e regeneração de energia em sequência."
+    ]
+  },
+  "EN": {
+    "base_atk": 412.0,
+    "energy_regen": 76.9,
+    "passive_name": "Yangyang Xuanling",
+    "description": "Weapon passive for Yangyang Xuanling, focused on team support and damage amplification.",
+    "effects": [
+      "When the Resonance Skill is triggered, it clears a portion of energy pressure and grants a temporary team bonus.",
+      "While on the field, the party gains increased damage and faster energy recovery in sequence."
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/_tethys_native.dir
+D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/ALL_BUILD.dir
+D:/Projeto/wuwa-calculator-main/build-vs2022-py313/CMakeFiles/ZERO_CHECK.dir

@@ -1,0 +1,17 @@
+{
+  "name": "Roccia",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Roccia",
+    "description": "Passiva da arma de Roccia registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Roccia",
+    "description": "Weapon passive for Roccia stored locally in the per-character JSON.",
+    "effects": []
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Cantarella",
+  "PT-BR": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Cantarella",
+    "description": "Passiva da arma de Cantarella registrada localmente em JSON por personagem.",
+    "effects": []
+  },
+  "EN": {
+    "base_atk": 412,
+    "energy_regen": 76.9,
+    "passive_name": "Cantarella",
+    "description": "Weapon passive for Cantarella stored locally in the per-character JSON.",
+    "effects": []
+  }
+}
