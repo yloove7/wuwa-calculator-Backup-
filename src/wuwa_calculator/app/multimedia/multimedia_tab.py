@@ -16,8 +16,8 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.wuwa_calculator.app.components import Card, TitleLabel
-from src.wuwa_calculator.app.dps_simulation_panel import DpsSimulationPanel
-from src.wuwa_calculator.app.history_video_player import HistoryVideoPlayer
+from src.wuwa_calculator.app.multimedia.dps_simulation_panel import DpsSimulationPanel
+from src.wuwa_calculator.app.multimedia.history_video_player import HistoryVideoPlayer
 
 
 EVENTS = (
@@ -291,9 +291,17 @@ class MultimediaTab(QWidget):
         layout.addWidget(self.dps_panel, 2)
 
     def closeEvent(self, event) -> None:
-        self.dps_panel._stop_live_analysis()
+        if not self.dps_panel._stop_live_analysis():
+            event.ignore()
+            return
         self.video_player.stop_video()
         super().closeEvent(event)
+
+    def shutdown(self) -> bool:
+        if not self.dps_panel._stop_live_analysis():
+            return False
+        self.video_player.stop_video()
+        return True
 
     def set_active(self, active: bool) -> None:
         if active:

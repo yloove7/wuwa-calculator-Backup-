@@ -10,12 +10,21 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent
 _AUTO_UPDATE_CHECK_RAN = False
 
 
-def _run_git(*arguments: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+def _run_git(
+    *arguments: str,
+    check: bool = False,
+    capture_output: bool = False,
+    stdout: int | None = None,
+    stderr: int | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *arguments],
         cwd=REPOSITORY_ROOT,
         text=True,
-        **kwargs,
+        check=check,
+        capture_output=capture_output,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 

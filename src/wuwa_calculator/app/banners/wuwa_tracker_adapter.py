@@ -5,7 +5,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, TextIO
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
@@ -13,9 +13,15 @@ from urllib.request import Request, urlopen
 _print = builtins.print
 
 
-def _debug_print(*args: object, **kwargs: object) -> None:
+def _debug_print(
+    *args: object,
+    sep: str | None = " ",
+    end: str | None = "\n",
+    file: TextIO | None = None,
+    flush: bool = False,
+) -> None:
     if os.environ.get("TETHYS_DEBUG_BANNER") == "1":
-        _print(*args, **kwargs)
+        _print(*args, sep=sep, end=end, file=file, flush=flush)
 
 
 print = _debug_print
@@ -103,7 +109,7 @@ def _try_gist() -> dict[str, Any] | None:
     """Tenta Gist - fallback confiável com URL de imagem pronta."""
     try:
         print(f"  [Gist] Requisitando banner_service...")
-        from src.wuwa_calculator.app.banner_service import fetch_current_banner
+        from src.wuwa_calculator.app.banners.banner_service import fetch_current_banner
         banner = fetch_current_banner()
         if banner:
             banner["source"] = "gist"

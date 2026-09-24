@@ -3,6 +3,7 @@
 import builtins
 import os
 import sys
+from typing import TextIO
 import math
 from collections.abc import Iterable
 from datetime import datetime, timezone
@@ -11,7 +12,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PySide6.QtCore import Qt, QTimer, QByteArray, QRect, QRectF, QPropertyAnimation, QSequentialAnimationGroup, QEasingCurve
+from PySide6.QtCore import Qt, QTimer, QByteArray, QRect, QRectF, QPropertyAnimation, QSequentialAnimationGroup, QEasingCurve, Signal
 from PySide6.QtGui import (
     QPixmap, QPainter, QBrush, QColor, QBitmap, QPainterPath,
     QLinearGradient, QRadialGradient, QPen,
@@ -21,8 +22,10 @@ from PySide6.QtWidgets import (
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -34,9 +37,15 @@ from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 _print = builtins.print
 
 
-def _debug_print(*args: object, **kwargs: object) -> None:
+def _debug_print(
+    *args: object,
+    sep: str | None = " ",
+    end: str | None = "\n",
+    file: TextIO | None = None,
+    flush: bool = False,
+) -> None:
     if os.environ.get("TETHYS_DEBUG_BANNER") == "1":
-        _print(*args, **kwargs)
+        _print(*args, sep=sep, end=end, file=file, flush=flush)
 
 
 print = _debug_print
@@ -100,7 +109,7 @@ def _create_rounded_pixmap(pixmap: QPixmap, radius: int = 16) -> QPixmap:
     
     # Cria pixmap com tamanho EXATO (960x440)
     result = QPixmap(width, height)
-    result.fill(Qt.transparent)
+    result.fill(Qt.GlobalColor.transparent)
     
     painter = QPainter(result)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -119,7 +128,7 @@ def _create_rounded_pixmap(pixmap: QPixmap, radius: int = 16) -> QPixmap:
     # Desenha sombra 3D moderada (não fraca, não forte)
     # Cria gradiente de sombra apenas nas bordas para efeito de profundidade
     shadow_color = QColor(0, 0, 0, 50)  # Aumentado de 25 para 50 (mais visível)
-    painter.setPen(Qt.NoPen)
+    painter.setPen(Qt.PenStyle.NoPen)
     painter.fillPath(path, shadow_color)
     
     # Desenha borda suave para reforçar o efeito 3D
@@ -150,6 +159,26 @@ class TitleLabel(QLabel):
         super().__init__(text, parent)
         self.setObjectName("title")
         apply_glow(self, blur=10, opacity=90)
+
+
+class CharacterSidebarButton(QPushButton):
+    close_requested = Signal()
+
+    def __init__(self, label: str, parent: QWidget | None = None) -> None:
+        super().__init__(label, parent)
+        self.close_button = QToolButton(self)
+        self.close_button.setObjectName("tabClose")
+        self.close_button.setText("×")
+        self.close_button.setToolTip("Fechar aba")
+        self.close_button.setFixedSize(22, 22)
+        self.close_button.clicked.connect(self.close_requested)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.close_button.move(
+            self.width() - self.close_button.width() - 5,
+            (self.height() - self.close_button.height()) // 2,
+        )
 
 
 class MetricCard(Card):
@@ -245,7 +274,7 @@ class WuWaKuroBannerCard(QFrame):
         container_layout.setSpacing(0)
         
         self.img_label = QLabel(self.img_container)
-        self.img_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # Cola no canto superior esquerdo
+        self.img_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)  # Cola no canto superior esquerdo
         self.img_label.setScaledContents(False)  # Não escalona automaticamente
         self.img_label.setStyleSheet("""
             QLabel {
@@ -260,7 +289,7 @@ class WuWaKuroBannerCard(QFrame):
         
         # --- HOLOGRAM OVERLAY (Efeito prismatico animado) ---
         self.hologram_overlay = QLabel(self.img_container)
-        self.hologram_overlay.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.hologram_overlay.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.hologram_overlay.setFixedSize(960, 440)
         self.hologram_overlay.setStyleSheet("background: transparent;")
         self.hologram_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -330,8 +359,8 @@ class WuWaKuroBannerCard(QFrame):
                 scaled_pixmap = pixmap.scaled(
                     960,
                     440,
-                    Qt.KeepAspectRatio,
-                    Qt.SmoothTransformation,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
                 )
                 print(f"[WuWaKuroBannerCard] Pixmap inteiro ajustado para: {scaled_pixmap.size()}")
 
@@ -364,7 +393,7 @@ class WuWaKuroBannerCard(QFrame):
             traceback.print_exc()
             
         self.img_label.setText(f"[{fallback_name}] - Arte Indisponível")
-        self.img_label.setAlignment(Qt.AlignCenter)
+        self.img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.img_label.setStyleSheet("color: #d4af37; font-size: 15px; font-weight: bold; background-color: #1a1829; border-radius: 14px;")
 
     def _create_hologram_effect(self) -> None:

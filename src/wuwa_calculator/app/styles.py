@@ -101,7 +101,9 @@ def disable_visual_effects(root: QWidget) -> None:
     for widget in [root, *root.findChildren(QWidget)]:
         current_effect = widget.graphicsEffect()
         if current_effect is not None:
-            widget.setGraphicsEffect(None)
+            neutral_effect = QGraphicsOpacityEffect(widget)
+            neutral_effect.setOpacity(1.0)
+            widget.setGraphicsEffect(neutral_effect)
         if isinstance(current_effect, QGraphicsOpacityEffect):
             current_effect.setOpacity(1.0)
 

@@ -36,12 +36,21 @@ GITHUB_LATEST_RELEASE_URL = (
 )
 
 
-def _run_git(*arguments: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+def _run_git(
+    *arguments: str,
+    check: bool = False,
+    capture_output: bool = False,
+    stdout: int | None = None,
+    stderr: int | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *arguments],
         cwd=REPOSITORY_ROOT,
         text=True,
-        **kwargs,
+        check=check,
+        capture_output=capture_output,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -86,6 +95,7 @@ def _select_release_asset(release_data: dict[str, object]) -> dict[str, object] 
         if any(token in name for token in preferred_names):
             return asset
     for asset in candidates:
+        name = str(asset.get("name", "")).lower()
         if name.endswith(".exe"):
             return asset
     return candidates[0]
@@ -259,12 +269,14 @@ class DialogoVerificandoAtualizacao(QDialog):
         self.setWindowTitle("TETHYS - Verificando atualizações")
         self.setFixedSize(320, 110)
         self.setWindowFlags(
-            Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint
+            Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
         )
 
         layout = QVBoxLayout(self)
         mensagem = QLabel("Verificando atualizações...\nAguarde um momento.")
-        mensagem.setAlignment(Qt.AlignCenter)
+        mensagem.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(mensagem)
 
         progresso = QProgressBar()
@@ -295,7 +307,9 @@ class DialogoAtualizacao(QDialog):
         self.setWindowTitle("TETHYS - Atualização Disponível")
         self.setFixedSize(500, 380)
         self.setWindowFlags(
-            Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint
+            Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.CustomizeWindowHint
+            | Qt.WindowType.WindowTitleHint
         )
         self.deve_atualizar = False
 

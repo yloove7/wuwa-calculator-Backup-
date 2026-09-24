@@ -17,7 +17,7 @@ def read_network_reply(reply: object) -> bytes:
     if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
         return b""
     try:
-        return bytes(reply.readAll())
+        return bytes(reply.readAll().data())
     except (AttributeError, RuntimeError, TypeError, ValueError):
         return b""
 

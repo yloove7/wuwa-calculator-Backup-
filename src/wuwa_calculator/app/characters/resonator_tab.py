@@ -9,7 +9,7 @@ import html
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 # PySide6 is provided by the application's runtime environment; keep static
 # analyzers from flagging the optional GUI dependency when it is not installed.
@@ -41,6 +41,28 @@ from src.wuwa_calculator.data.echo_images import ECHO_IMAGE_OVERRIDES
 from src.wuwa_calculator.data.images import CHARACTER_IMAGE_FALLBACKS
 from src.wuwa_calculator.data.weapons import MANUAL_WEAPONS, _LOCAL_KIT_WEAPON_NAMES
 from src.wuwa_calculator.app.security_policy import allows_local_image, allows_remote_content
+
+
+class DamageInputValues(TypedDict):
+    attack_total: float
+    skill_modifier: float
+    damage_bonus: float
+    crit_multiplier: float
+    defense_factor: float
+    resistance_factor: float
+    hits: int
+    casts: int
+    duration: float
+
+
+def _format_buffs(value: object) -> str:
+    if not isinstance(value, list):
+        return ""
+    formatted: list[str] = []
+    for entry in value:
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            formatted.append(f"{entry[0]}: {entry[1]}%")
+    return ", ".join(formatted)
 
 
 class ResonatorTab(QWidget):
@@ -431,10 +453,14 @@ class ResonatorTab(QWidget):
                 label = QLabel(field_label)
                 label.setObjectName("damageInputLabel")
                 group_layout.addWidget(label, row, 0)
-                field = QSpinBox() if key in {"hits", "casts"} else QDoubleSpinBox()
-                field.setRange(minimum, maximum)
-                field.setValue(value)
-                if isinstance(field, QDoubleSpinBox):
+                if key in {"hits", "casts"}:
+                    field: QSpinBox | QDoubleSpinBox = QSpinBox()
+                    field.setRange(int(minimum), int(maximum))
+                    field.setValue(int(value))
+                else:
+                    field = QDoubleSpinBox()
+                    field.setRange(float(minimum), float(maximum))
+                    field.setValue(float(value))
                     field.setDecimals(2)
                 field.setObjectName("damageInput")
                 self.damage_fields[key] = field
@@ -476,8 +502,28 @@ class ResonatorTab(QWidget):
         self.controls.addTab(tab, "Relatorio DPS")
 
     def calculate_character_damage(self) -> None:
-        values = {key: field.value() for key, field in self.damage_fields.items()}
-        result = calculate_character_damage(**values)
+        values: DamageInputValues = {
+            "attack_total": float(self.damage_fields["attack_total"].value()),
+            "skill_modifier": float(self.damage_fields["skill_modifier"].value()),
+            "damage_bonus": float(self.damage_fields["damage_bonus"].value()),
+            "crit_multiplier": float(self.damage_fields["crit_multiplier"].value()),
+            "defense_factor": float(self.damage_fields["defense_factor"].value()),
+            "resistance_factor": float(self.damage_fields["resistance_factor"].value()),
+            "hits": int(self.damage_fields["hits"].value()),
+            "casts": int(self.damage_fields["casts"].value()),
+            "duration": float(self.damage_fields["duration"].value()),
+        }
+        result = calculate_character_damage(
+            attack_total=values["attack_total"],
+            skill_modifier=values["skill_modifier"],
+            damage_bonus=values["damage_bonus"],
+            crit_multiplier=values["crit_multiplier"],
+            defense_factor=values["defense_factor"],
+            resistance_factor=values["resistance_factor"],
+            hits=values["hits"],
+            casts=values["casts"],
+            duration=values["duration"],
+        )
         self.damage_stat_labels["hit"].setText(f"{result.damage_per_hit:,.0f}")
         self.damage_stat_labels["total"].setText(f"{result.total_damage:,.0f}")
         self.damage_stat_labels["dps"].setText(f"{result.dps:,.0f}")
@@ -544,12 +590,12 @@ class ResonatorTab(QWidget):
             label.setText(str(stats.get(key, "--")))
 
         kit = CHARACTER_KITS_DB.get(character_id) or MANUAL_CHARACTER_KITS.get(character_id) or {}
-        team_buffs = kit.get("team_buffs", []) if isinstance(kit, dict) else []
-        personal_buffs = kit.get("personal_buffs", []) if isinstance(kit, dict) else []
+        team_buffs = _format_buffs(kit.get("team_buffs", [])) if isinstance(kit, dict) else ""
+        personal_buffs = _format_buffs(kit.get("personal_buffs", [])) if isinstance(kit, dict) else ""
         if team_buffs:
-            self.supports_bonus_entry.setText(", ".join(f"{name}: {value}%" for name, value in team_buffs))
+            self.supports_bonus_entry.setText(team_buffs)
         if personal_buffs:
-            self.supports_passive_entry.setText(", ".join(f"{name}: {value}%" for name, value in personal_buffs))
+            self.supports_passive_entry.setText(personal_buffs)
         weapon_name = str(_LOCAL_KIT_WEAPON_NAMES.get(character_id, kit.get("weapon_name", "Arma não cadastrada")))
         manual_weapon = MANUAL_WEAPONS.get(character_id, {})
         self.weapon_name.setText(str(manual_weapon.get("name", weapon_name)))
@@ -582,19 +628,19 @@ class ResonatorTab(QWidget):
 
         attack = stats.get("atk")
         if attack is not None and "attack_total" in self.damage_fields:
-            self.damage_fields["attack_total"].setValue(attack)
+            attack_field = self.damage_fields["attack_total"]
+            if isinstance(attack_field, QDoubleSpinBox):
+                attack_field.setValue(attack)
+            else:
+                attack_field.setValue(round(attack))
         if echoes:
             names = [str(echo.get("name", "Echo")) for echo in echoes]
             self.echoes_entry.setText(", ".join(names))
-            attributes = [
-                str(attribute)
-                for echo in echoes
-                for attribute in (
-                    echo.get("attributes", [])
-                    if isinstance(echo.get("attributes", []), list)
-                    else []
-                )
-            ]
+            attributes: list[str] = []
+            for echo in echoes:
+                raw_attributes = echo.get("attributes", [])
+                if isinstance(raw_attributes, list):
+                    attributes.extend(str(attribute) for attribute in raw_attributes)
             self.echoes_bonus_entry.setText(", ".join(
                 attribute for attribute in attributes if "%" in attribute
             ) or "Nenhum bônus identificado")
@@ -796,8 +842,11 @@ class ResonatorTab(QWidget):
     def _render_kit(self, kit: dict[str, Any]) -> None:
         while self.kit_layout.count():
             item = self.kit_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
         self._element_glow_widgets = self._element_glow_widgets[:3]
         skills = kit.get("skills", []) if isinstance(kit, dict) else []
         for skill in skills:

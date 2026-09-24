@@ -1,13 +1,22 @@
 import os
 import unittest
+from typing import TypeVar
 from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QScrollArea
 
-from src.wuwa_calculator.app.convene_tracker_tab import ConveneTrackerTab
+from src.wuwa_calculator.app.convene.convene_tracker_tab import ConveneTrackerTab
 from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget, TrackerStatus
+
+T = TypeVar("T")
+
+
+def _required(value: T | None) -> T:
+    if value is None:
+        raise AssertionError("Expected Qt table item to exist")
+    return value
 
 
 class ConveneTrackerTabTests(unittest.TestCase):
@@ -186,23 +195,23 @@ class ConveneTrackerTabTests(unittest.TestCase):
         tracker.history_changed.emit(records)
 
         self.assertEqual(tab.history_table.columnCount(), 4)
-        self.assertEqual(tab.history_table.horizontalHeaderItem(0).text(), "Raridade")
-        self.assertEqual(tab.history_table.item(0, 0).text(), "★★★★★")
-        self.assertEqual(tab.history_table.item(0, 1).text(), "Desconhecido")
-        self.assertEqual(tab.history_table.item(0, 2).text(), "--")
-        self.assertEqual(tab.history_table.item(0, 3).text(), "invalid")
-        self.assertEqual(tab.history_table.item(1, 0).text(), "★★★")
-        self.assertEqual(tab.history_table.item(1, 1).text(), "Originite")
-        self.assertEqual(tab.history_table.item(1, 2).text(), "Standard Character")
-        self.assertEqual(tab.history_table.item(1, 3).text(), "20/09/2026 00:00")
-        self.assertEqual(tab.history_table.item(2, 0).text(), "★★★★")
-        self.assertEqual(tab.history_table.item(2, 1).text(), "Variation")
-        self.assertEqual(tab.history_table.item(2, 2).text(), "Weapon")
-        self.assertEqual(tab.history_table.item(2, 3).text(), "20/09/2026 17:29")
-        self.assertEqual(tab.history_table.item(3, 1).text(), "Jinhsi")
-        self.assertEqual(tab.history_table.item(3, 3).text(), "20/09/2026 17:31")
+        self.assertEqual(_required(tab.history_table.horizontalHeaderItem(0)).text(), "Raridade")
+        self.assertEqual(_required(tab.history_table.item(0, 0)).text(), "★★★★★")
+        self.assertEqual(_required(tab.history_table.item(0, 1)).text(), "Desconhecido")
+        self.assertEqual(_required(tab.history_table.item(0, 2)).text(), "--")
+        self.assertEqual(_required(tab.history_table.item(0, 3)).text(), "invalid")
+        self.assertEqual(_required(tab.history_table.item(1, 0)).text(), "★★★")
+        self.assertEqual(_required(tab.history_table.item(1, 1)).text(), "Originite")
+        self.assertEqual(_required(tab.history_table.item(1, 2)).text(), "Standard Character")
+        self.assertEqual(_required(tab.history_table.item(1, 3)).text(), "20/09/2026 00:00")
+        self.assertEqual(_required(tab.history_table.item(2, 0)).text(), "★★★★")
+        self.assertEqual(_required(tab.history_table.item(2, 1)).text(), "Variation")
+        self.assertEqual(_required(tab.history_table.item(2, 2)).text(), "Weapon")
+        self.assertEqual(_required(tab.history_table.item(2, 3)).text(), "20/09/2026 17:29")
+        self.assertEqual(_required(tab.history_table.item(3, 1)).text(), "Jinhsi")
+        self.assertEqual(_required(tab.history_table.item(3, 3)).text(), "20/09/2026 17:31")
         self.assertNotIn("Pity", [
-            tab.history_table.horizontalHeaderItem(index).text()
+            _required(tab.history_table.horizontalHeaderItem(index)).text()
             for index in range(tab.history_table.columnCount())
         ])
         tracker.history_changed.emit(["invalid", None])
@@ -228,7 +237,7 @@ class ConveneTrackerTabTests(unittest.TestCase):
         self.assertEqual(tab.history_table.columnCount(), 4)
         self.assertEqual(tab.history_table.rowCount(), len(records))
         self.assertEqual(
-            tab.history_table.item(tab.history_table.rowCount() - 1, 1).toolTip(),
+            _required(tab.history_table.item(tab.history_table.rowCount() - 1, 1)).toolTip(),
             long_name,
         )
         self.assertEqual(records, original_records)
@@ -310,9 +319,9 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
         self.assertIn("18/09/2026 00:00", tab.history_summary_values["period"].text())
         self.assertIn("20/09/2026 00:00", tab.history_summary_values["period"].text())
-        self.assertEqual(tab.history_table.item(0, 1).text(), "19")
-        self.assertEqual(tab.history_table.item(1, 1).text(), "18")
-        self.assertEqual(tab.history_table.item(2, 1).text(), "20")
+        self.assertEqual(_required(tab.history_table.item(0, 1)).text(), "19")
+        self.assertEqual(_required(tab.history_table.item(1, 1)).text(), "18")
+        self.assertEqual(_required(tab.history_table.item(2, 1)).text(), "20")
         self.assertEqual(records, original_records)
         tracker.deleteLater()
         tab.deleteLater()
@@ -383,7 +392,7 @@ class ConveneTrackerTabTests(unittest.TestCase):
 
     def test_invalid_url_emits_status_changed(self) -> None:
         tracker = LegacyPityTrackerWidget()
-        statuses: list[object] = []
+        statuses: list[TrackerStatus] = []
         tracker.status_changed.connect(statuses.append)
 
         tracker._start_import(

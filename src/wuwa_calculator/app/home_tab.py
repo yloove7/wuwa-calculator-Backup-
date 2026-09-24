@@ -6,6 +6,8 @@ import builtins
 import math
 import os
 import sys
+import time
+from typing import TextIO
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -34,7 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.wuwa_calculator.app.components import Card, TitleLabel, WuWaKuroBannerCard
-from src.wuwa_calculator.app.banner_service import fetch_current_banner
+from src.wuwa_calculator.app.banners.banner_service import fetch_current_banner
 from src.wuwa_calculator.app.pity_tracker import PityTrackerWidget
 from src.wuwa_calculator.app.styles import apply_glow
 from src.wuwa_calculator.storage.banner_cache import load_cached_banner, save_cached_banner
@@ -43,9 +45,15 @@ from src.wuwa_calculator.storage.banner_cache import load_cached_banner, save_ca
 _print = builtins.print
 
 
-def _debug_print(*args: object, **kwargs: object) -> None:
+def _debug_print(
+    *args: object,
+    sep: str | None = " ",
+    end: str | None = "\n",
+    file: TextIO | None = None,
+    flush: bool = False,
+) -> None:
     if os.environ.get("TETHYS_DEBUG_BANNER") == "1":
-        _print(*args, **kwargs)
+        _print(*args, sep=sep, end=end, file=file, flush=flush)
 
 
 print = _debug_print
@@ -196,7 +204,7 @@ def _full_banner_pixmap(
     return canvas
 
 
-def _apply_rounded_image_mask(widget: QLabel, radius: int = 16) -> None:
+def _apply_rounded_image_mask(widget: QWidget, radius: int = 16) -> None:
     mask = QPixmap(widget.size())
     mask.fill(Qt.GlobalColor.transparent)
     painter = QPainter(mask)
@@ -231,7 +239,7 @@ class CatalogWorker(QObject):
     finished = Signal(object)
 
     def run(self) -> None:
-        from src.wuwa_calculator.app.wuwa_tracker_adapter import fetch_banner_catalog
+        from src.wuwa_calculator.app.banners.wuwa_tracker_adapter import fetch_banner_catalog
         self.finished.emit(fetch_banner_catalog())
 
 
@@ -290,8 +298,13 @@ class UpcomingBannerCard(QFrame):
         name.setObjectName("upcomingBannerName")
         overlay_layout.addWidget(name)
 
+        rarity = record.get("rarity", 5)
+        try:
+            rarity_value = int(rarity) if isinstance(rarity, (str, int, float)) and not isinstance(rarity, bool) else 5
+        except (TypeError, ValueError, OverflowError):
+            rarity_value = 5
         details = QLabel(
-            f"Raridade: ★{int(record.get('rarity', 5) or 5)}\n"
+            f"Raridade: ★{rarity_value}\n"
             f"{record.get('date_label', 'Data: Próximo banner')}"
         , overlay)
         details.setObjectName("upcomingBannerDetails")
@@ -483,8 +496,11 @@ class UpcomingBannersSection(QFrame):
         for layout in (self.past_layout, self.current_layout, self.future_layout):
             while layout.count():
                 item = layout.takeAt(0)
-                if item.widget() is not None:
-                    item.widget().deleteLater()
+                if item is None:
+                    continue
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         columns = (
             (self.past_layout, "past", "BANNER PASSADO"),
@@ -632,10 +648,28 @@ class HomeTab(QWidget):
         if self.banner_card is not None:
             self.banner_card.set_active(active)
 
+    def shutdown_workers(self, timeout_ms: int = 5000) -> bool:
+        threads = (self.banner_thread, self.catalog_thread, self.pity_tracker.worker)
+        remaining_ms = timeout_ms
+        for thread in threads:
+            if thread is None or not thread.isRunning():
+                continue
+            thread.quit()
+            started = time.monotonic()
+            if not thread.wait(remaining_ms):
+                return False
+            remaining_ms = max(0, remaining_ms - int((time.monotonic() - started) * 1000))
+            if thread is self.banner_thread:
+                self._clear_banner_worker()
+            elif thread is self.catalog_thread:
+                self._clear_catalog_worker()
+        return True
+
     def _start_catalog_refresh(self) -> None:
         self.catalog_thread = QThread(self)
         self.catalog_worker = CatalogWorker()
         self.catalog_worker.moveToThread(self.catalog_thread)
+        self.catalog_thread.finished.connect(self.catalog_worker.deleteLater)
         self.catalog_thread.started.connect(self.catalog_worker.run)
         self.catalog_worker.finished.connect(self._catalog_loaded)
         self.catalog_worker.finished.connect(self.catalog_thread.quit)
@@ -684,8 +718,6 @@ class HomeTab(QWidget):
         self._catalog_snapshot_source = tuple(visible)
         self.timeline_panel.set_cards(visible)
     def _clear_catalog_worker(self) -> None:
-        if self.catalog_worker is not None:
-            self.catalog_worker.deleteLater()
         if self.catalog_thread is not None:
             self.catalog_thread.deleteLater()
         self.catalog_worker = None
@@ -696,6 +728,7 @@ class HomeTab(QWidget):
         self.banner_thread = QThread(self)
         self.banner_worker = BannerWorker()
         self.banner_worker.moveToThread(self.banner_thread)
+        self.banner_thread.finished.connect(self.banner_worker.deleteLater)
         self.banner_thread.started.connect(self.banner_worker.run)
         self.banner_worker.finished.connect(self._banner_loaded)
         self.banner_worker.finished.connect(self.banner_thread.quit)
@@ -759,8 +792,6 @@ class HomeTab(QWidget):
 
     def _clear_banner_worker(self) -> None:
         print("[HomeTab] Limpando banner worker...")
-        if self.banner_worker is not None:
-            self.banner_worker.deleteLater()
         if self.banner_thread is not None:
             self.banner_thread.deleteLater()
         self.banner_worker = None

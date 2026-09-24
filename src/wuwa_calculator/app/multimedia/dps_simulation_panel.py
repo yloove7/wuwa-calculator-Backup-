@@ -9,7 +9,7 @@ import sys
 import time
 from collections import defaultdict
 from threading import Lock
-from typing import Any
+from typing import Any, cast
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -19,8 +19,13 @@ import pyqtgraph as pg
 from PySide6.QtCore import QElapsedTimer, QObject, QTime, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import (
-    QComboBox, QHBoxLayout, QLabel, QTimeEdit, QVBoxLayout, QWidget,
+    QComboBox, QGraphicsLayout, QHBoxLayout, QLabel, QTimeEdit, QVBoxLayout, QWidget,
 )
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.wuwa_calculator.app.multimedia.history_video_player import HistoryVideoPlayer
 
 from src.wuwa_calculator.app.components import Card
 from src.wuwa_calculator.app.capture.controller import FrameProcessor
@@ -725,17 +730,33 @@ class DpsPlotWidget(pg.PlotWidget):
             "right": NumericAxis(orientation="right"),
         }
         super().__init__(axisItems=axis_items, parent=parent)
-        self.scene().sigMouseClicked.connect(self._on_scene_clicked)
+        scene = cast(pg.GraphicsScene, self.scene())
+        scene.sigMouseClicked.connect(self._on_scene_clicked)
 
     def _on_scene_clicked(self, event) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
-        view_box = self.getPlotItem().vb
+        plot_item = _plot_item(self)
+        view_box = cast(pg.ViewBox, plot_item.vb)
         if not view_box.sceneBoundingRect().contains(event.scenePos()):
             return
         point = view_box.mapSceneToView(event.scenePos())
         if point.x() >= 0:
             self.timestampClicked.emit(float(point.x()))
+
+
+def _plot_item(widget: pg.PlotWidget) -> pg.PlotItem:
+    plot_item = widget.getPlotItem()
+    if plot_item is None:
+        raise RuntimeError("PlotWidget did not create its PlotItem")
+    return cast(pg.PlotItem, plot_item)
+
+
+def _plot_view_box(plot_item: pg.PlotItem) -> pg.ViewBox:
+    view_box = plot_item.vb
+    if not isinstance(view_box, pg.ViewBox):
+        raise RuntimeError("PlotItem did not create its ViewBox")
+    return view_box
 
 
 class NumericAxis(pg.AxisItem):
@@ -902,6 +923,7 @@ class LiveDamageAnalysisWorker(QObject):
         self._target_seconds = self.start_time
         self._frame_processing = False
         self._idle_interval = 0.22
+        self._active_interval = 1.0 / OCR_SAMPLE_FPS
         self.no_damage_timeout = INACTIVITY_TIMEOUT
 
     def update_position(self, seconds: float) -> None:
@@ -922,6 +944,8 @@ class LiveDamageAnalysisWorker(QObject):
         from rapidocr_onnxruntime import RapidOCR
 
         capture = cv2.VideoCapture(self.video_path, cv2.CAP_FFMPEG)
+        last_hit_time = self.start_time
+        completion_reason = "video_end"
         try:
             if not capture.isOpened():
                 self.failed.emit("Não foi possível abrir o vídeo para análise ao vivo")
@@ -946,9 +970,7 @@ class LiveDamageAnalysisWorker(QObject):
             accumulated = 0.0
             last_detection_time = -1.0
             # O timeout ignora todo o vídeo anterior ao início efetivo da análise.
-            last_hit_time = self.start_time
             no_damage_timer = 0.0
-            completion_reason = "video_end"
             while not self._cancelled:
                 with self._position_lock:
                     target = self._target_seconds
@@ -1478,10 +1500,7 @@ class WorkerCapturaNativa(QObject):
         })
 
     def _locate_target_window(self):
-        try:
-            from .window_utils import obter_hwnd_jogo
-        except ImportError:
-            from src.wuwa_calculator.app.window_utils import obter_hwnd_jogo
+        from src.wuwa_calculator.app.capture.window_utils import obter_hwnd_jogo
 
         detected_hwnd = obter_hwnd_jogo(self.capture_mode)
         if detected_hwnd is not None:
@@ -1718,12 +1737,12 @@ class WorkerCapturaNativa(QObject):
                         return
                     with self._wgc_lock:
                         self._wgc_log_frame_count += 1
+                        frames = self._wgc_log_frame_count
                         if self._wgc_log_started_at <= 0.0:
                             self._wgc_log_started_at = now
                         elapsed = now - self._wgc_log_started_at
                         should_log = elapsed >= 5.0
                         if should_log:
-                            frames = self._wgc_log_frame_count
                             self._wgc_log_started_at = now
                             self._wgc_log_frame_count = 0
                     if should_log:
@@ -1820,7 +1839,7 @@ class WorkerCapturaNativa(QObject):
 
 
 class DpsSimulationPanel(Card):
-    def __init__(self, video_player: QWidget, parent: QWidget | None = None) -> None:
+    def __init__(self, video_player: HistoryVideoPlayer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.video_player = video_player
         self.capture_settings = CaptureSettings()
@@ -1828,7 +1847,7 @@ class DpsSimulationPanel(Card):
         self.duration_seconds = 163.0
         self._dps_start_time = 0.0
         self.live_thread: QThread | None = None
-        self.live_worker: LiveDamageAnalysisWorker | None = None
+        self.live_worker: LiveDamageAnalysisWorker | WorkerCapturaNativa | None = None
         self._live_blocks: defaultdict[int, list[float]] = defaultdict(lambda: [0.0, 0.0, 0.0, 0.0])
         self._total_hits = 0
         self._peak_hit = 0
@@ -1917,45 +1936,46 @@ class DpsSimulationPanel(Card):
         ))
         self.analysis_source.currentIndexChanged.connect(self._on_analysis_source_changed)
         form.addWidget(self.analysis_source)
-        self._analysis_interval_widgets = [
-            form.itemAt(index).widget()
-            for index in range(form.count())
-            if form.itemAt(index).widget() is not None
-            and form.itemAt(index).widget() is not self.analysis_source
-        ]
+        self._analysis_interval_widgets: list[QWidget] = []
+        for index in range(form.count()):
+            item = form.itemAt(index)
+            widget = item.widget() if item is not None else None
+            if widget is not None and widget is not self.analysis_source:
+                self._analysis_interval_widgets.append(widget)
         controls.addLayout(form)
         layout.addLayout(controls)
 
         self.plot = DpsPlotWidget(self)
+        self.plot_item = _plot_item(self.plot)
         self.plot.setObjectName("dpsPlot")
-        self.plot.getPlotItem().hideButtons()
+        self.plot_item.hideButtons()
         self.plot.setBackground("#080B18")
         self.plot.setMinimumHeight(141)
         self.plot.setMaximumHeight(260)
-        self.plot.getPlotItem().layout.setContentsMargins(2, 2, 2, 2)
+        cast(QGraphicsLayout, self.plot_item.layout).setContentsMargins(2, 2, 2, 2)
         self.plot.setLabel("bottom", "")
         self.plot.setLabel("left", "")
         self.plot.showAxis("right")
-        damage_axis = self.plot.getPlotItem().getAxis("right")
+        damage_axis = cast(pg.AxisItem, self.plot_item.getAxis("right"))
         damage_axis.setLabel("")
         damage_axis.setWidth(68)
         damage_axis.setPen(pg.mkPen("#6870A8"))
         damage_axis.setTextPen(pg.mkPen("#C7C8EA"))
         self.damage_view = pg.ViewBox()
         self.plot.scene().addItem(self.damage_view)
-        self.plot.getPlotItem().getAxis("right").linkToView(self.damage_view)
-        self.damage_view.setXLink(self.plot.getPlotItem().vb)
-        self.plot.getPlotItem().vb.sigResized.connect(self._sync_damage_view)
+        damage_axis.linkToView(self.damage_view)
+        plot_view = cast(pg.ViewBox, self.plot_item.vb)
+        self.damage_view.setXLink(plot_view)
+        plot_view.sigResized.connect(self._sync_damage_view)
         self.plot.showGrid(x=True, y=True, alpha=0.16)
         self.plot.setMouseEnabled(x=False, y=False)
-        self.plot.getPlotItem().setMouseEnabled(x=False, y=False)
-        self.plot.getPlotItem().setMenuEnabled(False)
+        self.plot_item.setMenuEnabled(False)
         self.plot.setAntialiasing(False)
         self.plot.setClipToView(True)
         self.plot.setDownsampling(auto=True, mode="peak")
         self.plot.enableAutoRange(False)
         for axis_name in ("left", "bottom"):
-            axis = self.plot.getPlotItem().getAxis(axis_name)
+            axis = cast(pg.AxisItem, self.plot_item.getAxis(axis_name))
             axis.setPen(pg.mkPen("#6870A8"))
             axis.setTextPen(pg.mkPen("#C7C8EA"))
         self.glow_curve = self.plot.plot([], [], pen=pg.mkPen((0, 217, 255, 70), width=7))
@@ -1978,12 +1998,12 @@ class DpsSimulationPanel(Card):
         )
         self.plot.addItem(self.damage_peaks)
         self.plot.addItem(self.damage_lows)
-        self.cursor = pg.InfiniteLine(
+        self.cursor_line = pg.InfiniteLine(
             angle=90,
             movable=False,
             pen=pg.mkPen("#67D9FF", width=2),
         )
-        self.plot.addItem(self.cursor)
+        self.plot.addItem(self.cursor_line)
         self.cutoff_line = pg.InfiniteLine(
             angle=90,
             movable=False,
@@ -1992,14 +2012,15 @@ class DpsSimulationPanel(Card):
         self.cutoff_line.hide()
         self.plot.addItem(self.cutoff_line)
         self.mini_plot = pg.PlotWidget(self)
+        self.mini_plot_item = _plot_item(self.mini_plot)
         self.mini_plot.setObjectName("dpsMiniPlot")
-        self.mini_plot.getPlotItem().hideButtons()
+        self.mini_plot_item.hideButtons()
         self.mini_plot.setBackground("#0B1023")
         self.mini_plot.setFixedHeight(14)
         self.mini_plot.hideAxis("left")
         self.mini_plot.hideAxis("bottom")
         self.mini_plot.setMouseEnabled(x=False, y=False)
-        self.mini_plot.getPlotItem().setMenuEnabled(False)
+        self.mini_plot_item.setMenuEnabled(False)
         self.mini_plot.setAntialiasing(False)
         self.mini_plot.setClipToView(True)
         self.mini_plot.setDownsampling(auto=True, mode="peak")
@@ -2046,8 +2067,9 @@ class DpsSimulationPanel(Card):
         self.damage_lows.setData([], [])
         self.mini_curve.setData([], [])
         self.mini_markers.setData([], [])
-        self.plot.setXRange(0, max(1.0, self.duration_seconds), padding=0.02)
-        self.plot.setYRange(0, 1, padding=0)
+        plot_view = _plot_view_box(self.plot_item)
+        plot_view.setXRange(0, max(1.0, self.duration_seconds), padding=0.02)
+        plot_view.setYRange(0, 1, padding=0)
         self.plot.showAxis("bottom", True)
         self.plot.showAxis("left", False)
         self.plot.showAxis("right", True)
@@ -2056,7 +2078,7 @@ class DpsSimulationPanel(Card):
         self.hits_metric.setText("Hits: 0")
         self.dps_metric.setText("DPS médio: --")
         self.peak_metric.setText("Maior hit: --")
-        self.damage_view.setYRange(0, 100, padding=0)
+        self.damage_view.setYRange(0, 100, 0)
         if self._dps_start_time >= 0:
             self._render_initial_analysis_point()
 
@@ -2070,7 +2092,8 @@ class DpsSimulationPanel(Card):
         )
 
     def _sync_damage_view(self) -> None:
-        self.damage_view.setGeometry(self.plot.getPlotItem().vb.sceneBoundingRect())
+        plot_view = cast(pg.ViewBox, self.plot_item.vb)
+        self.damage_view.setGeometry(plot_view.sceneBoundingRect())
 
     def _set_plot_data(
         self,
@@ -2103,15 +2126,17 @@ class DpsSimulationPanel(Card):
         self.plot.setTitle("")
         self.plot.getAxis("left").setTicks(None)
         self.plot.getAxis("right").setTicks(None)
-        self.plot.setXRange(0, visible_duration, padding=0.02)
-        self.plot.setYRange(0, max(1.0, peak) * 1.12, padding=0)
-        self.damage_view.setYRange(0, max(100.0, total_damage) * 1.12, padding=0)
+        plot_view = _plot_view_box(self.plot_item)
+        plot_view.setXRange(0, visible_duration, padding=0.02)
+        plot_view.setYRange(0, max(1.0, peak) * 1.12, padding=0)
+        self.damage_view.setYRange(0, max(100.0, total_damage) * 1.12, 0)
         self._sync_damage_view()
         self.mini_curve.setData(times, values)
         visible_markers = [timestamp for timestamp in marker_times if timestamp <= visible_duration]
         self.mini_markers.setData(x=visible_markers, y=[max(1.0, peak) * 0.5] * len(visible_markers))
-        self.mini_plot.setXRange(0, visible_duration, padding=0)
-        self.mini_plot.setYRange(0, max(1.0, peak), padding=0)
+        mini_plot_view = _plot_view_box(self.mini_plot_item)
+        mini_plot_view.setXRange(0, visible_duration, padding=0)
+        mini_plot_view.setYRange(0, max(1.0, peak), padding=0)
 
     @staticmethod
     def _extreme_points(
@@ -2237,8 +2262,7 @@ class DpsSimulationPanel(Card):
         if not self._stop_live_analysis():
             self.analysis_status.setText("Aguardando encerramento da análise anterior")
             return
-        if hasattr(self.video_player, "media_player"):
-            self.video_player.media_player.pause()
+        self.video_player.media_player.pause()
         self._set_analysis_source_ui(True)
         self._reset_live_plot()
         self.analysis_status.setText("Captura em tempo real ativa")
@@ -2246,28 +2270,28 @@ class DpsSimulationPanel(Card):
         video_path = getattr(self.video_player, "video_path", "")
         if self._is_live_capture_available():
             self.live_thread = QThread(self)
-            self.live_worker = WorkerCapturaNativa(
+            worker = WorkerCapturaNativa(
                 start_time=self._analysis_start_seconds(),
                 end_seconds=self._analysis_end_seconds(),
                 capture_mode=capture_mode,
                 capture_settings=getattr(self, "capture_settings", None),
             )
-            self.live_worker.moveToThread(self.live_thread)
-            self.live_thread.started.connect(self.live_worker.run)
-            self.live_worker.frame_preview_frame_signal.connect(self._on_live_preview_frame)
-            self.live_worker.game_detected.connect(self.video_player.set_live_game_title)
-            self.live_worker.capture_status.connect(self._on_capture_status)
-            self.live_worker.damage_detected.connect(self._on_live_damage)
-            self.live_worker.combat_state_changed.connect(self._on_combat_state_changed)
-            self.live_worker.battle_restarted.connect(self._on_battle_restarted)
-            self.live_worker.map_detected.connect(self._on_map_detected)
-            self.live_worker.analysis_completed.connect(self._on_analysis_completed)
-            self.live_worker.failed.connect(self._on_live_failed)
-            self.live_worker.finished.connect(self._on_live_finished)
+            self.live_worker = worker
+            worker.moveToThread(self.live_thread)
+            self.live_thread.finished.connect(worker.deleteLater)
+            self.live_thread.started.connect(worker.run)
+            worker.frame_preview_frame_signal.connect(self._on_live_preview_frame)
+            worker.game_detected.connect(self.video_player.set_live_game_title)
+            worker.capture_status.connect(self._on_capture_status)
+            worker.damage_detected.connect(self._on_live_damage)
+            worker.combat_state_changed.connect(self._on_combat_state_changed)
+            worker.battle_restarted.connect(self._on_battle_restarted)
+            worker.map_detected.connect(self._on_map_detected)
+            worker.analysis_completed.connect(self._on_analysis_completed)
+            worker.failed.connect(self._on_live_failed)
+            worker.finished.connect(self._on_live_finished)
             thread = self.live_thread
-            thread.finished.connect(
-                lambda finished_thread=thread: self._on_live_thread_finished(finished_thread)
-            )
+            thread.finished.connect(self._on_live_thread_finished)
             thread.start()
             thread.setPriority(QThread.Priority.LowPriority)
             return
@@ -2345,22 +2369,22 @@ class DpsSimulationPanel(Card):
             f"Aguardando números reais a partir de {self._analysis_start_seconds():.0f}s..."
         )
         self.live_thread = QThread(self)
-        self.live_worker = LiveDamageAnalysisWorker(
+        worker = LiveDamageAnalysisWorker(
             video_path,
             self._scan_start_seconds(),
             self._analysis_end_seconds(),
             self._analysis_start_seconds(),
         )
-        self.live_worker.moveToThread(self.live_thread)
-        self.live_thread.started.connect(self.live_worker.run)
-        self.live_worker.damage_detected.connect(self._on_live_damage)
-        self.live_worker.analysis_completed.connect(self._on_analysis_completed)
-        self.live_worker.failed.connect(self._on_live_failed)
-        self.live_worker.finished.connect(self._on_live_finished)
+        self.live_worker = worker
+        worker.moveToThread(self.live_thread)
+        self.live_thread.finished.connect(worker.deleteLater)
+        self.live_thread.started.connect(worker.run)
+        worker.damage_detected.connect(self._on_live_damage)
+        worker.analysis_completed.connect(self._on_analysis_completed)
+        worker.failed.connect(self._on_live_failed)
+        worker.finished.connect(self._on_live_finished)
         thread = self.live_thread
-        thread.finished.connect(
-            lambda finished_thread=thread: self._on_live_thread_finished(finished_thread)
-        )
+        thread.finished.connect(self._on_live_thread_finished)
         thread.start()
         thread.setPriority(QThread.Priority.LowPriority)
 
@@ -2438,7 +2462,7 @@ class DpsSimulationPanel(Card):
         try:
             self.video_player.set_live_preview(image)
         finally:
-            if worker is not None:
+            if isinstance(worker, WorkerCapturaNativa):
                 worker.mark_preview_consumed()
 
     def _on_live_preview_frame(self, frame) -> None:
@@ -2463,12 +2487,10 @@ class DpsSimulationPanel(Card):
         if self.live_thread is not None:
             self.live_thread.quit()
 
-    def _on_live_thread_finished(self, finished_thread: QThread) -> None:
-        if finished_thread is not self.live_thread:
-            finished_thread.deleteLater()
+    def _on_live_thread_finished(self) -> None:
+        finished_thread = self.live_thread
+        if finished_thread is None:
             return
-        if self.live_worker is not None:
-            self.live_worker.deleteLater()
         thread = finished_thread
         self.live_worker = None
         self.live_thread = None
@@ -2492,7 +2514,9 @@ class DpsSimulationPanel(Card):
         return True
 
     def closeEvent(self, event) -> None:
-        self._stop_live_analysis()
+        if not self._stop_live_analysis():
+            event.ignore()
+            return
         super().closeEvent(event)
 
     def _on_duration_changed(self, duration_ms: int) -> None:
@@ -2512,9 +2536,9 @@ class DpsSimulationPanel(Card):
             return
         position_ms = self._pending_position_ms
         seconds = max(0.0, position_ms / 1000.0)
-        self.cursor.setValue(seconds)
+        self.cursor_line.setValue(seconds)
         self.position_label.setText(f"Cursor: {seconds:.2f}s")
-        if self.live_worker is not None:
+        if isinstance(self.live_worker, LiveDamageAnalysisWorker):
             self.live_worker.update_position(seconds)
 
     def _seek_video(self, seconds: float) -> None:

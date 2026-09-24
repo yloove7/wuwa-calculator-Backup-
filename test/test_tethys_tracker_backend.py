@@ -321,8 +321,16 @@ class TethysTrackerBackendTests(unittest.TestCase):
 
         self.assertEqual(statuses[-1].history_status, "error")
         self.assertEqual(statuses[-1].sync_status, "error")
-        self.assertEqual(imported[0][0]["official_id"], "1")
-        self.assertEqual(imported[0][0]["dedup_key"], "id:1")
+        first_import = imported[0]
+        self.assertIsInstance(first_import, list)
+        if not isinstance(first_import, list) or not first_import:
+            self.fail("import worker emitted no records")
+        first_record = first_import[0]
+        self.assertIsInstance(first_record, dict)
+        if not isinstance(first_record, dict):
+            self.fail("imported record is not a dictionary")
+        self.assertEqual(first_record["official_id"], "1")
+        self.assertEqual(first_record["dedup_key"], "id:1")
 
     def test_corrupted_json_loads_as_empty_history(self) -> None:
         with TemporaryDirectory() as temporary_directory:

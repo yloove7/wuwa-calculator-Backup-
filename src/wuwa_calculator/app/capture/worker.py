@@ -5,6 +5,6 @@ its existing OCR/state-machine dependencies remain local and acyclic. This
 module is the stable capture-package entry point used by new code.
 """
 
-from src.wuwa_calculator.app.dps_simulation_panel import WorkerCapturaNativa
+from src.wuwa_calculator.app.multimedia.dps_simulation_panel import WorkerCapturaNativa
 
 __all__ = ["WorkerCapturaNativa"]

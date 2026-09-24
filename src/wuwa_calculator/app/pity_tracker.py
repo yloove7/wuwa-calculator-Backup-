@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import os
 import sys
 import re
@@ -422,10 +423,10 @@ def _failed_tracker_status(
 def extract_convene_parameters(url: str) -> tuple[str, str]:
     """Extract authentication parameters from query strings or URL fragments."""
     context = extract_convene_request_context(url)
-    return context["player_id"], context["record_id"]
+    return str(context["player_id"]), str(context["record_id"])
 
 
-def extract_convene_request_context(url: str) -> dict[str, str]:
+def extract_convene_request_context(url: str) -> dict[str, str | int]:
     """Extract the authenticated request context used by the current browser API."""
     clean_url = unquote(url.replace("\r", "").replace("\n", "").strip())
     player_match = CONVENE_PLAYER_ID_RE.search(clean_url)
@@ -470,6 +471,10 @@ def build_convene_url_from_context(context: dict[str, object] | None) -> str | N
         return None
     card_pool_type = context.get("card_pool_type", 1)
     try:
+        if isinstance(card_pool_type, bool) or not isinstance(
+            card_pool_type, (str, int, float)
+        ):
+            raise ValueError("Tipo de pool inválido")
         card_pool_type_value = int(card_pool_type)
     except (TypeError, ValueError):
         card_pool_type_value = 1
@@ -503,7 +508,7 @@ def fetch_convene_records(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
     }
     records: list[dict[str, object]] = []
-    context_payload = {
+    context_payload: dict[str, object] = {
         "player_id": player_id,
         "record_id": record_id,
         "server_id": server_id,
@@ -601,6 +606,8 @@ def fetch_convene_records(
         json_code = parsed.get("code", "n/a")
         api_message = parsed.get("message") or parsed.get("msg") or ""
         data_value = parsed.get("data")
+        newest_time: object = ""
+        oldest_time: object = ""
         if isinstance(data_value, list):
             newest_record = None
             oldest_record = None
@@ -1249,6 +1256,10 @@ class LegacyPityTrackerWidget(QFrame):
         self._import_worker = None
         self._sync_worker: ConveneSyncWorker | None = None
         self._pwsh_process: subprocess.Popen | None = None
+        self._pwsh_cancelled = False
+        self._pwsh_poll_timer = QTimer(self)
+        self._pwsh_poll_timer.setInterval(250)
+        self._pwsh_poll_timer.timeout.connect(self._await_wuwatracker_import)
         self.tracker_status = TrackerStatus()
         self.history_records: list[dict[str, object]] = ConveneStorageManager().load()
         self._pulse_value = 0.0
@@ -1610,7 +1621,7 @@ class LegacyPityTrackerWidget(QFrame):
             if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
                 return
             pixmap = QPixmap()
-            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 target.set_art(pixmap)
@@ -1646,7 +1657,7 @@ class LegacyPityTrackerWidget(QFrame):
             if reply.error() != QNetworkReply.NetworkError.NoError or not reply.isOpen():
                 return
             pixmap = QPixmap()
-            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 target.setPixmap(self._circular_pixmap(pixmap, width, height))
@@ -1754,8 +1765,11 @@ class LegacyPityTrackerWidget(QFrame):
     def _render_history_avatars(self) -> None:
         while self.history_row.count():
             item = self.history_row.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
         details = self.state.recent_convene_details[:3]
         history = self.state.five_star_history[-3:]
         if details:
@@ -1800,16 +1814,24 @@ class LegacyPityTrackerWidget(QFrame):
             ],
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
-        self._await_wuwatracker_import(self._pwsh_process)
+        self._pwsh_cancelled = False
+        self._pwsh_poll_timer.start()
 
-    def _await_wuwatracker_import(self, process: subprocess.Popen | None) -> None:
+    def _await_wuwatracker_import(self) -> None:
+        process = self._pwsh_process
         if process is None:
-            self._pwsh_process = None
+            self._pwsh_poll_timer.stop()
             return
         if process.poll() is None:
-            QTimer.singleShot(250, lambda: self._await_wuwatracker_import(process))
             return
         self._pwsh_process = None
+        self._pwsh_poll_timer.stop()
+        if self._pwsh_cancelled:
+            self._pwsh_cancelled = False
+            self.sync_status.setText("Sincronização cancelada")
+            self.sync_label.setText("A importação não foi iniciada.")
+            self.sync_button.setEnabled(True)
+            return
 
         brave_url = get_brave_cdp_convene_url()
         if brave_url:
@@ -1980,6 +2002,7 @@ class LegacyPityTrackerWidget(QFrame):
         self._import_thread = QThread(self)
         self._import_worker = PityHistoryImportWorker(convene_url)
         self._import_worker.moveToThread(self._import_thread)
+        self._import_thread.finished.connect(self._import_worker.deleteLater)
         self._import_thread.started.connect(self._import_worker.run)
         self._import_worker.status.connect(self._apply_tracker_status)
         self._import_worker.imported.connect(self._apply_imported_records)
@@ -2000,7 +2023,7 @@ class LegacyPityTrackerWidget(QFrame):
             self.sync_label.setToolTip(status.message)
         self.status_changed.emit(status)
 
-    def _update_state_from_records(self, records: list[object]) -> None:
+    def _update_state_from_records(self, records: Sequence[object]) -> None:
         calculated_state = calculate_pity_state(records)
         self.state.resonator = calculated_state.resonator
         self.state.weapon = calculated_state.weapon
@@ -2054,14 +2077,44 @@ class LegacyPityTrackerWidget(QFrame):
         self.status_changed.emit(self.tracker_status)
 
     def _clear_import(self) -> None:
-        if self._import_worker is not None:
-            self._import_worker.deleteLater()
         if self._import_thread is not None:
             self._import_thread.deleteLater()
         self._import_worker = None
         self._import_thread = None
         self.sync_button.setText("Sincronizar Client.log")
         self.sync_button.setEnabled(True)
+
+    def shutdown_workers(self, timeout_ms: int = 5000) -> bool:
+        self._pwsh_poll_timer.stop()
+        process = self._pwsh_process
+        if process is not None:
+            self._pwsh_cancelled = True
+            self._pwsh_process = None
+            if process.poll() is None:
+                try:
+                    process.terminate()
+                except OSError:
+                    pass
+                try:
+                    process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            self._pwsh_cancelled = False
+            self.sync_status.setText("Sincronização cancelada")
+            self.sync_label.setText("A importação não foi iniciada.")
+            self.sync_button.setEnabled(True)
+        for worker in (self._import_thread, self._sync_worker):
+            if worker is None or not worker.isRunning():
+                continue
+            worker.quit()
+            if not worker.wait(timeout_ms):
+                return False
+        if self._import_thread is not None and not self._import_thread.isRunning():
+            self._clear_import()
+        if self._sync_worker is not None and not self._sync_worker.isRunning():
+            self._clear_sync_worker()
+        return True
 
     def capture_pull(self, items: Iterable[object]) -> None:
         """Apply one authorized pull result and notify listeners."""
@@ -2328,7 +2381,7 @@ class NoticeCard(QFrame):
     def _set_image(self, reply: QNetworkReply) -> None:
         if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
             pixmap = QPixmap()
-            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 self.image_label.setPixmap(
@@ -2408,7 +2461,7 @@ class NoticeRow(QFrame):
     def _set_image(self, reply: QNetworkReply) -> None:
         if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
             pixmap = QPixmap()
-            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 self.image_label.setPixmap(pixmap.scaled(
@@ -2458,7 +2511,7 @@ class PityTrackerWidget(QFrame):
         )
         self.notices: list[dict[str, object]] = []
         self.manager = NoticeManager()
-        self.worker: NoticeLoadWorker | None = None
+        self.worker: NewsFetcherWorker | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 8)
         root.setSpacing(0)
@@ -2560,7 +2613,7 @@ class PityTrackerWidget(QFrame):
     def _set_hero_image(self, reply: QNetworkReply, index: int) -> None:
         if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
             pixmap = QPixmap()
-            data = bytes(reply.readAll()) if reply.isOpen() else b""
+            data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
                 self.hero_pixmaps[index] = pixmap
@@ -2640,8 +2693,11 @@ class PityTrackerWidget(QFrame):
     def _render_notices(self) -> None:
         while self.notice_layout.count() > 1:
             item = self.notice_layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
         selected = self.tabs.tabText(self.tabs.currentIndex())
         filtered = [
             notice for notice in self.notices
@@ -2652,6 +2708,7 @@ class PityTrackerWidget(QFrame):
 
     def _refresh_event_times(self) -> None:
         for index in range(self.notice_layout.count() - 1):
-            widget = self.notice_layout.itemAt(index).widget()
+            item = self.notice_layout.itemAt(index)
+            widget = item.widget() if item is not None else None
             if isinstance(widget, NoticeRow):
                 widget.update_remaining(getattr(widget, "end_at", ""))

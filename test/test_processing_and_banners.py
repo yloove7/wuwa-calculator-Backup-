@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-from src.wuwa_calculator.app.banner_service import _normalise_banner, _parse_timestamp
+from src.wuwa_calculator.app.banners.banner_service import _normalise_banner, _parse_timestamp
 from PySide6.QtWidgets import QApplication
 
 from src.wuwa_calculator.app.pity_tracker import (
@@ -230,6 +230,9 @@ class ProcessingAndBannerTests(unittest.TestCase):
             "endDate": "2026-09-10T10:00:00Z",
         })
 
+        self.assertIsNotNone(banner)
+        if banner is None:
+            self.fail("banner normalization failed")
         self.assertEqual(banner["name"], "Qingxiao")
         self.assertEqual(banner["image_url"], "https://i.imgur.com/lq6O5Vo.jpeg")
         self.assertEqual(banner["ends_at"], "2026-09-10T10:00:00+00:00")

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-23T09:25:29-03:00",
+  "updated_at": "2026-09-23T10:56:01-03:00",
   "pulls": [
     {
       "cardPoolType": "Weapons Accurate Modulation",
@@ -3283,5 +3283,13 @@
       "official_id": null,
       "dedup_key": "fields:2026-09-22 20:56:51|resonator|Hiyuki|5"
     }
-  ]
+  ],
+  "convene_context": {
+    "player_id": "504413756",
+    "record_id": "bc7ff61c4eaf18bf8c173f4235fd3a14",
+    "server_id": "591d6af3a3090d8ea00d8f86cf6d7501",
+    "card_pool_id": "261fc466adb79af3fbcbd38ccb494a91",
+    "language_code": "en",
+    "card_pool_type": 1
+  }
 }

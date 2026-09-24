@@ -5,9 +5,10 @@ from __future__ import annotations
 import builtins
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TextIO
 from urllib.error import URLError
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -16,9 +17,15 @@ from urllib.request import Request, urlopen
 _print = builtins.print
 
 
-def _debug_print(*args: object, **kwargs: object) -> None:
+def _debug_print(
+    *args: object,
+    sep: str | None = " ",
+    end: str | None = "\n",
+    file: TextIO | None = None,
+    flush: bool = False,
+) -> None:
     if os.environ.get("TETHYS_DEBUG_BANNER") == "1":
-        _print(*args, **kwargs)
+        _print(*args, sep=sep, end=end, file=file, flush=flush)
 
 
 print = _debug_print

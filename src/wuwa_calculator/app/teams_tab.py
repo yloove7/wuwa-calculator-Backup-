@@ -12,7 +12,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from PySide6.QtCore import QSize, Qt, QRectF, QUrl, Signal
-from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout,
@@ -293,8 +293,8 @@ class EchoPreviewIcon(QLabel):
         super().__init__(parent)
         self._source_pixmap = QPixmap()
 
-    def setPixmap(self, pixmap: QPixmap) -> None:
-        self._source_pixmap = pixmap
+    def setPixmap(self, pixmap: QPixmap | QImage) -> None:
+        self._source_pixmap = QPixmap.fromImage(pixmap) if isinstance(pixmap, QImage) else pixmap
         super().setPixmap(QPixmap())
         self.update()
 
@@ -521,6 +521,8 @@ class TeamsTab(QWidget):
     def _refresh_team_list(self) -> None:
         while self.team_cards_layout.count() > 1:
             item = self.team_cards_layout.takeAt(0)
+            if item is None:
+                continue
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -617,14 +619,16 @@ class TeamsTab(QWidget):
 
     def _select_team_card(self, index: int) -> None:
         for card_index in range(self.team_cards_layout.count() - 1):
-            card = self.team_cards_layout.itemAt(card_index).widget()
+            item = self.team_cards_layout.itemAt(card_index)
+            card = item.widget() if item is not None else None
             if isinstance(card, TeamCardWidget):
                 card.set_selected(card_index == index)
 
     def new_team(self) -> None:
         self.selected_team_index = -1
         for index in range(self.team_cards_layout.count() - 1):
-            card = self.team_cards_layout.itemAt(index).widget()
+            item = self.team_cards_layout.itemAt(index)
+            card = item.widget() if item is not None else None
             if isinstance(card, TeamCardWidget):
                 card.set_selected(False)
         self.name_entry.setText("Nova equipe")

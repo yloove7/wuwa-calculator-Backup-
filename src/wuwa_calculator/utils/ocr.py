@@ -240,11 +240,13 @@ def _parse_dynamic_echo_block(lines: list[str]) -> dict[str, object]:
                 continue
         if re.search(r"(?i)(ATK|HP|DEF|Crit|Energy|Heavy|Skill|Liberation|Elemental|Damage|DMG|Regen)", line):
             value_match = re.search(r"[-+]?\d[\d.,]*%?", line)
-            if value_match:
+            label_match = re.search(r"(?i)(ATK|HP|DEF|Crit|Energy|Heavy|Skill|Liberation|Elemental|Damage|DMG|Regen)", line)
+            if value_match and label_match:
                 parsed_value = clean_number(value_match.group(0))
                 if parsed_value is not None:
-                    stat_candidates.append((float(parsed_value), re.search(r"(?i)(ATK|HP|DEF|Crit|Energy|Heavy|Skill|Liberation|Elemental|Damage|DMG|Regen)", line).group(1).strip(), line.strip()))
+                    stat_candidates.append((float(parsed_value), label_match.group(1).strip(), line.strip()))
 
+    best_line: str | None = None
     if stat_candidates:
         best_value, best_label, best_line = max(stat_candidates, key=lambda item: (abs(item[0]), item[1].lower() != "atk"))
         main_stat = f"{best_label}: +{best_value:g}%" if "%" in str(best_line) or "crit" in best_label.casefold() or "energy" in best_label.casefold() else f"{best_label}: +{best_value:g}"
@@ -252,7 +254,7 @@ def _parse_dynamic_echo_block(lines: list[str]) -> dict[str, object]:
     for line in sanitized:
         if re.search(r"(?i)\b(?:cost|set|sonata|conjunto)\b", line):
             continue
-        if main_stat != "--" and line.strip() == best_line if 'best_line' in locals() else False:
+        if main_stat != "--" and best_line is not None and line.strip() == best_line:
             continue
         if re.search(r"(?i)(ATK|HP|DEF|Crit|Energy|Heavy|Skill|Liberation|Elemental|Damage|DMG|Regen)", line):
             cleaned_line = _normalise_ocr_noise(line)
@@ -441,7 +443,9 @@ def extract_image_data(
 
 
 if __name__ == "__main__":
-    from src.wuwa_calculator.app.main import select_image  # pylint: disable=import-outside-toplevel,no-name-in-module
-    img_prepared = prepare_for_ocr(select_image())
+    if len(sys.argv) != 2:
+        raise SystemExit("Uso: python -m src.wuwa_calculator.utils.ocr <caminho-da-imagem>")
+
+    img_prepared = prepare_for_ocr(Path(sys.argv[1]))
     img_prepared.save("utils/ocr_output.png")
     img_prepared.show()

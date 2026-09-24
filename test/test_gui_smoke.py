@@ -1,28 +1,26 @@
 import os
+import sys
+import types
 import unittest
 from datetime import datetime, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-try:
-    from PySide6.QtCore import QBuffer, QIODevice
-    from PySide6.QtGui import QImage
-    from PySide6.QtWidgets import QApplication, QLabel
-    from src.wuwa_calculator.app.components import WuWaKuroBannerCard
-    from src.wuwa_calculator.app.capture.worker import WorkerCapturaNativa
-    from src.wuwa_calculator.app.dps_simulation_panel import (
-        CombatFrameGate,
-        CombatStateMachine,
-        DamageDetectionTracker,
-        DpsSimulationPanel,
-        LiveDamageAnalysisWorker,
-    )
-    from src.wuwa_calculator.app.history_video_player import HistoryVideoPlayer
-except (ImportError, ModuleNotFoundError):
-    QApplication = None
+from PySide6.QtCore import QBuffer, QIODevice
+from PySide6.QtGui import QImage
+from PySide6.QtWidgets import QApplication, QLabel
+from src.wuwa_calculator.app.components import WuWaKuroBannerCard
+from src.wuwa_calculator.app.capture.worker import WorkerCapturaNativa
+from src.wuwa_calculator.app.multimedia.dps_simulation_panel import (
+    CombatFrameGate,
+    CombatStateMachine,
+    DamageDetectionTracker,
+    DpsSimulationPanel,
+    LiveDamageAnalysisWorker,
+)
+from src.wuwa_calculator.app.multimedia.history_video_player import HistoryVideoPlayer
 
 
-@unittest.skipUnless(QApplication is not None, "PySide6 indisponivel")
 class GuiSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -37,7 +35,7 @@ class GuiSmokeTests(unittest.TestCase):
 
         card = WuWaKuroBannerCard(
             character_name="Qingxiao",
-            image_bytes=bytes(buffer.data()),
+            image_bytes=bytes(buffer.data().data()),
             end_date=datetime(2026, 10, 1, tzinfo=timezone.utc),
         )
 
@@ -45,9 +43,13 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertEqual(card.width(), card.img_label.width())
         self.assertGreater(card.width(), 0)
         self.assertEqual(card.img_label.height(), 440)
-        self.assertFalse(card.img_label.pixmap().isNull())
-        self.assertEqual(card.img_label.pixmap().height(), 440)
-        self.assertLessEqual(card.img_label.pixmap().width(), 960)
+        pixmap = card.img_label.pixmap()
+        self.assertIsNotNone(pixmap)
+        if pixmap is None:
+            self.fail("banner label has no pixmap")
+        self.assertFalse(pixmap.isNull())
+        self.assertEqual(pixmap.height(), 440)
+        self.assertLessEqual(pixmap.width(), 960)
         card.deleteLater()
 
     def test_video_player_builds_without_media_backend(self) -> None:
@@ -78,7 +80,10 @@ class GuiSmokeTests(unittest.TestCase):
         tab = HistoryTab()
         banner = tab.findChild(QLabel, "historyBannerPreview")
         self.assertIsNotNone(banner)
-        self.assertTrue(banner.pixmap() is None or banner.pixmap().isNull())
+        if banner is None:
+            self.fail("history banner preview label was not created")
+        pixmap = banner.pixmap()
+        self.assertTrue(pixmap is None or pixmap.isNull())
         tab.deleteLater()
 
     def test_analysis_toggle_tracks_live_source_state(self) -> None:
@@ -235,31 +240,29 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertEqual(state.update(1.0, True), ("EM_COMBATE", True))
 
     def test_game_window_guard_only_allows_foreground_game(self) -> None:
-        import sys
-        import types
+        from src.wuwa_calculator.app.multimedia.dps_simulation_panel import GameWindowGuard
 
-        from src.wuwa_calculator.app.dps_simulation_panel import GameWindowGuard
-
-        fake_win32gui = types.SimpleNamespace(
-            IsWindowVisible=lambda hwnd: True,
-            GetWindowText=lambda hwnd: {
+        fake_win32gui = types.ModuleType("win32gui")
+        fake_win32gui.__dict__.update({
+            "IsWindowVisible": lambda hwnd: True,
+            "GetWindowText": lambda hwnd: {
                 101: "Wuthering Waves",
                 202: "Discord",
             }[hwnd],
-            GetClassName=lambda hwnd: {
+            "GetClassName": lambda hwnd: {
                 101: "UnrealWindow",
                 202: "Chrome_WidgetWin_1",
             }[hwnd],
-            GetWindowRect=lambda hwnd: {
+            "GetWindowRect": lambda hwnd: {
                 101: (0, 0, 1280, 720),
                 202: (0, 0, 1920, 1080),
             }[hwnd],
-            EnumWindows=lambda callback, _extra: [
+            "EnumWindows": lambda callback, _extra: [
                 callback(101, _extra),
                 callback(202, _extra),
             ],
-            GetForegroundWindow=lambda: 202,
-        )
+            "GetForegroundWindow": lambda: 202,
+        })
 
         original = sys.modules.get("win32gui")
         sys.modules["win32gui"] = fake_win32gui
@@ -272,7 +275,7 @@ class GuiSmokeTests(unittest.TestCase):
                 sys.modules["win32gui"] = original
 
     def test_game_window_guard_recognizes_league_game_and_client_titles(self) -> None:
-        from src.wuwa_calculator.app.dps_simulation_panel import GameWindowGuard
+        from src.wuwa_calculator.app.multimedia.dps_simulation_panel import GameWindowGuard
 
         guard = GameWindowGuard()
 
@@ -290,7 +293,7 @@ class GuiSmokeTests(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        from src.wuwa_calculator.app.dps_simulation_panel import WorkerCapturaNativa
+        from src.wuwa_calculator.app.multimedia.dps_simulation_panel import WorkerCapturaNativa
 
         worker_debug = WorkerCapturaNativa(capture_mode="GENERIC_WINDOW")
         worker_standard = WorkerCapturaNativa(capture_mode="WUTHERING_WAVES")

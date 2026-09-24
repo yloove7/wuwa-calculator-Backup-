@@ -1,5 +1,5 @@
 # Tethys project SHA-256 manifest
-# Aggregate SHA-256 (hash of sorted file entries): df416237bffa166d42cc306ac1a14e899637b2ffdbd91c1f3526f75587009f8b
+# Aggregate SHA-256 (hash of sorted file entries): 18bdd01e1b68b23d6345bbd18344803d61792931ffa7d11a7671a2e845059bbc
 # Excludes: Projeto Legado, .git, .vs, .vscode, build, dist, __pycache__, and this manifest
 
 4598997654f049fbf94bb2149f611a7d57d68d5769246a954bcf59d39020ac30  .gitignore
@@ -17,7 +17,6 @@ db1b59c0cbd46c82a744d478862d07ccb6673fdccea79f11fd3a2636476d084b  app/security_p
 e96759c973d2a12ac1559edb70fd5e02d525fb730b94b55b9249dc4b516cac00  app/teams_tab.py
 a8ae4bcbbfc64e92b540d7023fe8f014ffb052c312cc36921b64a4fdaf1bc0d0  app/wuwa_processing.py
 e2fb90a3d0e37aca87faaa49e67229276d208a726c6878dd5aedce627f465f7e  Assets/app_background_reference.png
-82b9e39f59ad44a2235156361c2e2a8f149cb2923b6cafd7cbb430d64f00e872  Assets/moldura_cristal.png
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  data/__init__.py
 140bcd8800eba5b6a9ca3133ef1e02873a1362b5f707bc8efc1e2fc826ae7079  data/catalog_overrides.json
 f4c2a72daa26dad4ee94bdeae4cf6205db5a4b0b55a4eb354407f3afb6265721  data/characters_ids.py

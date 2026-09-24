@@ -9,8 +9,8 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QRect, QSignalBlocker, QTimer, Qt, QUrl, Signal
-from PySide6.QtGui import QImage, QPainter, QPixmap, QResizeEvent
+from PySide6.QtCore import QEvent, QObject, QRect, QSignalBlocker, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QImage, QKeyEvent, QPainter, QPixmap, QResizeEvent
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import (
@@ -228,12 +228,6 @@ class HistoryVideoPlayer(Card):
     def _position_video_hud(self) -> None:
         self.hud_label.move(12, 12)
 
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self._position_video_hud()
-        if self._is_fullscreen:
-            self._position_fullscreen_overlay()
-
     def set_live_capture_mode(self, enabled: bool) -> None:
         self.media_toolbar.setVisible(not enabled)
         self.hud_label.setVisible(not enabled)
@@ -432,7 +426,7 @@ class HistoryVideoPlayer(Card):
             height,
         )
 
-    def eventFilter(self, watched: QWidget, event: QEvent) -> bool:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if self._is_fullscreen and watched in {
             self.video_surface,
             self.fullscreen_overlay,
@@ -440,7 +434,11 @@ class HistoryVideoPlayer(Card):
         }:
             if event.type() in {QEvent.Type.MouseMove, QEvent.Type.MouseButtonPress, QEvent.Type.Enter}:
                 self._show_fullscreen_overlay()
-            elif event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Escape:
+            elif (
+                isinstance(event, QKeyEvent)
+                and event.type() == QEvent.Type.KeyPress
+                and event.key() == Qt.Key.Key_Escape
+            ):
                 self.exit_fullscreen()
                 return True
             elif watched is self.video_surface and event.type() == QEvent.Type.Resize:
@@ -554,6 +552,9 @@ class HistoryVideoPlayer(Card):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        self._position_video_hud()
+        if self._is_fullscreen:
+            self._position_fullscreen_overlay()
         QTimer.singleShot(0, self._refresh_video_surface)
 
     def closeEvent(self, event) -> None:

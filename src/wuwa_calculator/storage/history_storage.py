@@ -8,11 +8,39 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 from src.wuwa_calculator.utils.paths import get_legacy_data_path, get_user_data_path
 
 ROTATION_HISTORY_FILE = get_user_data_path("rotation_history.json")
+
+
+def _is_string_object_dict(value: object) -> TypeGuard[dict[str, object]]:
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
+
+
+def _dict_records(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [record for record in value if _is_string_object_dict(record)]
+
+
+def _integer_value(value: object, default: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _float_value(value: object, default: float = 0.0) -> float:
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
 
 
 def _migrate_legacy_history(path: Path) -> None:
@@ -76,12 +104,12 @@ def save_rotation_document(document: dict[str, object], path: Path = ROTATION_HI
 
 def load_rotation_history(path: Path = ROTATION_HISTORY_FILE) -> list[dict[str, object]]:
     rotations = load_rotation_document(path).get("rotations", [])
-    return [record for record in rotations if isinstance(record, dict)]
+    return _dict_records(rotations)
 
 
 def load_rotation_teams(path: Path = ROTATION_HISTORY_FILE) -> list[dict[str, object]]:
     teams = load_rotation_document(path).get("teams", [])
-    return [team for team in teams if isinstance(team, dict)]
+    return _dict_records(teams)
 
 
 def save_rotation_test(
@@ -94,13 +122,8 @@ def save_rotation_test(
     practical_damage: float | None = None,
 ) -> dict[str, object]:
     document = load_rotation_document(path)
-    history = [record for record in document["rotations"] if isinstance(record, dict)]
-    valid_ids = []
-    for record in history:
-        try:
-            valid_ids.append(int(record.get("id", 0)))
-        except (TypeError, ValueError):
-            continue
+    history = _dict_records(document.get("rotations"))
+    valid_ids = [_integer_value(record.get("id")) for record in history]
     next_id = max(valid_ids, default=0) + 1
     record: dict[str, object] = {
         "id": next_id,
@@ -136,46 +159,47 @@ def import_rotation_history(
     imported_data = read_json_file(source_path, None)
     if imported_data is None:
         raise ValueError("O arquivo JSON não pôde ser lido ou está inválido.")
-    imported_document = imported_data if isinstance(imported_data, dict) else {}
+    imported_document = imported_data if _is_string_object_dict(imported_data) else {}
+    candidates: list[object]
     if isinstance(imported_data, list):
         candidates = imported_data
-    elif isinstance(imported_data, dict):
-        candidates = next(
+    elif _is_string_object_dict(imported_data):
+        selected_candidates = next(
             (value for key, value in imported_data.items() if key.casefold() in {"history", "rotations", "tests", "records"} and isinstance(value, list)),
             None,
         )
-        if candidates is None:
+        if isinstance(selected_candidates, list):
+            candidates = selected_candidates
+        else:
             candidates = [imported_data] if any(key in imported_data for key in ("team", "rotation", "damage", "total_damage")) else []
     else:
         candidates = []
-    if not candidates or not all(isinstance(item, dict) for item in candidates):
+    imported_candidates = _dict_records(candidates)
+    if not imported_candidates:
         raise ValueError("O JSON não contém testes de rotação reconhecíveis.")
 
     destination_document = load_rotation_document(destination_path)
-    history = [record for record in destination_document["rotations"] if isinstance(record, dict)]
+    history = _dict_records(destination_document.get("rotations"))
     imported_teams = imported_document.get("teams", [])
     if isinstance(imported_teams, list):
-        existing_teams = [team for team in destination_document["teams"] if isinstance(team, dict)]
+        existing_teams = _dict_records(destination_document.get("teams"))
         existing_names = {str(team.get("name", "")).casefold() for team in existing_teams}
         for team in imported_teams:
             if isinstance(team, dict) and str(team.get("name", "")).casefold() not in existing_names:
                 existing_teams.append(team)
                 existing_names.add(str(team.get("name", "")).casefold())
         destination_document["teams"] = existing_teams
-    used_ids: list[int] = []
-    for record in history:
-        try:
-            used_ids.append(int(record.get("id", 0)))
-        except (TypeError, ValueError):
-            continue
+    used_ids = [_integer_value(record.get("id")) for record in history]
     next_id = max(used_ids, default=0) + 1
     imported_records: list[dict[str, object]] = []
-    for item in candidates:
+    for item in imported_candidates:
         source = item
         raw_damage = source.get("damage", source.get("total_damage", source.get("totalDamage", 0)))
         try:
+            if isinstance(raw_damage, bool) or not isinstance(raw_damage, (str, int, float)):
+                raise ValueError
             damage = float(raw_damage)
-        except (TypeError, ValueError) as error:
+        except (TypeError, ValueError, OverflowError) as error:
             raise ValueError(f"Dano inválido no registro importado: {raw_damage!r}.") from error
         record: dict[str, object] = {
             "id": next_id,
@@ -189,8 +213,10 @@ def import_rotation_history(
         practical_value = source.get("practical_damage", source.get("practicalDamage"))
         if practical_value not in (None, ""):
             try:
+                if isinstance(practical_value, bool) or not isinstance(practical_value, (str, int, float)):
+                    raise ValueError
                 record["practical_damage"] = float(practical_value)
-            except (TypeError, ValueError) as error:
+            except (TypeError, ValueError, OverflowError) as error:
                 raise ValueError(f"Dano prático inválido no registro importado: {practical_value!r}.") from error
         imported_records.append(record)
         history.append(record)
@@ -205,8 +231,8 @@ def import_rotation_history(
     else:
         destination_comparisons.extend(
             {
-                "rotation_id": int(record["id"]),
-                "theoretical": float(record["damage"]),
+                "rotation_id": _integer_value(record.get("id")),
+                "theoretical": _float_value(record.get("damage")),
                 "practical": record.get("practical_damage"),
                 "skills": record.get("skills", []),
             }

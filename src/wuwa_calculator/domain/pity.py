@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from src.wuwa_calculator.utils.convene_datetime import parse_convene_datetime
@@ -61,7 +62,7 @@ def record_pool(record: dict[str, object]) -> str:
     return "resonator"
 
 
-def calculate_pity_state(records: list[object]) -> PityState:
+def calculate_pity_state(records: Sequence[object]) -> PityState:
     ordered_records = sorted(
         (record for record in records if isinstance(record, dict)),
         key=record_sort_key,

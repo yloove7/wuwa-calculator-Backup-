@@ -8,9 +8,10 @@ import os
 import re
 import sqlite3
 import tempfile
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from src.wuwa_calculator.utils.convene_datetime import parse_convene_datetime
 from src.wuwa_calculator.utils.paths import get_user_data_path
@@ -18,6 +19,36 @@ from src.wuwa_calculator.utils.paths import get_user_data_path
 CONVENE_HISTORY_FILE = get_user_data_path("convene_history.json")
 _CACHE_DIR_NAMES = {"webcache", "krksdkwebview", "krsdkwebview"}
 _URL_RE = re.compile(r"https?://[^\s\"']+", re.IGNORECASE)
+_WUWA_TRACKER_POOLS = {
+    1: "resonator",
+    2: "weapon",
+    3: "standard_character",
+    4: "standard_weapon",
+}
+
+
+def _context_pool_type(value: object) -> int:
+    if value is None or value == "":
+        return 1
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return 1
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return 1
+
+
+@dataclass
+class ConveneJsonImportReport:
+    """Detailed outcome for importing a generic or WuWa Tracker JSON file."""
+
+    records: list[dict[str, object]]
+    format: str
+    player_id: str | None = None
+    imported_count: int = 0
+    source_metadata: dict[str, object] = field(default_factory=dict)
+    unsupported_pools: list[dict[str, object]] = field(default_factory=list)
+    invalid_records: list[dict[str, object]] = field(default_factory=list)
 
 
 class ConveneStorageManager:
@@ -25,6 +56,7 @@ class ConveneStorageManager:
 
     def __init__(self, path: Path = CONVENE_HISTORY_FILE) -> None:
         self.path = Path(path)
+        self.last_import_report: ConveneJsonImportReport | None = None
 
     def load(self) -> list[dict[str, object]]:
         try:
@@ -68,13 +100,13 @@ class ConveneStorageManager:
             "server_id": str(context.get("server_id") or ""),
             "card_pool_id": str(context.get("card_pool_id") or ""),
             "language_code": str(context.get("language_code") or "en"),
-            "card_pool_type": int(context.get("card_pool_type") or 1),
+            "card_pool_type": _context_pool_type(context.get("card_pool_type")),
         }
         if not all(normalized[key] for key in ("player_id", "record_id", "server_id", "card_pool_id")):
             return None
         return normalized
 
-    def save_context(self, context: dict[str, object] | None) -> None:
+    def save_context(self, context: Mapping[str, object] | None) -> None:
         if not isinstance(context, dict):
             return
         required = (
@@ -101,7 +133,7 @@ class ConveneStorageManager:
             "server_id": str(context.get("server_id") or ""),
             "card_pool_id": str(context.get("card_pool_id") or ""),
             "language_code": str(context.get("language_code") or "en"),
-            "card_pool_type": int(context.get("card_pool_type") or 1),
+            "card_pool_type": _context_pool_type(context.get("card_pool_type")),
         }
         if "pulls" not in document or not isinstance(document["pulls"], list):
             document["pulls"] = self.load()
@@ -171,10 +203,193 @@ class ConveneStorageManager:
             payload = json.loads(source.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as error:
             raise ValueError("O backup JSON não pôde ser lido.") from error
+        if self._looks_like_wuwa_tracker(payload):
+            self.last_import_report = self._import_wuwa_tracker(payload)
+            return self.last_import_report.records
         records = self._extract_records(payload)
         if not records:
             raise ValueError("O JSON não contém registros de Convene reconhecíveis.")
         return self.merge(records)
+
+    def import_json_with_report(self, source: Path) -> ConveneJsonImportReport:
+        """Import JSON and return diagnostics; use this for WuWa Tracker files."""
+        source = Path(source)
+        if not source.exists() or os.path.getsize(source) <= 0:
+            raise ValueError("Backup JSON is empty or does not exist.")
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("Backup JSON could not be read.") from error
+        if self._looks_like_wuwa_tracker(payload):
+            report = self._import_wuwa_tracker(payload)
+            self.last_import_report = report
+            return report
+        records = self._extract_records(payload)
+        if not records:
+            raise ValueError("JSON contains no recognizable Convene records.")
+        merged, count = self.merge_with_metadata(records)
+        report = ConveneJsonImportReport(records=merged, format="generic", imported_count=count)
+        self.last_import_report = report
+        return report
+
+    @staticmethod
+    def _looks_like_wuwa_tracker(payload: object) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        if "playerId" in payload:
+            return True
+        pulls = payload.get("pulls")
+        return isinstance(pulls, list) and any(
+            isinstance(pull, dict)
+            and any(key in pull for key in ("cardPoolType", "qualityLevel", "resourceId"))
+            for pull in pulls
+        )
+
+    @staticmethod
+    def _normalize_wuwa_tracker_pull(
+        pull: dict[str, object],
+        player_id: str,
+        source_metadata: dict[str, object],
+    ) -> dict[str, object]:
+        pool_type = pull.get("cardPoolType")
+        if isinstance(pool_type, bool) or not isinstance(pool_type, int) or pool_type not in _WUWA_TRACKER_POOLS:
+            raise ValueError(f"Unsupported cardPoolType: {pool_type!r}")
+        timestamp = pull.get("time")
+        parsed_timestamp = parse_convene_datetime(timestamp)
+        if parsed_timestamp is None:
+            raise ValueError("Missing or invalid time")
+        name = pull.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Missing or invalid name")
+        rarity_value = pull.get("qualityLevel")
+        if isinstance(rarity_value, bool):
+            raise ValueError("Invalid qualityLevel")
+        if not isinstance(rarity_value, (str, int, float)):
+            raise ValueError("Missing or invalid qualityLevel")
+        try:
+            rarity = int(rarity_value)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError("Missing or invalid qualityLevel") from error
+        if rarity <= 0 or (isinstance(rarity_value, float) and rarity_value != rarity):
+            raise ValueError("Invalid qualityLevel")
+
+        raw = dict(pull)
+        identity = {
+            "player_id": player_id,
+            "pool": _WUWA_TRACKER_POOLS[pool_type],
+            "timestamp": parsed_timestamp.isoformat(),
+            "name": name.strip(),
+            "rarity": rarity,
+        }
+        identity_json = json.dumps(identity, ensure_ascii=False, sort_keys=True)
+        normalized: dict[str, object] = {
+            **raw,
+            "timestamp": timestamp,
+            "name": name.strip(),
+            "rarity": rarity,
+            "pool": _WUWA_TRACKER_POOLS[pool_type],
+            "player_id": player_id,
+            "source": "wuwa_tracker",
+            "source_metadata": dict(source_metadata),
+            "raw": raw,
+            "dedup_key": "wuwa_tracker:" + hashlib.sha256(identity_json.encode("utf-8")).hexdigest(),
+        }
+        # resourceId remains source data and is never promoted to official_id.
+        for key in ("seq_id", "seqId", "pull_id", "id"):
+            if raw.get(key) not in (None, ""):
+                normalized["official_id"] = raw[key]
+                break
+        return normalized
+
+    def _import_wuwa_tracker(self, payload: object) -> ConveneJsonImportReport:
+        if not isinstance(payload, dict):
+            raise ValueError("WuWa Tracker export must be a JSON object.")
+        player_value = payload.get("playerId")
+        if not isinstance(player_value, (str, int)) or isinstance(player_value, bool) or not str(player_value).strip():
+            raise ValueError("WuWa Tracker export has no valid playerId.")
+        player_id = str(player_value).strip()
+        pulls = payload.get("pulls")
+        if not isinstance(pulls, list):
+            raise ValueError("WuWa Tracker export pulls must be a list.")
+        source_metadata = {
+            key: payload[key]
+            for key in ("siteVersion", "version", "date")
+            if key in payload
+        }
+        normalized: list[dict[str, object]] = []
+        unsupported: list[dict[str, object]] = []
+        invalid: list[dict[str, object]] = []
+        for index, pull in enumerate(pulls):
+            if not isinstance(pull, dict):
+                invalid.append({"index": index, "raw": pull, "reason": "pull is not an object"})
+                continue
+            pool_type = pull.get("cardPoolType")
+            if isinstance(pool_type, bool) or not isinstance(pool_type, int) or pool_type not in _WUWA_TRACKER_POOLS:
+                unsupported.append({"index": index, "cardPoolType": pool_type, "raw": dict(pull)})
+                continue
+            try:
+                normalized.append(self._normalize_wuwa_tracker_pull(pull, player_id, source_metadata))
+            except ValueError as error:
+                invalid.append({"index": index, "raw": dict(pull), "reason": str(error)})
+
+        if normalized:
+            merged, count = self._merge_wuwa_tracker_records(normalized, player_id)
+        else:
+            merged, count = self.load(), 0
+        report = ConveneJsonImportReport(
+            records=merged,
+            format="wuwa_tracker",
+            player_id=player_id,
+            imported_count=count,
+            source_metadata=source_metadata,
+            unsupported_pools=unsupported,
+            invalid_records=invalid,
+        )
+        self.last_import_report = report
+        return report
+
+    def _merge_wuwa_tracker_records(
+        self,
+        incoming: list[dict[str, object]],
+        player_id: str,
+    ) -> tuple[list[dict[str, object]], int]:
+        document: dict[str, object] = {}
+        if self.path.exists():
+            try:
+                text = self.path.read_text(encoding="utf-8")
+                existing_payload = json.loads(text) if text.strip() else {}
+            except (OSError, json.JSONDecodeError) as error:
+                raise ValueError("Cannot validate existing history; import cancelled.") from error
+            if not isinstance(existing_payload, dict):
+                raise ValueError("Existing history has an invalid format; import cancelled.")
+            document = dict(existing_payload)
+        existing = self._extract_records(document)
+        context = document.get("convene_context")
+        context_player = str(context.get("player_id") or "").strip() if isinstance(context, dict) else ""
+        tagged_players = {
+            str(record.get("player_id", record.get("playerId"))).strip()
+            for record in existing
+            if record.get("player_id", record.get("playerId")) not in (None, "")
+        }
+        if any(existing_player != player_id for existing_player in tagged_players):
+            raise ValueError("Existing history belongs to another playerId; import cancelled.")
+        untagged_existing = any(
+            record.get("player_id", record.get("playerId")) in (None, "")
+            for record in existing
+        )
+        if untagged_existing and context_player != player_id:
+            raise ValueError("Cannot establish owner of existing history; import cancelled.")
+        if context_player and context_player != player_id:
+            raise ValueError("Existing convene_context belongs to another playerId; import cancelled.")
+
+        existing_keys = {self._record_key(record) for record in existing if self._record_key(record)}
+        incoming_keys = {self._record_key(record) for record in incoming if self._record_key(record)}
+        merged = self._sort_records(self._deduplicate([*existing, *incoming]))
+        document["schema_version"] = document.get("schema_version", 1)
+        document["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
+        document["pulls"] = merged
+        self._write_document(document)
+        return merged, len(incoming_keys - existing_keys)
 
     def scan_local_cache(self) -> list[dict[str, object]]:
         records: list[dict[str, object]] = []

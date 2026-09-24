@@ -10,7 +10,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from src.wuwa_calculator.app.convene_tracker_tab import ConveneTrackerTab
+from src.wuwa_calculator.app.convene.convene_tracker_tab import ConveneTrackerTab
+
+
+def _set_timezone() -> None:
+    tzset = getattr(time, "tzset", None)
+    if not callable(tzset):
+        raise unittest.SkipTest("time.tzset is unavailable on this platform")
+    tzset()
 from src.wuwa_calculator.app.pity_tracker import (
     KURO_TIMEZONE,
     LegacyPityTrackerWidget,
@@ -49,8 +56,8 @@ class ConveneDateTimeTests(unittest.TestCase):
         )
 
     def test_storage_and_pity_sort_use_kuro_chronology(self) -> None:
-        earlier = {"timestamp": "2026-09-22 14:26:22"}
-        later = {"timestamp": "2026-09-22 20:56:51"}
+        earlier: dict[str, object] = {"timestamp": "2026-09-22 14:26:22"}
+        later: dict[str, object] = {"timestamp": "2026-09-22 20:56:51"}
         self.assertLess(record_sort_key(earlier), record_sort_key(later))
         self.assertEqual(
             ConveneStorageManager._sort_records([later, earlier]),
@@ -64,7 +71,7 @@ class ConveneDateTimeTests(unittest.TestCase):
             values = []
             for zone in ("UTC0", "EST5", "NZST-12"):
                 os.environ["TZ"] = zone
-                time.tzset()
+                _set_timezone()
                 values.append(parse_convene_datetime("2026-09-22 20:56:51"))
             self.assertEqual(values[0], values[1])
             self.assertEqual(values[1], values[2])
@@ -74,7 +81,7 @@ class ConveneDateTimeTests(unittest.TestCase):
                 os.environ.pop("TZ", None)
             else:
                 os.environ["TZ"] = previous_tz
-            time.tzset()
+                _set_timezone()
 
     def _run_import(self, manager, records, now):
         class FrozenDateTime(datetime):
@@ -161,7 +168,11 @@ class ConveneDateTimeTests(unittest.TestCase):
             manager.merge([record])
             stored = manager.load()[0]
             self.assertEqual(stored["timestamp"], "2026-09-22 20:56:51")
-            self.assertEqual(stored["raw"]["time"], "2026-09-22 20:56:51")
+            raw = stored["raw"]
+            self.assertIsInstance(raw, dict)
+            if not isinstance(raw, dict):
+                self.fail("stored raw record is not a dictionary")
+            self.assertEqual(raw["time"], "2026-09-22 20:56:51")
 
 
 if __name__ == "__main__":

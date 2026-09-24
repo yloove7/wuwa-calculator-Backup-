@@ -2,7 +2,9 @@
 
 import os
 import sys
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Callable, cast
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parents[3]
@@ -313,14 +315,24 @@ class _LegacyVideoPlayer(Card):
         if self.player is None:
             return
         try:
-            tracks = self.player.video_get_spu_description() or self.player.video_get_subtitle_description() or []
+            track_data = (
+                self.player.video_get_spu_description()
+                or self.player.video_get_subtitle_description()
+                or []
+            )
+            tracks = cast(Iterable[tuple[object, object]], track_data)
             with QSignalBlocker(self.subtitle_box):
                 self.subtitle_box.clear()
                 self.subtitle_box.addItem("Legendas desativadas", -1)
                 for track_id, name in tracks:
-                    if int(track_id) >= 0:
+                    if isinstance(track_id, bool) or not isinstance(
+                        track_id, (str, int, float)
+                    ):
+                        continue
+                    numeric_track_id = int(track_id)
+                    if numeric_track_id >= 0:
                         label = name.decode("utf-8", errors="replace") if isinstance(name, bytes) else str(name)
-                        self.subtitle_box.addItem(label or "Legenda", int(track_id))
+                        self.subtitle_box.addItem(label or "Legenda", numeric_track_id)
             self.tracks_loaded = True
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
             return
@@ -523,9 +535,10 @@ class HistoryTab(QWidget):
 
     def _edit_team(self) -> None:
         window = self.window()
-        if hasattr(window, "tabs") and hasattr(window, "_select_main_tab"):
+        selector = getattr(window, "_select_main_tab", None)
+        if hasattr(window, "tabs") and callable(selector):
             try:
-                window._select_main_tab(1, "♣   Teams")
+                cast(Callable[[int, str], None], selector)(1, "♣   Teams")
                 self.rotation_form.status_label.setText("Equipe aberta para edição.")
                 return
             except (AttributeError, TypeError, ValueError):
@@ -577,8 +590,11 @@ class HistoryTab(QWidget):
         self.team_summary_label.setText("   ".join(f"◉ {name}" for name in names) or "Nenhum integrante configurado")
         while self.team_badges_layout.count():
             item = self.team_badges_layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
         for character in characters[:3] if isinstance(characters, list) else []:
             character_id = str(character).casefold()
             images = CHARACTER_IMAGE_FALLBACKS.get(character_id, {})

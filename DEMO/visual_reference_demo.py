@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QPixmap
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -224,10 +224,10 @@ class ReferenceDemo(QMainWindow):
         reply = self.network.get(QNetworkRequest(QUrl(CHARACTER_URL)))
         reply.finished.connect(lambda: self._finish_character(reply))
 
-    def _finish_character(self, reply: object) -> None:
+    def _finish_character(self, reply: QNetworkReply) -> None:
         try:
             pixmap = QPixmap()
-            pixmap.loadFromData(reply.readAll())
+            pixmap.loadFromData(bytes(reply.readAll().data()))
             if not pixmap.isNull():
                 self.portrait.setPixmap(pixmap.scaled(170, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         except (AttributeError, RuntimeError):

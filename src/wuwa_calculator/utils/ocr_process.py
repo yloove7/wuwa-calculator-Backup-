@@ -12,8 +12,10 @@ from src.wuwa_calculator.utils.ocr import extract_image_data
 
 
 def _status(message: str) -> None:
-    sys.__stdout__.write(f"STATUS\t{message}\n")
-    sys.__stdout__.flush()
+    output = sys.__stdout__
+    if output is not None:
+        output.write(f"STATUS\t{message}\n")
+        output.flush()
 
 
 def main() -> int:

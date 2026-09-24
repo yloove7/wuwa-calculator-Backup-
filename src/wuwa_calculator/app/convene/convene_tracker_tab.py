@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QColor, QWheelEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -522,8 +522,12 @@ class ConveneTrackerTab(QWidget):
                 return str(value)
         return ""
 
-    def eventFilter(self, watched: QWidget, event: QEvent) -> bool:
-        if watched is self.history_table.viewport() and event.type() == QEvent.Type.Wheel:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if (
+            watched is self.history_table.viewport()
+            and isinstance(event, QWheelEvent)
+            and event.type() == QEvent.Type.Wheel
+        ):
             scrollbar = self.history_table.verticalScrollBar()
             if scrollbar is None:
                 return False
