@@ -6,7 +6,6 @@ import builtins
 import math
 import os
 import sys
-import time
 from typing import TextIO
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,10 +16,10 @@ if __package__ in {None, ""}:
 from PySide6.QtCore import (
     QByteArray, QEasingCurve, QObject, QEvent, QPoint, QParallelAnimationGroup,
     QPropertyAnimation, QThread,
-    QTimer, QRectF, Qt, Signal,
+    QTimer, QRectF, Qt, Signal, Slot,
 )
 from PySide6.QtGui import (
-    QBrush, QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
+    QBrush, QColor, QLinearGradient, QPaintEvent, QPainter, QPainterPath, QPen, QPixmap,
     QRadialGradient,
 )
 from PySide6.QtWidgets import (
@@ -225,22 +224,54 @@ def _apply_rounded_image_mask(widget: QWidget, radius: int = 16) -> None:
 
 class BannerWorker(QObject):
     finished = Signal(object)
+    completed = Signal()
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    @Slot()
     def run(self) -> None:
-        print("[BannerWorker] Iniciando trabalho...")
-        result = fetch_current_banner()
-        if isinstance(result, dict):
-            save_cached_banner(result)
-        print(f"[BannerWorker] Resultado: {type(result)} - {result if not isinstance(result, dict) else 'dict com dados'}")
-        self.finished.emit(result)
+        try:
+            if self._cancelled:
+                return
+            print("[BannerWorker] Iniciando trabalho...")
+            result = fetch_current_banner()
+            if self._cancelled:
+                return
+            if isinstance(result, dict):
+                save_cached_banner(result)
+            print(f"[BannerWorker] Resultado: {type(result)} - {result if not isinstance(result, dict) else 'dict com dados'}")
+            self.finished.emit(result)
+        finally:
+            self.completed.emit()
 
 
 class CatalogWorker(QObject):
     finished = Signal(object)
+    completed = Signal()
 
+    def __init__(self) -> None:
+        super().__init__()
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    @Slot()
     def run(self) -> None:
-        from src.wuwa_calculator.app.banners.wuwa_tracker_adapter import fetch_banner_catalog
-        self.finished.emit(fetch_banner_catalog())
+        try:
+            if self._cancelled:
+                return
+            from src.wuwa_calculator.app.banners.wuwa_tracker_adapter import fetch_banner_catalog
+            records = fetch_banner_catalog()
+            if not self._cancelled:
+                self.finished.emit(records)
+        finally:
+            self.completed.emit()
 
 
 class UpcomingBannerCard(QFrame):
@@ -528,8 +559,13 @@ class UpcomingBannersSection(QFrame):
 
 
 class HomeTab(QWidget):
+    shutdown_finished = Signal()
+
     def __init__(self, preloaded_banner: dict[str, object] | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._shutdown_requested = False
+        self._shutdown_completion_emitted = False
+        self._startup_work_scheduled = False
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(14)
@@ -605,6 +641,8 @@ class HomeTab(QWidget):
                 "resonator": initial_banner.get("image_bytes", b"")
                 if initial_banner else b""
             },
+            defer_news_load=True,
+            defer_hero_images=True,
         )
         self.convene_tracker_drawer = CollapsibleTrackerDrawer(self.pity_tracker)
         hero_surface_layout.addWidget(banner_column, 1)
@@ -624,11 +662,9 @@ class HomeTab(QWidget):
         if initial_banner:
             print("[HomeTab] Banner pré-carregado recebido, criando card imediatamente...")
             self._banner_loaded(initial_banner)
-            QTimer.singleShot(0, self._start_banner_refresh)
         else:
             # Caso contrário, mostra placeholder e carrega em background
             self.banner_container.addWidget(self.banner_placeholder)
-            QTimer.singleShot(0, self._start_banner_refresh)
 
         self.timeline_panel = UpcomingBannersSection()
         self.timeline_panel.setSizePolicy(
@@ -636,8 +672,22 @@ class HomeTab(QWidget):
         )
         left_column_layout.addWidget(self.timeline_panel)
         root.addLayout(page_layout, 1)
-        QTimer.singleShot(0, self._start_catalog_refresh)
         root.addStretch(1)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        if self._startup_work_scheduled:
+            return
+        self._startup_work_scheduled = True
+        QTimer.singleShot(0, self._start_secondary_home_work)
+
+    def _start_secondary_home_work(self) -> None:
+        if self._shutdown_requested:
+            return
+        self.pity_tracker.start_hero_image_load()
+        self._start_banner_refresh()
+        self._start_catalog_refresh()
+        self.pity_tracker.start_news_load(self._check_shutdown_complete)
 
     def _toggle_convene_tracker(self) -> None:
         drawer = getattr(self, "convene_tracker_drawer", None)
@@ -649,30 +699,52 @@ class HomeTab(QWidget):
             self.banner_card.set_active(active)
 
     def shutdown_workers(self, timeout_ms: int = 5000) -> bool:
-        threads = (self.banner_thread, self.catalog_thread, self.pity_tracker.worker)
-        remaining_ms = timeout_ms
-        for thread in threads:
-            if thread is None or not thread.isRunning():
+        del timeout_ms  # Kept for compatibility with existing callers.
+        self._shutdown_requested = True
+        active_threads = False
+        workers = (
+            (self.banner_thread, self.banner_worker),
+            (self.catalog_thread, self.catalog_worker),
+            (self.pity_tracker.worker, None),
+        )
+        for thread, worker in workers:
+            if thread is None:
                 continue
-            thread.quit()
-            started = time.monotonic()
-            if not thread.wait(remaining_ms):
-                return False
-            remaining_ms = max(0, remaining_ms - int((time.monotonic() - started) * 1000))
-            if thread is self.banner_thread:
-                self._clear_banner_worker()
-            elif thread is self.catalog_thread:
-                self._clear_catalog_worker()
+            if thread.isRunning():
+                active_threads = True
+                if worker is not None:
+                    worker.cancel()
+                thread.requestInterruption()
+                thread.quit()
+        if active_threads:
+            return False
+        self._shutdown_completion_emitted = True
+        self._clear_banner_worker()
+        self._clear_catalog_worker()
         return True
 
+    @Slot()
+    def _check_shutdown_complete(self) -> None:
+        if not self._shutdown_requested or self._shutdown_completion_emitted:
+            return
+        threads = (self.banner_thread, self.catalog_thread, self.pity_tracker.worker)
+        if any(thread.isRunning() for thread in threads if thread is not None):
+            return
+        self._shutdown_completion_emitted = True
+        self._clear_banner_worker()
+        self._clear_catalog_worker()
+        self.shutdown_finished.emit()
+
     def _start_catalog_refresh(self) -> None:
+        if self._shutdown_requested:
+            return
         self.catalog_thread = QThread(self)
         self.catalog_worker = CatalogWorker()
         self.catalog_worker.moveToThread(self.catalog_thread)
         self.catalog_thread.finished.connect(self.catalog_worker.deleteLater)
         self.catalog_thread.started.connect(self.catalog_worker.run)
         self.catalog_worker.finished.connect(self._catalog_loaded)
-        self.catalog_worker.finished.connect(self.catalog_thread.quit)
+        self.catalog_worker.completed.connect(self.catalog_thread.quit)
         self.catalog_thread.finished.connect(self._clear_catalog_worker)
         self.catalog_thread.start()
 
@@ -686,6 +758,7 @@ class HomeTab(QWidget):
         except ValueError:
             return None
 
+    @Slot(object)
     def _catalog_loaded(self, data: object) -> None:
         records = data if isinstance(data, list) else []
         now = datetime.now(timezone.utc)
@@ -717,13 +790,17 @@ class HomeTab(QWidget):
         visible.sort(key=lambda item: str(item.get("ends_at", "")))
         self._catalog_snapshot_source = tuple(visible)
         self.timeline_panel.set_cards(visible)
+    @Slot()
     def _clear_catalog_worker(self) -> None:
         if self.catalog_thread is not None:
             self.catalog_thread.deleteLater()
         self.catalog_worker = None
         self.catalog_thread = None
+        self._check_shutdown_complete()
 
     def _start_banner_refresh(self) -> None:
+        if self._shutdown_requested:
+            return
         print("[HomeTab] Iniciando refresh de banner...")
         self.banner_thread = QThread(self)
         self.banner_worker = BannerWorker()
@@ -731,11 +808,12 @@ class HomeTab(QWidget):
         self.banner_thread.finished.connect(self.banner_worker.deleteLater)
         self.banner_thread.started.connect(self.banner_worker.run)
         self.banner_worker.finished.connect(self._banner_loaded)
-        self.banner_worker.finished.connect(self.banner_thread.quit)
+        self.banner_worker.completed.connect(self.banner_thread.quit)
         self.banner_thread.finished.connect(self._clear_banner_worker)
         self.banner_thread.start()
         print("[HomeTab] Thread de banner iniciada")
 
+    @Slot(object)
     def _banner_loaded(self, data: object) -> None:
         print(f"[HomeTab] _banner_loaded chamado. data type: {type(data)}")
         
@@ -790,6 +868,7 @@ class HomeTab(QWidget):
         self.banner_container.addWidget(self.banner_card)
         print("[HomeTab] Banner card criado e inserido no layout")
 
+    @Slot()
     def _clear_banner_worker(self) -> None:
         print("[HomeTab] Limpando banner worker...")
         if self.banner_thread is not None:
@@ -797,3 +876,4 @@ class HomeTab(QWidget):
         self.banner_worker = None
         self.banner_thread = None
         print("[HomeTab] Banner worker limpo")
+        self._check_shutdown_complete()

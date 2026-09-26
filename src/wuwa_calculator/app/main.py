@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 os.environ.setdefault(
     "QT_LOGGING_RULES",
@@ -18,13 +19,26 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from PySide6.QtWidgets import QApplication
 
-from src.wuwa_calculator.app.import_dialog import CustomImportPopup
 from src.wuwa_calculator.app.settings_store import SettingsStore
 from src.wuwa_calculator.app.styles import application_qss
 from src.wuwa_calculator.app.window import PlaceholderTab, WuwaQtWindow
 
-# Compatibility name for integrations that imported the previous dialog.
-ImportDialog = CustomImportPopup
+if TYPE_CHECKING:
+    from src.wuwa_calculator.app.import_dialog import CustomImportPopup
+
+    ImportDialog = CustomImportPopup
+
+
+def __getattr__(name: str) -> object:
+    if name in {"CustomImportPopup", "ImportDialog"}:
+        from src.wuwa_calculator.app.import_dialog import CustomImportPopup
+
+        return CustomImportPopup
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), "CustomImportPopup", "ImportDialog"})
 
 
 def main() -> int:

@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from src.wuwa_calculator.utils.paths import get_user_data_path
+from src.wuwa_calculator.utils.paths import (
+    LEGACY_USER_DATA_ROOT,
+    copy_legacy_user_data_file,
+    get_user_data_path,
+)
+
+LEARNING_PROFILE_FILE = get_user_data_path(
+    Path("capture_learning") / "damage_profiles.json"
+)
 
 
 @dataclass
@@ -61,12 +70,33 @@ class DamageLearningProfile:
 class LearningStore:
     """Keep learning data in one dedicated user-data directory."""
 
-    PATH = get_user_data_path(Path("capture_learning") / "damage_profiles.json")
+    PATH = LEARNING_PROFILE_FILE
 
     def __init__(self) -> None:
         self._lock = Lock()
         self._profiles: dict[str, DamageLearningProfile] = {}
+        self._migrate_legacy_profile()
         self._load()
+
+    def _migrate_legacy_profile(self) -> None:
+        if self.PATH != LEARNING_PROFILE_FILE or self.PATH.exists():
+            return
+        legacy_path = (
+            LEGACY_USER_DATA_ROOT
+            / "capture_learning"
+            / "damage_profiles.json"
+        )
+        if not legacy_path.is_file():
+            return
+        try:
+            copy_legacy_user_data_file(legacy_path, self.PATH)
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Could not migrate the legacy damage learning profile to %s; "
+                "the legacy file was left untouched.",
+                self.PATH,
+                exc_info=True,
+            )
 
     def profile(self, key: str) -> DamageLearningProfile:
         with self._lock:

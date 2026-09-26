@@ -64,7 +64,11 @@ def record_pool(record: dict[str, object]) -> str:
 
 def calculate_pity_state(records: Sequence[object]) -> PityState:
     ordered_records = sorted(
-        (record for record in records if isinstance(record, dict)),
+        (
+            record
+            for record in records
+            if isinstance(record, dict) and record.get("is_pull") is not False
+        ),
         key=record_sort_key,
     )
     pity_by_pool = {

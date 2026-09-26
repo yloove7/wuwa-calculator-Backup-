@@ -20,3 +20,10 @@ Wuwa Damage Lab/
 # Local editor/runtime files
 *.log
 .vscode/*.log
+
+# Legacy in-repository Convene history (runtime data lives outside the package)
+/src/wuwa_calculator/storage/user_data/convene_history.json
+/src/wuwa_calculator/storage/user_data/teams.json
+/src/wuwa_calculator/storage/user_data/rotation_history.json
+/src/wuwa_calculator/storage/user_data/current_banner.json
+/src/wuwa_calculator/storage/user_data/capture_learning/damage_profiles.json

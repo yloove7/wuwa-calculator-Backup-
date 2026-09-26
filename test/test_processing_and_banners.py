@@ -9,12 +9,13 @@ from PySide6.QtWidgets import QApplication
 
 from src.wuwa_calculator.app.pity_tracker import (
     CONVENE_DNS_ERROR_MESSAGE,
+    ConveneCaptureContext,
     ConveneLogCandidate,
     ClientLogReader,
     ConveneUrlExtractor,
-    ConveneSyncWorker,
     LegacyPityTrackerWidget,
     NoticeManager,
+    capture_from_changed_clipboard,
     extract_convene_parameters,
     fetch_convene_records,
 )
@@ -39,6 +40,86 @@ def _convene_response(data: list[dict[str, object]], status_code: int = 200) -> 
 
 
 class ProcessingAndBannerTests(unittest.TestCase):
+    def test_external_clipboard_requires_a_changed_valid_url(self) -> None:
+        old_url = (
+            "https://aki-gm-resources.example/record?player_id=p1&record_id=r1&"
+            "svr_id=s1&resources_id=c1&lang=en"
+        )
+        new_url = (
+            "https://aki-gm-resources.example/record?player_id=p2&record_id=r2&"
+            "svr_id=s2&resources_id=c2&lang=en"
+        )
+
+        self.assertIsNone(capture_from_changed_clipboard(old_url, old_url))
+        self.assertIsNone(capture_from_changed_clipboard(old_url, "not a Convene URL"))
+        capture = capture_from_changed_clipboard(old_url, new_url)
+
+        self.assertIsNotNone(capture)
+        assert capture is not None
+        self.assertEqual(capture.source_url, new_url)
+        self.assertEqual(capture.player_id, "p2")
+        self.assertEqual(capture.discovery_source, "external_clipboard")
+
+    def test_external_capture_preserves_percent_encoded_original_url(self) -> None:
+        original_url = (
+            "https://aki-gm-resources.example/record?player_id=p%32&record_id=r%32&"
+            "svr_id=s2&resources_id=c%32&lang=en"
+        )
+
+        capture = capture_from_changed_clipboard("old clipboard", original_url)
+
+        self.assertIsNotNone(capture)
+        assert capture is not None
+        self.assertEqual(capture.source_url, original_url)
+        self.assertEqual(capture.player_id, "p2")
+
+    def test_log_discovery_returns_url_provenance_and_player_context(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            url = (
+                "https://aki-gm-resources.example/record?player_id=p2&record_id=r2&"
+                "svr_id=s2&resources_id=c2&lang=ja"
+            )
+            log_path.write_text(url, encoding="utf-8")
+
+            capture = ClientLogReader(log_path).get_capture_context()
+
+        self.assertEqual(capture.source_url, url)
+        self.assertEqual(capture.player_id, "p2")
+        self.assertEqual(capture.record_id, "r2")
+        self.assertEqual(capture.svr_id, "s2")
+        self.assertEqual(capture.resources_id, "c2")
+        self.assertEqual(capture.lang, "ja")
+        self.assertEqual(capture.discovery_source, "client_log")
+        self.assertEqual(capture.log_path, log_path)
+        self.assertIsNotNone(capture.log_mtime)
+
+    def test_log_discovery_uses_each_url_in_a_player_a_b_a_sequence(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            log_path = Path(temporary_directory) / "Client.log"
+            captures: list[ConveneCaptureContext] = []
+            for player_id in ("A", "B", "A"):
+                url = (
+                    "https://aki-gm-resources.example/record?"
+                    f"player_id={player_id}&record_id=record-{player_id}&"
+                    "svr_id=server&resources_id=pool&lang=en"
+                )
+                log_path.write_text(url, encoding="utf-8")
+                captures.append(ClientLogReader(log_path).get_capture_context())
+
+        self.assertEqual([capture.player_id for capture in captures], ["A", "B", "A"])
+        self.assertEqual(
+            [capture.source_url for capture in captures],
+            [
+                "https://aki-gm-resources.example/record?player_id=A&record_id=record-A&"
+                "svr_id=server&resources_id=pool&lang=en",
+                "https://aki-gm-resources.example/record?player_id=B&record_id=record-B&"
+                "svr_id=server&resources_id=pool&lang=en",
+                "https://aki-gm-resources.example/record?player_id=A&record_id=record-A&"
+                "svr_id=server&resources_id=pool&lang=en",
+            ],
+        )
+
     def test_client_log_locator_extracts_official_url_and_parameters(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             log_path = Path(temporary_directory) / "Client.log"
@@ -237,113 +318,6 @@ class ProcessingAndBannerTests(unittest.TestCase):
         self.assertEqual(banner["image_url"], "https://i.imgur.com/lq6O5Vo.jpeg")
         self.assertEqual(banner["ends_at"], "2026-09-10T10:00:00+00:00")
 
-    def test_convene_sync_worker_fetches_latest_log_url(self) -> None:
-        with TemporaryDirectory() as temporary_directory:
-            log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text(
-                "old https://aki-gm-resources.example/old/record?playerId=old&recordId=old&"
-                "serverId=server&cardPoolId=pool&languageCode=en\n"
-                "latest https://aki-gm-resources.example/latest/record?playerId=new&recordId=new&"
-                "serverId=server&cardPoolId=pool&languageCode=en",
-                encoding="utf-8",
-            )
-            response = Mock()
-            response.status_code = 200
-            response.text = '{"data": [{"rarity": 5, "name": "Test"}]}'
-            response.json.return_value = {"data": [{"rarity": 5, "name": "Test"}]}
-            worker = ConveneSyncWorker(log_path)
-            received: list[object] = []
-            errors: list[str] = []
-            worker.success_signal.connect(received.append)
-            worker.error_signal.connect(errors.append)
-
-            with patch(
-                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
-                return_value=None,
-            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response) as get:
-                worker.run()
-
-            get.assert_called_once_with(
-                "https://aki-gm-resources.example/latest/record?playerId=new&recordId=new&"
-                "serverId=server&cardPoolId=pool&languageCode=en",
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                    "Accept": "application/json, text/plain, */*",
-                },
-                timeout=15,
-            )
-            self.assertEqual(received, [{"data": [{"rarity": 5, "name": "Test"}]}])
-            self.assertEqual(errors, [])
-
-    def test_convene_sync_worker_rejects_empty_api_response(self) -> None:
-        with TemporaryDirectory() as temporary_directory:
-            log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text(
-                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
-                "serverId=server&cardPoolId=pool&languageCode=en",
-                encoding="utf-8",
-            )
-            response = Mock(status_code=200, text="")
-            worker = ConveneSyncWorker(log_path)
-            errors: list[str] = []
-            worker.error_signal.connect(errors.append)
-
-            with patch(
-                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
-                return_value=None,
-            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
-                worker.run()
-
-            self.assertEqual(errors, ["Sessão expirada. Acesse o Convene no jogo para revalidar."])
-
-    def test_convene_sync_worker_rejects_expired_json_response(self) -> None:
-        with TemporaryDirectory() as temporary_directory:
-            log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text(
-                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
-                "serverId=server&cardPoolId=pool&languageCode=en",
-                encoding="utf-8",
-            )
-            response = Mock(status_code=200, text="not-json")
-            worker = ConveneSyncWorker(log_path)
-            errors: list[str] = []
-            worker.error_signal.connect(errors.append)
-
-            with patch(
-                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
-                return_value=None,
-            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
-                worker.run()
-
-            self.assertEqual(
-                errors,
-                ["Sessão expirada. Acesse o Convene no jogo para revalidar."],
-            )
-
-    def test_convene_sync_worker_reports_http_405(self) -> None:
-        with TemporaryDirectory() as temporary_directory:
-            log_path = Path(temporary_directory) / "Client.log"
-            log_path.write_text(
-                "https://aki-gm-resources.example/latest/record?playerId=player&recordId=record&"
-                "serverId=server&cardPoolId=pool&languageCode=en",
-                encoding="utf-8",
-            )
-            response = Mock(status_code=405, text="Method Not Allowed")
-            worker = ConveneSyncWorker(log_path)
-            errors: list[str] = []
-            worker.error_signal.connect(errors.append)
-
-            with patch(
-                "src.wuwa_calculator.app.pity_tracker.get_brave_cdp_convene_url",
-                return_value=None,
-            ), patch("src.wuwa_calculator.app.pity_tracker.requests.get", return_value=response):
-                worker.run()
-
-            self.assertEqual(
-                errors,
-                ["Erro HTTP 405: Método de requisição recusado pelo servidor da Kuro."],
-            )
-
     def test_fetch_convene_records_posts_each_banner_pool(self) -> None:
         responses = [
             _convene_response([{"timestamp": "2026-01-01", "name": "Pull", "rarity": 3}])
@@ -374,6 +348,61 @@ class ProcessingAndBannerTests(unittest.TestCase):
             [pool_statuses[str(pool)]["status"] for pool in range(1, 5)],
             ["success", "success", "success", "success"],
         )
+
+    def test_fetch_convene_records_continues_after_api_code_minus_one(self) -> None:
+        response = Mock(status_code=200)
+        response.json.return_value = {"code": -1, "message": "invalid record", "data": []}
+        statuses: dict[str, dict[str, object]] = {}
+        with patch(
+            "src.wuwa_calculator.app.pity_tracker.requests.post",
+            return_value=response,
+        ) as post:
+            records = fetch_convene_records(CONVENE_TEST_URL, pool_statuses=statuses)
+
+        self.assertEqual(records, [])
+        self.assertEqual(post.call_count, 4)
+        self.assertEqual(
+            [call.kwargs["json"]["cardPoolType"] for call in post.call_args_list],
+            [1, 2, 3, 4],
+        )
+        self.assertEqual(
+            [status["status"] for status in statuses.values()],
+            ["error"] * 4,
+        )
+
+    def test_fetch_convene_records_keeps_partial_results_after_timeout(self) -> None:
+        responses = [
+            _convene_response([{"timestamp": "2026-01-01", "name": "R", "rarity": 3}]),
+            requests.exceptions.ReadTimeout("read timed out"),
+            _convene_response([{"timestamp": "2026-01-03", "name": "C", "rarity": 3}]),
+            _convene_response([{"timestamp": "2026-01-04", "name": "S", "rarity": 3}]),
+        ]
+        statuses: dict[str, dict[str, object]] = {}
+        with (
+            patch(
+                "src.wuwa_calculator.app.pity_tracker.ConveneStorageManager"
+            ) as storage_factory,
+            patch(
+                "src.wuwa_calculator.app.pity_tracker.requests.post",
+                side_effect=responses,
+            ) as post,
+        ):
+            records = fetch_convene_records(CONVENE_TEST_URL, pool_statuses=statuses)
+
+        self.assertEqual(post.call_count, 4)
+        self.assertEqual([record["pool"] for record in records], [
+            "resonator",
+            "standard_character",
+            "standard_weapon",
+        ])
+        self.assertEqual(
+            [statuses[str(pool)]["status"] for pool in range(1, 5)],
+            ["success", "error", "success", "success"],
+        )
+        self.assertEqual(post.call_args_list[1].kwargs["timeout"], 15)
+        self.assertIn("read timed out", str(statuses["2"]["message"]))
+        storage_factory.assert_called_once()
+        storage_factory.return_value.save_context.assert_called_once()
 
     def test_legacy_tracker_derives_recent_history_from_cronological_records(self) -> None:
         app = QApplication.instance() or QApplication([])

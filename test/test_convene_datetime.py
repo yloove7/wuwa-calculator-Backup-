@@ -89,7 +89,7 @@ class ConveneDateTimeTests(unittest.TestCase):
             def now(cls, tz=None):
                 return now.astimezone(tz) if tz is not None else now.replace(tzinfo=None)
 
-        worker = PityHistoryImportWorker("https://example.invalid/record")
+        worker = PityHistoryImportWorker("https://aki-gm-resources.example/record?playerId=player&recordId=record&serverId=server&cardPoolId=pool&languageCode=en")
         imported = []
         worker.imported.connect(imported.append)
         with patch("src.wuwa_calculator.app.pity_tracker.fetch_convene_records", return_value=records), \
@@ -115,10 +115,10 @@ class ConveneDateTimeTests(unittest.TestCase):
     def test_old_history_and_pity_survive_empty_current_month_import(self) -> None:
         with TemporaryDirectory() as directory:
             manager = ConveneStorageManager(Path(directory) / "history.json")
-            manager.merge([
+            manager.merge_active_player_with_metadata([
                 {"timestamp": "2026-06-10 10:00:00", "name": "Old five", "rarity": 5, "pool": "resonator"},
                 {"timestamp": "2026-08-15 10:00:00", "name": "Old three", "rarity": 3, "pool": "resonator"},
-            ])
+            ], "player")
             tracker = LegacyPityTrackerWidget()
             tracker.history_records = []
             imported_records = self._run_import(
@@ -139,9 +139,9 @@ class ConveneDateTimeTests(unittest.TestCase):
     def test_pity_receives_existing_history_plus_current_month_import(self) -> None:
         with TemporaryDirectory() as directory:
             manager = ConveneStorageManager(Path(directory) / "history.json")
-            manager.merge([
+            manager.merge_active_player_with_metadata([
                 {"timestamp": "2026-08-15 10:00:00", "name": "Old three", "rarity": 3, "pool": "resonator"},
-            ])
+            ], "player")
             tracker = LegacyPityTrackerWidget()
             tracker.history_records = []
             imported_records = self._run_import(

@@ -6,10 +6,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from src.wuwa_calculator.utils.paths import get_legacy_data_path, get_user_data_path
+from src.wuwa_calculator.utils.paths import (
+    LEGACY_DATA_ROOT,
+    LEGACY_USER_DATA_ROOT,
+    copy_legacy_user_data_file,
+    get_user_data_path,
+)
 
 TEAMS_FILE = get_user_data_path("teams.json")
 DEFAULT_TEAMS: list[dict[str, Any]] = [
@@ -20,18 +26,24 @@ DEFAULT_TEAMS: list[dict[str, Any]] = [
 
 
 def _migrate_legacy_teams(path: Path) -> None:
-    legacy_path = get_legacy_data_path("teams.json")
-    if path != TEAMS_FILE or not legacy_path.exists():
+    if path != TEAMS_FILE or path.exists():
         return
-    try:
-        current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
-        legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
-        if isinstance(current, list) and current:
-            return
-        if isinstance(legacy, list) and legacy:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(legacy, ensure_ascii=False, indent=2), encoding="utf-8")
-    except (OSError, json.JSONDecodeError):
+    legacy_paths = (
+        LEGACY_USER_DATA_ROOT / "teams.json",
+        LEGACY_DATA_ROOT / "teams.json",
+    )
+    for legacy_path in legacy_paths:
+        if not legacy_path.is_file():
+            continue
+        try:
+            copy_legacy_user_data_file(legacy_path, path)
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Could not migrate legacy team data to %s; "
+                "the legacy file was left untouched.",
+                path,
+                exc_info=True,
+            )
         return
 
 
@@ -49,5 +61,6 @@ def load_teams(path: Path = TEAMS_FILE) -> list[dict[str, Any]]:
 
 
 def save_teams(teams: list[dict[str, Any]], path: Path = TEAMS_FILE) -> None:
+    _migrate_legacy_teams(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(teams, ensure_ascii=False, indent=2), encoding="utf-8")

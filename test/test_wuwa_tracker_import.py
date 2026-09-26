@@ -65,6 +65,69 @@ class WuWaTrackerImportTests(unittest.TestCase):
                 self.assertEqual(record["raw"], original)
                 self.assertEqual(record["source_metadata"], report.source_metadata)
 
+    def test_merge_preserves_context_and_existing_pull_deduplication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            history = Path(temporary_directory) / "history.json"
+            context = {
+                "player_id": "player-1",
+                "record_id": "record-1",
+                "server_id": "server-1",
+                "card_pool_id": "pool-1",
+                "language_code": "en",
+                "card_pool_type": 1,
+            }
+            existing = {"seq_id": "pull-1", "name": "Existing"}
+            history.write_text(json.dumps({
+                "schema_version": 1,
+                "convene_context": context,
+                "pulls": [existing],
+            }), encoding="utf-8")
+            manager = ConveneStorageManager(history)
+
+            records, new_count = manager.merge_with_metadata([
+                existing,
+                {"seq_id": "pull-2", "name": "New"},
+            ])
+
+            self.assertEqual(new_count, 1)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(
+                {record["seq_id"] for record in records},
+                {"pull-1", "pull-2"},
+            )
+            self.assertEqual(ConveneStorageManager(history).load_context(), context)
+
+    def test_new_context_survives_generic_imports_and_reopening(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            history = root / "history.json"
+            context = {
+                "player_id": "player-2",
+                "record_id": "record-2",
+                "server_id": "server-2",
+                "card_pool_id": "pool-2",
+                "language_code": "en",
+                "card_pool_type": 1,
+            }
+            manager = ConveneStorageManager(history)
+            manager.save_context(context)
+
+            first_source = self._source(root, {
+                "pulls": [{"seq_id": "pull-1", "name": "First"}],
+            })
+            manager.import_json(first_source)
+            self.assertEqual(manager.load_context(), context)
+
+            second_source = self._source(root, {
+                "history": [{"seq_id": "pull-2", "name": "Second"}],
+            })
+            report = manager.import_json_with_report(second_source)
+            reopened = ConveneStorageManager(history)
+
+            self.assertEqual(report.imported_count, 1)
+            self.assertEqual(len(reopened.load()), 2)
+            self.assertEqual(reopened.load_context(), context)
+
     def test_unknown_pool_is_reported_and_valid_records_still_import(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -87,6 +150,48 @@ class WuWaTrackerImportTests(unittest.TestCase):
             self.assertEqual(report.records[0]["pool"], "resonator")
             self.assertEqual(report.unsupported_pools[0]["cardPoolType"], 8)
             self.assertEqual(report.unsupported_pools[0]["raw"], payload["pulls"][1])
+
+    def test_generic_import_keeps_previous_last_import_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = ConveneStorageManager(root / "history.json")
+            tracker_source = self._source(root, {
+                "playerId": "player-1",
+                "pulls": [self._pull(1, "Tracker item", "2026-09-01T00:00:00Z")],
+            })
+            manager.import_json_with_report(tracker_source)
+            previous_report = manager.last_import_report
+            generic_source = self._source(root, {
+                "history": [{
+                    "time": "2026-09-02T00:00:00Z",
+                    "name": "Generic item",
+                    "pool": "weapon",
+                    "rarity": 3,
+                }],
+            })
+
+            manager.import_json(generic_source)
+
+            self.assertIs(manager.last_import_report, previous_report)
+            self.assertEqual(len(manager.load()), 2)
+
+    def test_failed_report_import_keeps_previous_last_import_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manager = ConveneStorageManager(root / "history.json")
+            good_source = self._source(root, {
+                "playerId": "player-1",
+                "pulls": [self._pull(1, "Tracker item", "2026-09-01T00:00:00Z")],
+            })
+            manager.import_json_with_report(good_source)
+            previous_report = manager.last_import_report
+            invalid_source = root / "invalid.json"
+            invalid_source.write_text("not JSON", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "could not be read"):
+                manager.import_json_with_report(invalid_source)
+
+            self.assertIs(manager.last_import_report, previous_report)
 
     def test_invalid_records_are_reported_without_using_envelope_date(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -132,6 +237,7 @@ class WuWaTrackerImportTests(unittest.TestCase):
             self.assertEqual(second.imported_count, 0)
             self.assertEqual(len(second.records), 2)
             self.assertEqual(persisted["custom_metadata"], "preserve me")
+            self.assertEqual(persisted["convene_context"], {"player_id": "player-1"})
             self.assertEqual({record["name"] for record in persisted["pulls"]}, {"Existing", "Imported"})
 
     def test_refuses_to_mix_different_or_unidentified_existing_player(self) -> None:
@@ -152,6 +258,116 @@ class WuWaTrackerImportTests(unittest.TestCase):
                     ConveneStorageManager(history).import_json_with_report(source)
                 self.assertEqual(history.read_text(encoding="utf-8"), original)
 
+    def test_import_for_active_player_preserves_other_player_histories_but_rejects_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            history = ConveneStorageManager(root / "history.json")
+            context = {
+                "player_id": "B",
+                "record_id": "record-B",
+                "server_id": "server",
+                "card_pool_id": "pool",
+                "language_code": "en",
+            }
+            history.save_context({**context, "player_id": "A", "record_id": "record-A"})
+            history.merge_active_player_with_metadata([{
+                "timestamp": "2026-09-01T10:00:00Z",
+                "pool": "resonator",
+                "name": "A pull",
+                "rarity": 3,
+            }], "A")
+            history.save_context(context)
+            history.merge_active_player_with_metadata([{
+                "timestamp": "2026-09-02T10:00:00Z",
+                "pool": "resonator",
+                "name": "B pull",
+                "rarity": 3,
+            }], "B")
+
+            same_player_source = self._source(root, {
+                "playerId": "B",
+                "pulls": [self._pull(1, "Imported B", "2026-09-03T10:00:00Z")],
+            })
+            report = history.import_json_with_report(same_player_source)
+            self.assertEqual(report.player_id, "B")
+            self.assertEqual({row["name"] for row in history.load_for_player("A")}, {"A pull"})
+            self.assertEqual(
+                {row["name"] for row in history.load_for_player("B")},
+                {"B pull", "Imported B"},
+            )
+
+            different_player_source = self._source(root, {
+                "playerId": "A",
+                "pulls": [self._pull(1, "Imported A", "2026-09-04T10:00:00Z")],
+            })
+            before = history.path.read_bytes()
+            with self.assertRaises(ValueError):
+                history.import_json_with_report(different_player_source)
+            self.assertEqual(history.path.read_bytes(), before)
+
+    def test_context_loader_rejects_invalid_player_identifiers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "history.json"
+            base_context = {
+                "record_id": "record",
+                "server_id": "server",
+                "card_pool_id": "pool",
+                "language_code": "en",
+            }
+            for player_id in ("", True, 1.5, "bad id", "bad/id"):
+                with self.subTest(player_id=player_id):
+                    path.write_text(json.dumps({
+                        "convene_context": {**base_context, "player_id": player_id}
+                    }), encoding="utf-8")
+                    self.assertIsNone(ConveneStorageManager(path).load_context())
+
+            path.write_text(json.dumps({
+                "convene_context": {**base_context, "player_id": "player-2"}
+            }), encoding="utf-8")
+            loaded_context = ConveneStorageManager(path).load_context()
+            self.assertIsNotNone(loaded_context)
+            if loaded_context is None:
+                self.fail("valid context should be loaded")
+            self.assertEqual(
+                loaded_context["player_id"],
+                "player-2",
+            )
+
+    def test_wuwa_import_without_context_does_not_mix_into_other_players(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            history_path = root / "history.json"
+            history_path.write_text(json.dumps({"pulls": [
+                {"player_id": "A", "timestamp": "2026-09-01T10:00:00Z", "pool": "resonator", "name": "A pull", "rarity": 5},
+                {"player_id": "B", "timestamp": "2026-09-02T10:00:00Z", "pool": "resonator", "name": "B pull", "rarity": 5},
+                {"timestamp": "2026-09-03T10:00:00Z", "pool": "resonator", "name": "legacy", "rarity": 5},
+            ]}), encoding="utf-8")
+            source = self._source(root, {
+                "playerId": "B",
+                "pulls": [self._pull(1, "Imported B", "2026-09-04T10:00:00Z")],
+            })
+            before = history_path.read_bytes()
+            with self.assertRaises(ValueError):
+                ConveneStorageManager(history_path).import_json_with_report(source)
+            self.assertEqual(history_path.read_bytes(), before)
+            self.assertEqual(
+                {record["name"] for record in ConveneStorageManager(history_path).load()},
+                {"A pull", "B pull", "legacy"},
+            )
+
+    def test_wuwa_import_rejects_malformed_player_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            history_path = root / "history.json"
+            history_path.write_text(json.dumps({"pulls": []}), encoding="utf-8")
+            source = self._source(root, {
+                "playerId": "bad id",
+                "pulls": [self._pull(1, "Invalid", "2026-09-01T10:00:00Z")],
+            })
+            with self.assertRaisesRegex(ValueError, "valid playerId"):
+                ConveneStorageManager(history_path).import_json_with_report(source)
+            self.assertEqual(json.loads(history_path.read_text(encoding="utf-8")), {"pulls": []})
+
     def test_generic_json_import_remains_available(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -166,6 +382,89 @@ class WuWaTrackerImportTests(unittest.TestCase):
             imported = ConveneStorageManager(root / "history.json").import_json(source)
             self.assertEqual(len(imported), 1)
             self.assertEqual(imported[0]["name"], "Jingran")
+
+    def test_json_import_apis_return_equivalent_records_for_each_format(self) -> None:
+        cases: list[tuple[str, dict[str, object]]] = [
+            (
+                "tethys",
+                {
+                    "format": "tethys_convene_history",
+                    "version": 1,
+                    "pulls": [{
+                        "timestamp": "2026-09-01T10:00:00Z",
+                        "pool": "resonator",
+                        "name": "Tethys pull",
+                        "rarity": 5,
+                    }],
+                },
+            ),
+            (
+                "wuwa_tracker",
+                {
+                    "playerId": "player-3",
+                    "version": "0.0.2",
+                    "pulls": [
+                        self._pull(1, "WuWa pull", "2026-09-02T10:00:00Z"),
+                        self._pull(8, "Unsupported pull", "2026-09-03T10:00:00Z"),
+                    ],
+                },
+            ),
+            (
+                "generic",
+                {
+                    "history": [{
+                        "time": "2026-09-04T10:00:00Z",
+                        "pool": "weapon",
+                        "name": "Generic pull",
+                        "rarity": 4,
+                        "source": "manual-import",
+                        "raw": {"keep": True},
+                    }],
+                },
+            ),
+        ]
+
+        def without_local_ids(
+            records: list[dict[str, object]],
+        ) -> list[dict[str, object]]:
+            return [
+                {key: value for key, value in record.items() if key != "local_record_id"}
+                for record in records
+            ]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            for format_name, payload in cases:
+                with self.subTest(format=format_name):
+                    simple_root = root / f"{format_name}-simple"
+                    report_root = root / f"{format_name}-report"
+                    simple_root.mkdir()
+                    report_root.mkdir()
+                    source = self._source(simple_root, payload)
+                    report_source = self._source(report_root, payload)
+                    simple_manager = ConveneStorageManager(simple_root / "history.json")
+                    report_manager = ConveneStorageManager(report_root / "history.json")
+
+                    simple_records = simple_manager.import_json(source)
+                    report = report_manager.import_json_with_report(report_source)
+
+                    self.assertEqual(
+                        without_local_ids(simple_records),
+                        without_local_ids(report.records),
+                    )
+                    self.assertTrue(all(record.get("local_record_id") for record in simple_records))
+                    self.assertEqual(simple_manager.last_import_report is not None, format_name != "generic")
+                    expected_format = (
+                        "tethys_convene_history"
+                        if format_name == "tethys"
+                        else format_name
+                    )
+                    self.assertEqual(report.format, expected_format)
+                    if format_name == "wuwa_tracker":
+                        self.assertEqual(report.player_id, "player-3")
+                        self.assertEqual(len(report.unsupported_pools), 1)
+                    if format_name == "generic":
+                        self.assertEqual(report.imported_count, 1)
 
 
 if __name__ == "__main__":

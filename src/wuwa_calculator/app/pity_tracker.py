@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 import os
 import sys
 import re
 import json
 import subprocess
 import requests
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -61,6 +62,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.wuwa_calculator.app.security_policy import allows_remote_content
+from src.wuwa_calculator.app.components import circular_pixmap
+from src.wuwa_calculator.app.convene.presentation import pity_progress_bar
 from src.wuwa_calculator.app.styles import wallpaper_palette
 from src.wuwa_calculator.domain.pity import (
     PityState,
@@ -70,7 +73,10 @@ from src.wuwa_calculator.domain.pity import (
     record_pool,
     record_sort_key,
 )
-from src.wuwa_calculator.storage.convene_storage import ConveneStorageManager
+from src.wuwa_calculator.storage.convene_storage import (
+    ConveneJsonImportReport,
+    ConveneStorageManager,
+)
 from src.wuwa_calculator.utils.convene_datetime import (
     KURO_TIMEZONE,
     parse_convene_datetime,
@@ -131,6 +137,23 @@ class ConveneLogCandidate:
     path: Path
     kind: str
     install_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class ConveneCaptureContext:
+    """Provenance and identity discovered for one explicit capture attempt."""
+
+    source_url: str
+    player_id: str
+    record_id: str
+    svr_id: str
+    resources_id: str
+    lang: str
+    log_path: Path | None
+    log_mtime: float | None
+    discovered_at: str
+    discovery_source: str
+    is_new_capture: bool = True
 
 
 class ConveneLogLocator:
@@ -244,6 +267,7 @@ class ConveneUrlExtractor:
         return None
 
     def extract(self, candidates: list[ConveneLogCandidate]) -> str | None:
+        """Extract a URL without requiring every API context parameter."""
         ranked = sorted(
             candidates,
             key=lambda item: item.path.stat().st_mtime,
@@ -264,10 +288,45 @@ class ConveneUrlExtractor:
                 return url
         return None
 
+    def discover(
+        self,
+        candidates: list[ConveneLogCandidate],
+    ) -> ConveneCaptureContext | None:
+        ranked = sorted(
+            (item for item in candidates if item.path.is_file()),
+            key=lambda item: item.path.stat().st_mtime,
+            reverse=True,
+        )
+        for candidate in ranked:
+            if candidate.kind == "debug" and candidate.install_path is not None:
+                siblings = [
+                    item for item in ranked
+                    if item.kind == "client" and item.install_path == candidate.install_path
+                ]
+                for sibling in siblings[:1]:
+                    url = self.extract_from_candidate(sibling)
+                    if url:
+                        return _capture_context_from_url(
+                            url,
+                            discovery_source="client_log",
+                            log_path=sibling.path,
+                            log_mtime=sibling.path.stat().st_mtime,
+                        )
+            url = self.extract_from_candidate(candidate)
+            if url:
+                return _capture_context_from_url(
+                    url,
+                    discovery_source=f"{candidate.kind}_log",
+                    log_path=candidate.path,
+                    log_mtime=candidate.path.stat().st_mtime,
+                )
+        return None
+
 
 def _normalize_pull_record(
     record: dict[str, object],
     source: str = "convene_api",
+    player_id: str | None = None,
 ) -> dict[str, object]:
     timestamp = record.get("timestamp", record.get("time", record.get("date")))
     name = record.get("name", record.get("item", record.get("title")))
@@ -301,6 +360,8 @@ def _normalize_pull_record(
         "source": source,
         "official_id": official_id,
     }
+    if player_id is not None and player_id.strip():
+        normalized["player_id"] = player_id.strip()
     if official_id not in (None, ""):
         normalized["dedup_key"] = f"id:{official_id}"
     elif all(value not in (None, "") for value in (timestamp, pool, name, rarity)):
@@ -323,6 +384,8 @@ class TrackerStatus:
     is_partial: bool | None = None
     is_stale: bool | None = None
     source: str = "unknown"
+    capture_source: str = "unknown"
+    is_new_capture: bool | None = None
     message: str = ""
     new_records_count: int = 0
     pool_status: dict[str, dict[str, object]] = field(default_factory=dict)
@@ -357,6 +420,19 @@ def _pool_results_are_partial(
         for status in pool_statuses.values()
     )
     return successful and incomplete
+
+
+def _all_pools_failed(
+    pool_statuses: dict[str, dict[str, object]],
+) -> bool:
+    expected_pool_keys = {"1", "2", "3", "4"}
+    if not expected_pool_keys.issubset(pool_statuses):
+        return False
+    return all(
+        pool_statuses[pool_key].get("status") == "error"
+        and pool_statuses[pool_key].get("completed") is True
+        for pool_key in expected_pool_keys
+    )
 
 
 def _status_message_with_pool_details(
@@ -421,13 +497,13 @@ def _failed_tracker_status(
 
 
 def extract_convene_parameters(url: str) -> tuple[str, str]:
-    """Extract authentication parameters from query strings or URL fragments."""
+    """Extract the player and record IDs used by the Convene API request."""
     context = extract_convene_request_context(url)
     return str(context["player_id"]), str(context["record_id"])
 
 
 def extract_convene_request_context(url: str) -> dict[str, str | int]:
-    """Extract the authenticated request context used by the current browser API."""
+    """Extract the request context used by the current Convene browser API."""
     clean_url = unquote(url.replace("\r", "").replace("\n", "").strip())
     player_match = CONVENE_PLAYER_ID_RE.search(clean_url)
     record_match = CONVENE_RECORD_ID_RE.search(clean_url)
@@ -456,6 +532,46 @@ def extract_convene_request_context(url: str) -> dict[str, str | int]:
         "language_code": language_code,
         "card_pool_type": 1,
     }
+
+
+def _capture_context_from_url(
+    url: str,
+    *,
+    discovery_source: str,
+    log_path: Path | None = None,
+    log_mtime: float | None = None,
+) -> ConveneCaptureContext:
+    request_context = extract_convene_request_context(url)
+    return ConveneCaptureContext(
+        source_url=url,
+        player_id=str(request_context["player_id"]),
+        record_id=str(request_context["record_id"]),
+        svr_id=str(request_context["server_id"]),
+        resources_id=str(request_context["card_pool_id"]),
+        lang=str(request_context["language_code"]),
+        log_path=log_path,
+        log_mtime=log_mtime,
+        discovered_at=_utc_now_iso(),
+        discovery_source=discovery_source,
+    )
+
+
+def capture_from_changed_clipboard(
+    previous_text: str,
+    current_text: str,
+) -> ConveneCaptureContext | None:
+    """Accept an external URL only when the clipboard changed and is valid."""
+    normalized_previous = previous_text.replace("\r", "").replace("\n", "").strip()
+    normalized_current = current_text.replace("\r", "").replace("\n", "").strip()
+    if not normalized_current or normalized_current == normalized_previous:
+        return None
+    try:
+        return _capture_context_from_url(
+            normalized_current,
+            discovery_source="external_clipboard",
+        )
+    except ValueError:
+        return None
 
 
 def build_convene_url_from_context(context: dict[str, object] | None) -> str | None:
@@ -559,6 +675,15 @@ def fetch_convene_records(
                 headers=headers,
                 timeout=15,
             )
+        except requests.exceptions.Timeout as error:
+            if pool_statuses is not None:
+                pool_statuses[pool_key].update({
+                    "status": "error",
+                    "completed": True,
+                    "message": f"Tempo limite da API: {error}",
+                    "detail": f"[Convene] pool={pool_type} status=timeout",
+                })
+            continue
         except requests.exceptions.ConnectionError as error:
             connection_errors.append(error)
             if pool_statuses is not None:
@@ -625,9 +750,9 @@ def fetch_convene_records(
             oldest_name = oldest_record.get("name", oldest_record.get("item", oldest_record.get("title", ""))) if isinstance(oldest_record, dict) else ""
             print(
                 "[CONVENE RESPONSE] "
-                f"status={status_code} code={json_code} message={api_message} "
-                f"data_count={len(data_value)} newest_time={newest_time} newest_name={newest_name} "
-                f"oldest_time={oldest_time} oldest_name={oldest_name} record_id={record_id}"
+                f"status={status_code} code={json_code} message={api_message!a} "
+                f"data_count={len(data_value)} newest_time={newest_time!a} newest_name={newest_name!a} "
+                f"oldest_time={oldest_time!a} oldest_name={oldest_name!a} record_id={record_id}"
             )
 
         if json_code not in (0, "0"):
@@ -710,64 +835,8 @@ def get_brave_cdp_convene_url(timeout: float = 2.0) -> str | None:
 
 
 def get_convene_url_from_log(log_path: str | Path | None = None) -> str:
-    """Prefer the live Brave CDP URL, then fall back to local logs and persisted context."""
-    brave_url = get_brave_cdp_convene_url()
-    if brave_url:
-        context = extract_convene_request_context(brave_url)
-        print("[CONVENE SOURCE] source=brave_cdp")
-        print(
-            "[CONVENE CONTEXT] "
-            f"player_id={context.get('player_id', '')} record_id={context.get('record_id', '')} "
-            f"server_id={context.get('server_id', '')} card_pool_id={context.get('card_pool_id', '')} "
-            f"language={context.get('language_code', '')}"
-        )
-        return brave_url
-
-    print("[CONVENE SOURCE] source=brave_cdp_missing -> falling_back_to_log")
-    candidates = ConveneLogLocator(log_path).locate()
-    if not candidates:
-        persisted_context = ConveneStorageManager().load_context()
-        persisted_url = build_convene_url_from_context(persisted_context)
-        if persisted_context and persisted_url:
-            print("[CONVENE SOURCE] source=persisted_context")
-            print(
-                "[CONVENE CONTEXT] "
-                f"player_id={persisted_context.get('player_id', '')} record_id={persisted_context.get('record_id', '')} "
-                f"server_id={persisted_context.get('server_id', '')} card_pool_id={persisted_context.get('card_pool_id', '')} "
-                f"language={persisted_context.get('language_code', 'en')} card_pool_type={persisted_context.get('card_pool_type', 1)}"
-            )
-            return persisted_url
-        print("[CONVENE SOURCE] source=none")
-        print("[CONVENE ERROR] no_brave_url_no_log_no_persisted_context")
-        raise FileNotFoundError(CONVENE_URL_NOT_FOUND_MESSAGE)
-
-    url = ConveneUrlExtractor().extract(candidates)
-    if url:
-        context = extract_convene_request_context(url)
-        print("[CONVENE SOURCE] source=client_log")
-        print(
-            "[CONVENE CONTEXT] "
-            f"player_id={context.get('player_id', '')} record_id={context.get('record_id', '')} "
-            f"server_id={context.get('server_id', '')} card_pool_id={context.get('card_pool_id', '')} "
-            f"language={context.get('language_code', '')}"
-        )
-        return url
-
-    print("[CONVENE SOURCE] source=client_log_missing -> falling_back_to_persisted_context")
-    persisted_context = ConveneStorageManager().load_context()
-    persisted_url = build_convene_url_from_context(persisted_context)
-    if persisted_context and persisted_url:
-        print("[CONVENE SOURCE] source=persisted_context")
-        print(
-            "[CONVENE CONTEXT] "
-            f"player_id={persisted_context.get('player_id', '')} record_id={persisted_context.get('record_id', '')} "
-            f"server_id={persisted_context.get('server_id', '')} card_pool_id={persisted_context.get('card_pool_id', '')} "
-            f"language={persisted_context.get('language_code', 'en')} card_pool_type={persisted_context.get('card_pool_type', 1)}"
-        )
-        return persisted_url
-    print("[CONVENE SOURCE] source=none")
-    print("[CONVENE ERROR] no_brave_url_no_log_no_persisted_context")
-    raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
+    """Return a URL found in current logs, never from restored context."""
+    return ClientLogReader(log_path).get_capture_context().source_url
 
 
 class ClientLogReader:
@@ -776,8 +845,17 @@ class ClientLogReader:
     def __init__(self, log_path: str | Path | None = None) -> None:
         self.log_path = Path(log_path) if log_path is not None else None
 
+    def get_capture_context(self) -> ConveneCaptureContext:
+        candidates = ConveneLogLocator(self.log_path).locate()
+        if not candidates:
+            raise FileNotFoundError(CONVENE_URL_NOT_FOUND_MESSAGE)
+        capture = ConveneUrlExtractor().discover(candidates)
+        if capture is None:
+            raise ValueError(CONVENE_URL_NOT_FOUND_MESSAGE)
+        return capture
+
     def get_convene_url(self) -> str:
-        return get_convene_url_from_log(self.log_path)
+        return self.get_capture_context().source_url
 
 
 class HorizontalPageStack(QFrame):
@@ -866,13 +944,34 @@ class PityHistoryImportWorker(QObject):
             pool_status=pool_statuses,
         ))
         try:
+            request_context = extract_convene_request_context(self.history_url)
+            player_id = str(request_context["player_id"]).strip()
+            if not player_id:
+                raise ValueError("A valid player_id is required for Convene synchronization.")
+            history_storage = ConveneStorageManager()
+            previous_context = history_storage.load_context()
+            previous_context_player_id = (
+                str(previous_context["player_id"])
+                if previous_context is not None
+                else None
+            )
             raw_records = fetch_convene_records(
                 self.history_url,
                 pool_statuses=pool_statuses,
             )
+            if _all_pools_failed(pool_statuses):
+                message = "Falha ao consultar todos os pools de Convene."
+                self.status.emit(_failed_tracker_status(
+                    pool_statuses,
+                    "error",
+                    message,
+                    started_at,
+                ))
+                self.failed.emit(message)
+                return
             extracted_records = [record for record in raw_records if isinstance(record, dict)]
             normalized_records = [
-                _normalize_pull_record(record)
+                _normalize_pull_record(record, player_id=player_id)
                 for record in extracted_records
             ]
             now = datetime.now(KURO_TIMEZONE)
@@ -916,8 +1015,10 @@ class PityHistoryImportWorker(QObject):
             finished_at = _utc_now_iso()
             if persistable_records:
                 try:
-                    history, new_records_count = ConveneStorageManager().merge_with_metadata(
-                        persistable_records
+                    history, new_records_count = history_storage.merge_active_player_with_metadata(
+                        persistable_records,
+                        player_id,
+                        previous_context_player_id=previous_context_player_id,
                     )
                     non_pull_records = [
                         record for record in current_month_records
@@ -957,7 +1058,7 @@ class PityHistoryImportWorker(QObject):
                         message=f"Falha ao persistir histórico: {error}",
                         pool_status=dict(pool_statuses),
                     ))
-                    existing_history = ConveneStorageManager().load()
+                    existing_history = ConveneStorageManager().load_for_player(player_id)
                     self.imported.emit([*existing_history, *current_month_records])
             else:
                 self.status.emit(TrackerStatus(
@@ -975,7 +1076,7 @@ class PityHistoryImportWorker(QObject):
                     ),
                     pool_status=dict(pool_statuses),
                 ))
-                existing_history = ConveneStorageManager().load()
+                existing_history = ConveneStorageManager().load_for_player(player_id)
                 self.imported.emit([*existing_history, *current_month_records])
         except requests.exceptions.ConnectionError:
             message = CONVENE_DNS_ERROR_MESSAGE
@@ -1011,62 +1112,6 @@ class PityHistoryImportWorker(QObject):
     @staticmethod
     def _extract_records(data: object) -> list[dict[str, object]]:
         return extract_records(data)
-
-
-class ConveneSyncWorker(QThread):
-    """Read the latest Convene URL and fetch its JSON payload off the UI thread."""
-
-    convene_data_loaded = Signal(dict)
-    sync_failed = Signal(str)
-    success_signal = Signal(object)
-    error_signal = Signal(str)
-
-    def __init__(self, log_path: Path | None = None, parent: QObject | None = None) -> None:
-        super().__init__(parent)
-        self.log_path = Path(log_path) if log_path is not None else None
-
-    def run(self) -> None:
-        try:
-            reader = ClientLogReader(self.log_path)
-            convene_url = reader.get_convene_url()
-            response = requests.get(
-                convene_url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                    "Accept": "application/json, text/plain, */*",
-                },
-                timeout=15,
-            )
-            if response.status_code in (403, 405):
-                raise ValueError(
-                    f"Erro HTTP {response.status_code}: Método de requisição recusado pelo servidor da Kuro."
-                )
-            if response.status_code != 200:
-                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
-            if not response.text.strip():
-                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
-            try:
-                payload = json.loads(response.text)
-            except json.JSONDecodeError as error:
-                raise ValueError(
-                    "Sessão expirada. Acesse o Convene no jogo para revalidar."
-                ) from error
-            if not isinstance(payload, dict):
-                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
-            if payload.get("code") not in (None, 0, "0"):
-                raise ValueError("Sessão expirada. Acesse o Convene no jogo para revalidar.")
-            self.convene_data_loaded.emit(payload)
-            self.success_signal.emit(payload)
-        except requests.RequestException as error:
-            self._emit_error(f"Falha de rede ao sincronizar o Convene: {error}")
-        except (FileNotFoundError, OSError, ValueError) as error:
-            self._emit_error(str(error))
-        except Exception as error:  # pylint: disable=broad-except
-            self._emit_error(f"Falha ao sincronizar o Convene: {error}")
-
-    def _emit_error(self, message: str) -> None:
-        self.sync_failed.emit(message)
-        self.error_signal.emit(message)
 
 
 class PityTrackerWorker(QObject):
@@ -1254,14 +1299,27 @@ class LegacyPityTrackerWidget(QFrame):
         self._image_replies: dict[str, QNetworkReply] = {}
         self._import_thread = None
         self._import_worker = None
-        self._sync_worker: ConveneSyncWorker | None = None
         self._pwsh_process: subprocess.Popen | None = None
-        self._pwsh_cancelled = False
+        self._clipboard_before_external = ""
+        self.last_capture_context: ConveneCaptureContext | None = None
         self._pwsh_poll_timer = QTimer(self)
         self._pwsh_poll_timer.setInterval(250)
         self._pwsh_poll_timer.timeout.connect(self._await_wuwatracker_import)
         self.tracker_status = TrackerStatus()
-        self.history_records: list[dict[str, object]] = ConveneStorageManager().load()
+        storage = ConveneStorageManager()
+        saved_context = storage.load_context()
+        saved_player_id = (
+            str(saved_context.get("player_id") or "").strip()
+            if saved_context is not None
+            else ""
+        )
+        self.active_player_id: str | None = saved_player_id or None
+        self.history_records: list[dict[str, object]] = (
+            storage.load_for_player(saved_player_id)
+            if saved_player_id
+            else []
+        )
+        self._update_state_from_records(self.history_records)
         self._pulse_value = 0.0
         self._palette_accent = "#A855F7"
         self._build_large_banner_ui()
@@ -1279,23 +1337,27 @@ class LegacyPityTrackerWidget(QFrame):
         self._pulse_animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def refresh_convene_context_from_log(self) -> None:
-        """Refresh persisted Convene context from the local Client.log when it differs."""
+        """Restore the visible partition from a discovered URL without persisting it."""
         try:
-            candidates = ConveneLogLocator().locate()
-            if not candidates:
-                return
-            url = ConveneUrlExtractor().extract(candidates)
-            if not url:
-                return
-            new_context = extract_convene_request_context(url)
-            persisted_context = ConveneStorageManager().load_context()
-            if persisted_context is None:
-                ConveneStorageManager().save_context(new_context)
-                return
-            if new_context != persisted_context:
-                ConveneStorageManager().save_context(new_context)
+            capture = ClientLogReader().get_capture_context()
+            self._activate_player_history(capture.player_id)
         except (FileNotFoundError, OSError, ValueError, TypeError):
             return
+
+    def _activate_player_history(self, player_id: str) -> None:
+        normalized_player_id = player_id.strip()
+        if not normalized_player_id:
+            return
+        try:
+            records = ConveneStorageManager().load_for_player(normalized_player_id)
+        except ValueError:
+            return
+        self.active_player_id = normalized_player_id
+        self.history_records = records
+        self._update_state_from_records(self.history_records)
+        self._refresh_labels()
+        self.state_changed.emit(self.state)
+        self.history_changed.emit(self.history_records)
 
     def _build_large_banner_ui(self) -> None:
         self.setStyleSheet(
@@ -1584,16 +1646,6 @@ class LegacyPityTrackerWidget(QFrame):
                 effect.setColor(shadow_color)
         self._refresh_labels()
 
-    @staticmethod
-    def _make_pity_tile(title: str, avatar_name: str) -> QFrame:
-        tile = QFrame()
-        tile.setObjectName("pityTile")
-        tile.setFixedHeight(94)
-        title_label = QLabel(title, tile)
-        title_label.setObjectName("pityCardTitle")
-        title_label.setGeometry(10, 8, 110, 16)
-        return tile
-
     def _load_visual_assets(self) -> None:
         self._load_banner_image(
             EVENT_RESONATOR_BANNER_URL,
@@ -1670,33 +1722,11 @@ class LegacyPityTrackerWidget(QFrame):
 
     @staticmethod
     def _circular_pixmap(source: QPixmap, width: int, height: int) -> QPixmap:
-        scaled = source.scaled(
-            width,
-            height,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        canvas = QPixmap(width, height)
-        canvas.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(canvas)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        path = QPainterPath()
-        path.addEllipse(0, 0, width, height)
-        painter.setClipPath(path)
-        x = (width - scaled.width()) // 2
-        y = (height - scaled.height()) // 2
-        painter.drawPixmap(x, y, scaled)
-        painter.end()
-        return canvas
+        return circular_pixmap(source, width, height)
 
     @staticmethod
     def _make_progress() -> QProgressBar:
-        progress = QProgressBar()
-        progress.setRange(0, 80)
-        progress.setValue(0)
-        progress.setTextVisible(False)
-        progress.setFixedHeight(5)
-        return progress
+        return pity_progress_bar(5)
 
     pulseValue = Property(float, lambda self: self._pulse_value, lambda self, value: self._set_pulse(value))
 
@@ -1799,22 +1829,64 @@ class LegacyPityTrackerWidget(QFrame):
     def _request_sync(self) -> None:
         if self._import_thread is not None and self._import_thread.isRunning():
             return
-        if self._pwsh_process is not None and self._pwsh_process.poll() is None:
-            return
+        if self._pwsh_process is not None:
+            if self._pwsh_process.poll() is None:
+                return
+            self._pwsh_process = None
+            self._pwsh_poll_timer.stop()
 
         self.sync_log_clicked.emit()
-        self.sync_status.setText("Aguardando URL do WuWaTracker...")
-        self.sync_label.setText("Abrindo PowerShell e aguardando a URL copiada...")
+        self._start_external_url_discovery()
 
-        self._pwsh_process = subprocess.Popen(
-            [
-                "powershell.exe",
-                "-Command",
-                WUWA_TRACKER_IMPORT_COMMAND,
-            ],
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
-        )
-        self._pwsh_cancelled = False
+    def _start_saved_log_import(self) -> None:
+        """Use a URL discovered in the current local game logs as the primary source."""
+        try:
+            capture = ClientLogReader().get_capture_context()
+        except (FileNotFoundError, OSError, ValueError) as error:
+            self.tracker_status = TrackerStatus(
+                log_status="no_convene_url",
+                sync_status="error",
+                last_sync_at=_utc_now_iso(),
+                source="unknown",
+                message=str(error),
+            )
+            self.status_changed.emit(self.tracker_status)
+            answer = QMessageBox.question(
+                self,
+                "Native URL unavailable",
+                "Tethys did not find a valid URL in the current logs. "
+                "Deseja usar explicitamente o descobridor externo do WuWa Tracker?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self._start_external_url_discovery()
+            else:
+                self._on_sync_error(str(error))
+            return
+
+        self.sync_status.setText("URL atual dos logs encontrada")
+        self.sync_label.setText("Consultando os registros desta captura...")
+        self._start_import(capture.source_url, capture_context=capture)
+
+    def _start_external_url_discovery(self) -> None:
+        clipboard = QApplication.clipboard()
+        self._clipboard_before_external = clipboard.text() if clipboard is not None else ""
+        self.sync_status.setText("Descoberta externa solicitada")
+        self.sync_label.setText("Aguardando uma URL nova do WuWa Tracker...")
+        try:
+            self._pwsh_process = subprocess.Popen(
+                [
+                    "powershell.exe",
+                    "-NoExit",
+                    "-Command",
+                    WUWA_TRACKER_IMPORT_COMMAND,
+                ],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        except OSError as error:
+            self._on_sync_error(f"Could not start the external URL finder: {error}")
+            return
         self._pwsh_poll_timer.start()
 
     def _await_wuwatracker_import(self) -> None:
@@ -1822,134 +1894,43 @@ class LegacyPityTrackerWidget(QFrame):
         if process is None:
             self._pwsh_poll_timer.stop()
             return
-        if process.poll() is None:
-            return
-        self._pwsh_process = None
-        self._pwsh_poll_timer.stop()
-        if self._pwsh_cancelled:
-            self._pwsh_cancelled = False
-            self.sync_status.setText("Sincronização cancelada")
-            self.sync_label.setText("A importação não foi iniciada.")
-            self.sync_button.setEnabled(True)
-            return
-
-        brave_url = get_brave_cdp_convene_url()
-        if brave_url:
-            self._start_import(brave_url)
-            return
-
         clipboard = QApplication.clipboard()
-        convene_url = ""
-        if clipboard is not None:
-            convene_url = clipboard.text().strip()
-        if convene_url:
-            convene_url = unquote(convene_url.replace("\r", "").replace("\n", "").strip())
-
-        if not convene_url:
-            self.sync_status.setText("URL não encontrada")
-            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard ou no Brave ativo.")
+        current_text = clipboard.text() if clipboard is not None else ""
+        capture = capture_from_changed_clipboard(
+            self._clipboard_before_external,
+            current_text,
+        )
+        if capture is not None:
+            self._pwsh_process = None
+            self._pwsh_poll_timer.stop()
+            self._start_import(capture.source_url, capture_context=capture)
             return
+        if process.poll() is not None:
+            self._pwsh_process = None
+            self._pwsh_poll_timer.stop()
+            self._on_sync_error(
+                "The external URL finder did not provide a new valid clipboard URL."
+            )
 
-        try:
-            extract_convene_parameters(convene_url)
-        except ValueError:
-            self.sync_status.setText("URL inválida")
-            self.sync_label.setText("Não foi encontrada uma Convene Record URL no clipboard ou no Brave ativo.")
-            return
-
-        self._start_import(convene_url)
+    def _prepare_capture_context(
+        self,
+        capture: ConveneCaptureContext,
+    ) -> ConveneCaptureContext:
+        previous_url = (
+            self.last_capture_context.source_url
+            if self.last_capture_context is not None
+            else None
+        )
+        prepared = replace(
+            capture,
+            is_new_capture=(capture.source_url != previous_url),
+        )
+        self.last_capture_context = prepared
+        return prepared
 
     def request_sync(self) -> None:
-        """Request synchronization through the existing import pipeline."""
+        """Start a fresh WuWa Tracker capture through the visible PowerShell."""
         self._request_sync()
-
-    def _start_saved_log_import(self) -> None:
-        """Use the active Brave CDP URL first, then the saved local Client.log fallback."""
-        brave_url = get_brave_cdp_convene_url()
-        if brave_url:
-            self.tracker_status = TrackerStatus(
-                log_status="valid",
-                sync_status="running",
-                source="api",
-            )
-            self.sync_status.setText("URL do Brave encontrada")
-            self.sync_label.setText("Consultando os registros salvos...")
-            self._start_import(brave_url)
-            return
-
-        try:
-            convene_url = ClientLogReader().get_convene_url()
-        except FileNotFoundError as error:
-            self.tracker_status = TrackerStatus(
-                log_status="missing",
-                sync_status="error",
-                last_sync_at=_utc_now_iso(),
-                message=str(error),
-            )
-            self._on_sync_error(str(error))
-            return
-        except OSError as error:
-            self.tracker_status = TrackerStatus(
-                log_status="unknown",
-                sync_status="error",
-                last_sync_at=_utc_now_iso(),
-                message=str(error),
-            )
-            self._on_sync_error(str(error))
-            return
-        except ValueError as error:
-            message = str(error)
-            log_status = "empty" if message.startswith("Client.log vazio") else "no_convene_url"
-            self.tracker_status = TrackerStatus(
-                log_status=log_status,
-                sync_status="error",
-                last_sync_at=_utc_now_iso(),
-                message=message,
-            )
-            self._on_sync_error(str(error))
-            return
-        self.tracker_status = TrackerStatus(
-            log_status="valid",
-            sync_status="running",
-            source="api",
-        )
-        self.sync_status.setText("URL do Client.log encontrada")
-        self.sync_label.setText("Consultando os registros salvos...")
-        self._start_import(convene_url)
-
-    def _start_convene_sync(self) -> None:
-        if self._sync_worker is not None and self._sync_worker.isRunning():
-            return
-        self.sync_button.setEnabled(False)
-        self.sync_button.setText("Carregando...")
-        self.sync_status.setText("Sincronizando...")
-        self.sync_label.setStyleSheet("color: #F4C7C3;")
-        self.sync_label.setText("Lendo Client.log e consultando a API...")
-        self._sync_worker = ConveneSyncWorker(parent=self)
-        self._sync_worker.convene_data_loaded.connect(self.on_convene_data_received)
-        self._sync_worker.sync_failed.connect(self._on_sync_error)
-        self._sync_worker.finished.connect(self._clear_sync_worker)
-        self._sync_worker.start()
-
-    def on_convene_data_received(self, data: dict) -> None:
-        """Apply a successful API payload to every Convene Tracker surface."""
-        records = extract_records(data)
-        if not records:
-            self._on_sync_error("A API não retornou registros de Convene reconhecíveis.")
-            return
-        self._apply_imported_records(records)
-        self.sync_status.setText("ONLINE / Sincronizado")
-        self.sync_status.setStyleSheet(
-            "color: #6FE0B0; background: rgba(35, 150, 105, 45); "
-            "border: 1px solid rgba(111, 224, 176, 100);"
-        )
-        self.update()
-        self.repaint()
-
-    def update_convene_ui(self, data: object) -> None:
-        """Backward-compatible alias for the Convene data handler."""
-        if isinstance(data, dict):
-            self.on_convene_data_received(data)
 
     def _on_sync_error(self, message: str) -> None:
         self.sync_status.setText("Não sincronizado")
@@ -1968,13 +1949,6 @@ class LegacyPityTrackerWidget(QFrame):
             self.sync_label.setText(message)
         self.status_changed.emit(self.tracker_status)
 
-    def _clear_sync_worker(self) -> None:
-        if self._sync_worker is not None:
-            self._sync_worker.deleteLater()
-        self._sync_worker = None
-        self.sync_button.setText("Sincronizar Client.log")
-        self.sync_button.setEnabled(True)
-
     def _set_progress(self, progress: QProgressBar, value: int | None) -> None:
         current = max(0, min(80, value or 0))
         color = self._palette_accent
@@ -1984,9 +1958,33 @@ class LegacyPityTrackerWidget(QFrame):
             f"QProgressBar::chunk {{ background: {color}; border-radius: 2px; }}"
         )
 
-    def _start_import(self, convene_url: str) -> None:
+    def _start_import(
+        self,
+        convene_url: str,
+        *,
+        capture_context: ConveneCaptureContext | None = None,
+    ) -> None:
         try:
-            extract_convene_parameters(convene_url)
+            capture = capture_context or _capture_context_from_url(
+                convene_url,
+                discovery_source="manual_url",
+            )
+            if capture_context is not None:
+                request_context = extract_convene_request_context(convene_url)
+                if (
+                    capture.source_url != convene_url
+                    or capture.player_id.strip() != str(request_context["player_id"])
+                    or capture.record_id != str(request_context["record_id"])
+                    or capture.svr_id != str(request_context["server_id"])
+                    or capture.resources_id != str(request_context["card_pool_id"])
+                    or capture.lang != str(request_context["language_code"])
+                ):
+                    raise ValueError(
+                        "The capture context does not match the current Convene URL."
+                    )
+            player_id = capture.player_id.strip()
+            if not player_id:
+                raise ValueError("A valid player_id is required for Convene synchronization.")
         except ValueError as error:
             self.tracker_status = TrackerStatus(
                 log_status="invalid_url",
@@ -1998,6 +1996,15 @@ class LegacyPityTrackerWidget(QFrame):
             self.sync_label.setText(str(error))
             self.status_changed.emit(self.tracker_status)
             return
+        capture = self._prepare_capture_context(capture)
+        self.tracker_status = TrackerStatus(
+            log_status="valid",
+            sync_status="running",
+            source="api",
+            capture_source=capture.discovery_source,
+            is_new_capture=capture.is_new_capture,
+        )
+        self._activate_player_history(player_id)
         self.sync_status.setText("Sincronizando...")
         self._import_thread = QThread(self)
         self._import_worker = PityHistoryImportWorker(convene_url)
@@ -2017,6 +2024,10 @@ class LegacyPityTrackerWidget(QFrame):
             return
         if status.last_success_at is None:
             status.last_success_at = self.tracker_status.last_success_at
+        capture = self.last_capture_context
+        if capture is not None:
+            status.capture_source = capture.discovery_source
+            status.is_new_capture = capture.is_new_capture
         self.tracker_status = status
         if status.message:
             self.sync_label.setText(status.message)
@@ -2061,6 +2072,45 @@ class LegacyPityTrackerWidget(QFrame):
         self.history_changed.emit(self.history_records)
         self.status_changed.emit(self.tracker_status)
 
+    def apply_local_history_records(self, records: list[dict[str, object]]) -> None:
+        """Refresh the visible local history without marking it as a network sync."""
+        self.history_records = records
+        self._update_state_from_records(records)
+        self._refresh_labels()
+        self.state_changed.emit(self.state)
+        self.history_changed.emit(self.history_records)
+
+    def import_history_json(self, source: str | Path) -> ConveneJsonImportReport:
+        """Import a portable history file and refresh this backend's player view."""
+        storage = ConveneStorageManager()
+        report = storage.import_json_with_report(Path(source))
+        if (
+            report.format == "wuwa_tracker"
+            and report.player_id
+            and not self.active_player_id
+        ):
+            self._activate_player_history(report.player_id)
+            display_records = self.history_records
+        elif self.active_player_id:
+            display_records = storage.load_for_player(self.active_player_id)
+        else:
+            display_records = []
+        self.apply_local_history_records(display_records)
+        return report
+
+    def export_history_json(
+        self,
+        destination: str | Path,
+    ) -> dict[str, object] | None:
+        """Export the active player's history through Convene storage."""
+        player_id = self.active_player_id
+        if not player_id:
+            return None
+        return ConveneStorageManager().export_tethys_history(
+            Path(destination),
+            player_id=player_id,
+        )
+
     def _import_failed(self, message: str) -> None:
         self.sync_status.setText("Falha na sincronização")
         self.sync_label.setText(
@@ -2086,34 +2136,16 @@ class LegacyPityTrackerWidget(QFrame):
 
     def shutdown_workers(self, timeout_ms: int = 5000) -> bool:
         self._pwsh_poll_timer.stop()
-        process = self._pwsh_process
-        if process is not None:
-            self._pwsh_cancelled = True
-            self._pwsh_process = None
-            if process.poll() is None:
-                try:
-                    process.terminate()
-                except OSError:
-                    pass
-                try:
-                    process.wait(timeout=2.0)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
-            self._pwsh_cancelled = False
-            self.sync_status.setText("Sincronização cancelada")
-            self.sync_label.setText("A importação não foi iniciada.")
-            self.sync_button.setEnabled(True)
-        for worker in (self._import_thread, self._sync_worker):
-            if worker is None or not worker.isRunning():
-                continue
+        # The visible PowerShell window belongs to the user and stays open.
+        # Stop observing it without terminating its process.
+        self._pwsh_process = None
+        worker = self._import_thread
+        if worker is not None and worker.isRunning():
             worker.quit()
             if not worker.wait(timeout_ms):
                 return False
         if self._import_thread is not None and not self._import_thread.isRunning():
             self._clear_import()
-        if self._sync_worker is not None and not self._sync_worker.isRunning():
-            self._clear_sync_worker()
         return True
 
     def capture_pull(self, items: Iterable[object]) -> None:
@@ -2495,6 +2527,8 @@ class PityTrackerWidget(QFrame):
         active_character: str = "",
         banner_images: dict[str, object] | None = None,
         parent: QWidget | None = None,
+        defer_news_load: bool = False,
+        defer_hero_images: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("noticeBoard")
@@ -2512,6 +2546,10 @@ class PityTrackerWidget(QFrame):
         self.notices: list[dict[str, object]] = []
         self.manager = NoticeManager()
         self.worker: NewsFetcherWorker | None = None
+        self._hero_pixmap_cache: dict[str, QPixmap] = {}
+        self._hero_image_requests: set[str] = set()
+        self._hero_image_attempted: set[str] = set()
+        self._hero_images_started = not defer_hero_images
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 8)
         root.setSpacing(0)
@@ -2548,7 +2586,8 @@ class PityTrackerWidget(QFrame):
         self.event_timer.setInterval(1000)
         self.event_timer.timeout.connect(self._refresh_event_times)
         self.event_timer.start()
-        self._start_notice_load()
+        if not defer_news_load:
+            self._start_notice_load()
 
     def _build_hero(self, root: QVBoxLayout) -> None:
         hero = NoticeHeroFrame(self)
@@ -2597,9 +2636,8 @@ class PityTrackerWidget(QFrame):
         self.hero_pixmaps = [QPixmap(), QPixmap()]
         self.hero_index = 0
         self.hero_manager = QNetworkAccessManager(self)
-        for index, image_url in enumerate(self.hero_images):
-            reply = self.hero_manager.get(QNetworkRequest(QUrl(image_url)))
-            reply.finished.connect(lambda index=index, reply=reply: self._set_hero_image(reply, index))
+        if self._hero_images_started:
+            self._request_hero_images()
         root.addWidget(hero)
 
     def _set_hero_hover(self, hovered: bool) -> None:
@@ -2610,14 +2648,43 @@ class PityTrackerWidget(QFrame):
         else:
             self.slide_timer.start()
 
-    def _set_hero_image(self, reply: QNetworkReply, index: int) -> None:
+    def _request_hero_images(self) -> None:
+        self.hero_pixmaps = [
+            self._hero_pixmap_cache.get(image_url, QPixmap())
+            for image_url in self.hero_images
+        ]
+        for image_url in dict.fromkeys(self.hero_images):
+            if image_url in self._hero_image_attempted:
+                continue
+            self._hero_image_attempted.add(image_url)
+            self._hero_image_requests.add(image_url)
+            reply = self.hero_manager.get(QNetworkRequest(QUrl(image_url)))
+            reply.finished.connect(
+                lambda image_url=image_url, reply=reply:
+                self._set_hero_image(reply, image_url)
+            )
+        current = self.hero_pixmaps[self.hero_index]
+        if not current.isNull():
+            self._display_hero_pixmap(current)
+
+    def start_hero_image_load(self) -> None:
+        if self._hero_images_started:
+            return
+        self._hero_images_started = True
+        self._request_hero_images()
+
+    def _set_hero_image(self, reply: QNetworkReply, image_url: str) -> None:
+        self._hero_image_requests.discard(image_url)
         if reply.error() == QNetworkReply.NetworkError.NoError and reply.isOpen():
             pixmap = QPixmap()
             data = reply.readAll().data() if reply.isOpen() else b""
             pixmap.loadFromData(data)
             if not pixmap.isNull():
-                self.hero_pixmaps[index] = pixmap
-                if index == self.hero_index:
+                self._hero_pixmap_cache[image_url] = pixmap
+                for index, current_url in enumerate(self.hero_images):
+                    if current_url == image_url:
+                        self.hero_pixmaps[index] = pixmap
+                if self.hero_images[self.hero_index] == image_url:
                     self._display_hero_pixmap(pixmap)
         reply.deleteLater()
 
@@ -2667,10 +2734,23 @@ class PityTrackerWidget(QFrame):
         self._slide_group = group
         group.start()
 
-    def _start_notice_load(self) -> None:
+    def start_news_load(
+        self,
+        finished_callback: Callable[[], None] | None = None,
+    ) -> None:
+        self._start_notice_load(finished_callback)
+
+    def _start_notice_load(
+        self,
+        finished_callback: Callable[[], None] | None = None,
+    ) -> None:
+        if self.worker is not None:
+            return
         self.worker = NewsFetcherWorker(self.manager, self)
         self.worker.news_loaded.connect(self._set_notices)
         self.worker.failed.connect(lambda message: self._set_notices(self.manager.fallback()))
+        if finished_callback is not None:
+            self.worker.finished.connect(finished_callback)
         self.worker.start()
 
     def _set_notices(self, notices: list[dict[str, object]]) -> None:
@@ -2684,10 +2764,8 @@ class PityTrackerWidget(QFrame):
             self.hero_images = tuple(hero_images[:3])
         else:
             self.hero_images = (EVENT_RESONATOR_BANNER_URL, SIGNATURE_WEAPON_BANNER_URL)
-        self.hero_pixmaps = [QPixmap() for _ in self.hero_images]
-        for index, image_url in enumerate(self.hero_images):
-            reply = self.hero_manager.get(QNetworkRequest(QUrl(image_url)))
-            reply.finished.connect(lambda index=index, reply=reply: self._set_hero_image(reply, index))
+        self.hero_index = min(self.hero_index, len(self.hero_images) - 1)
+        self._request_hero_images()
         self._render_notices()
 
     def _render_notices(self) -> None:

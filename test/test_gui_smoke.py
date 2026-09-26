@@ -2,13 +2,17 @@ import os
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QBuffer, QIODevice
-from PySide6.QtGui import QImage
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtCore import QBuffer, QEvent, QIODevice, Qt
+from PySide6.QtGui import QImage, QImageWriter, QKeyEvent
+from PySide6.QtMultimedia import QMediaPlayer
+from PySide6.QtMultimediaWidgets import QVideoWidget
+from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtTest import QTest
 from src.wuwa_calculator.app.components import WuWaKuroBannerCard
 from src.wuwa_calculator.app.capture.worker import WorkerCapturaNativa
 from src.wuwa_calculator.app.multimedia.dps_simulation_panel import (
@@ -31,7 +35,7 @@ class GuiSmokeTests(unittest.TestCase):
         image.fill(0x224466)
         buffer = QBuffer()
         buffer.open(QIODevice.OpenModeFlag.WriteOnly)
-        image.save(buffer, "PNG")
+        QImageWriter(buffer, b"PNG").write(image)
 
         card = WuWaKuroBannerCard(
             character_name="Qingxiao",
@@ -52,12 +56,241 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertLessEqual(pixmap.width(), 960)
         card.deleteLater()
 
-    def test_video_player_builds_without_media_backend(self) -> None:
+    def test_video_player_builds_without_video_surface(self) -> None:
         player = HistoryVideoPlayer()
 
+        self.assertIsNone(player._video_widget)
         self.assertEqual(player.progress_slider.minimum(), 0)
         self.assertEqual(player.progress_slider.maximum(), 0)
         self.assertFalse(player.play_button.isEnabled())
+        player.close()
+
+    def _show_fullscreen_player(self, player: HistoryVideoPlayer):
+        player.show()
+        self.application.processEvents()
+        surface = player.video_surface
+        player.enter_fullscreen()
+        self.application.processEvents()
+        self.assertTrue(surface.isFullScreen())
+        return surface
+
+    @staticmethod
+    def _send_space(widget: QWidget) -> QKeyEvent:
+        event = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Space,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        event.ignore()
+        QApplication.sendEvent(widget, event)
+        return event
+
+    def test_video_surface_is_created_once_on_explicit_use(self) -> None:
+        player = HistoryVideoPlayer()
+
+        self.assertIsNone(player._video_widget)
+        surface = player.video_surface
+
+        self.assertIs(player._video_widget, surface)
+        self.assertIs(player.video_surface, surface)
+        self.assertIs(player.media_player.videoOutput(), surface)
+        player.close()
+
+    def test_fullscreen_state_tracks_qt_surface_transitions(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = player.video_surface
+
+        self.assertFalse(surface.isFullScreen())
+        self.assertFalse(player._is_fullscreen)
+
+        for _ in range(2):
+            player.enter_fullscreen()
+            self.application.processEvents()
+            self.assertTrue(surface.isFullScreen())
+            self.assertTrue(player._is_fullscreen)
+            self.assertEqual(player.video_stack.indexOf(surface), -1)
+
+            player.exit_fullscreen()
+            self.application.processEvents()
+            self.assertFalse(surface.isFullScreen())
+            self.assertFalse(player._is_fullscreen)
+            self.assertGreaterEqual(player.video_stack.indexOf(surface), 0)
+
+        self.assertIs(player.video_surface, surface)
+        player.close()
+
+    def test_fullscreen_request_without_qt_confirmation_keeps_normal_state(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = player.video_surface
+
+        with patch.object(QVideoWidget, "setFullScreen", autospec=True):
+            player.enter_fullscreen()
+
+        self.assertFalse(surface.isFullScreen())
+        self.assertFalse(player._is_fullscreen)
+        self.assertGreaterEqual(player.video_stack.indexOf(surface), 0)
+        player.close()
+
+    def test_fullscreen_signal_does_not_override_qt_widget_state(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = player.video_surface
+
+        player._on_video_fullscreen_changed(True)
+
+        self.assertFalse(surface.isFullScreen())
+        self.assertFalse(player._is_fullscreen)
+        player.close()
+
+    def test_enter_fullscreen_does_not_create_lazy_surface_for_state_check(self) -> None:
+        player = HistoryVideoPlayer()
+
+        player.enter_fullscreen()
+
+        self.assertIsNone(player._video_widget)
+        self.assertFalse(player._is_fullscreen)
+        player.close()
+
+    def test_normal_seek_bar_click_updates_position(self) -> None:
+        player = HistoryVideoPlayer()
+        player.duration_ms = 10_000
+        player.video_path = "diagnostic.mp4"
+        slider = player.progress_slider
+        slider.setRange(0, player.duration_ms)
+        slider.resize(500, 36)
+        slider.show()
+        self.application.processEvents()
+        click_point = slider.rect().center()
+
+        with patch.object(QMediaPlayer, "setPosition", autospec=True) as set_position:
+            QTest.mouseClick(slider, Qt.MouseButton.LeftButton, pos=click_point)
+
+        self.assertGreater(slider.value(), 0)
+        set_position.assert_called_once_with(slider.value())
+        self.assertFalse(player._is_seeking)
+        player.close()
+
+    def test_fullscreen_space_toggles_pause_and_resume(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = self._show_fullscreen_player(player)
+        player.video_path = "diagnostic.mp4"
+        with (
+            patch.object(
+                QMediaPlayer,
+                "playbackState",
+                autospec=True,
+                return_value=QMediaPlayer.PlaybackState.PlayingState,
+            ),
+            patch.object(QMediaPlayer, "pause", autospec=True) as pause,
+            patch.object(player, "_ensure_audio_output"),
+        ):
+            event = self._send_space(surface)
+            self.assertTrue(event.isAccepted())
+            pause.assert_called_once_with()
+
+        with (
+            patch.object(
+                QMediaPlayer,
+                "playbackState",
+                autospec=True,
+                return_value=QMediaPlayer.PlaybackState.PausedState,
+            ),
+            patch.object(QMediaPlayer, "play", autospec=True) as play,
+            patch.object(player, "_ensure_audio_output"),
+        ):
+            event = self._send_space(surface)
+            self.assertTrue(event.isAccepted())
+            play.assert_called_once_with()
+        player.close()
+
+    def test_fullscreen_space_does_not_seek_or_change_position(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = self._show_fullscreen_player(player)
+        player.video_path = "diagnostic.mp4"
+
+        with (
+            patch.object(
+                QMediaPlayer,
+                "playbackState",
+                autospec=True,
+                return_value=QMediaPlayer.PlaybackState.PlayingState,
+            ),
+            patch.object(QMediaPlayer, "position", autospec=True, return_value=4321),
+            patch.object(QMediaPlayer, "setPosition", autospec=True) as set_position,
+            patch.object(QMediaPlayer, "pause", autospec=True) as pause,
+        ):
+            event = self._send_space(surface)
+
+            self.assertTrue(event.isAccepted())
+            pause.assert_called_once_with()
+            set_position.assert_not_called()
+            self.assertEqual(player.media_player.position(), 4321)
+        player.close()
+
+    def test_fullscreen_contains_no_custom_controls(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = self._show_fullscreen_player(player)
+
+        self.assertIsNone(player.findChild(QWidget, "fullscreenOverlay"))
+        for attribute in (
+            "fullscreen_overlay",
+            "fullscreen_progress",
+            "fullscreen_play_button",
+            "fullscreen_time_label",
+            "fullscreen_volume",
+            "fullscreen_exit_button",
+            "_fullscreen_hide_timer",
+            "_fullscreen_overlay_animation",
+        ):
+            self.assertFalse(hasattr(player, attribute), attribute)
+        self.assertIs(player.media_player.videoOutput(), surface)
+        player.close()
+
+    def test_escape_exits_fullscreen_and_restores_video_to_stack(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = self._show_fullscreen_player(player)
+        event = QKeyEvent(
+            QEvent.Type.KeyPress,
+            Qt.Key.Key_Escape,
+            Qt.KeyboardModifier.NoModifier,
+        )
+
+        QApplication.sendEvent(surface, event)
+        self.application.processEvents()
+
+        self.assertTrue(event.isAccepted())
+        self.assertFalse(surface.isFullScreen())
+        self.assertGreaterEqual(player.video_stack.indexOf(surface), 0)
+        player.close()
+
+    def test_repeated_fullscreen_transitions_reuse_the_video_widget(self) -> None:
+        player = HistoryVideoPlayer()
+        surface = player.video_surface
+        player.video_path = "diagnostic.mp4"
+        original_stack_count = player.video_stack.count()
+
+        with (
+            patch.object(QMediaPlayer, "playbackState", autospec=True,
+                         return_value=QMediaPlayer.PlaybackState.PausedState),
+            patch.object(QMediaPlayer, "play", autospec=True) as play,
+            patch.object(QMediaPlayer, "pause", autospec=True) as pause,
+        ):
+            for _ in range(3):
+                player.enter_fullscreen()
+                self.application.processEvents()
+                self.assertTrue(surface.isFullScreen())
+                self.assertIs(player.media_player.videoOutput(), surface)
+                self.assertEqual(player.video_stack.indexOf(surface), -1)
+
+                player.exit_fullscreen()
+                self.application.processEvents()
+                self.assertFalse(surface.isFullScreen())
+                self.assertIs(player.media_player.videoOutput(), surface)
+                self.assertGreaterEqual(player.video_stack.indexOf(surface), 0)
+                self.assertEqual(player.video_stack.count(), original_stack_count)
+
+        self.assertIs(player.video_surface, surface)
+        play.assert_not_called()
+        pause.assert_not_called()
         player.close()
 
     def test_video_player_renders_live_preview_page(self) -> None:
@@ -71,7 +304,7 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertIs(player.video_stack.currentWidget(), player.live_preview)
         self.assertFalse(player.live_preview.pixmap().isNull())
         player.set_live_capture_mode(False)
-        self.assertIs(player.video_stack.currentWidget(), player.video_surface)
+        self.assertIs(player.video_stack.currentWidget(), player._video_placeholder)
         player.close()
 
     def test_history_tab_has_no_central_banner_image(self) -> None:

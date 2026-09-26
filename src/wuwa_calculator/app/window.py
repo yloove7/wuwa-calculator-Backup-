@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
@@ -14,17 +16,20 @@ from src.wuwa_calculator.app.appearance import AppearanceController
 from src.wuwa_calculator.app.dialogs.close_dialog import TethysCloseDialog
 from src.wuwa_calculator.app.components import Card, CharacterSidebarButton, TitleLabel
 from src.wuwa_calculator.app.characters.character_search import CharacterSearchController
-from src.wuwa_calculator.app.import_dialog import CustomImportPopup
 from src.wuwa_calculator.app.home_tab import HomeTab
-from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
 from src.wuwa_calculator.app.obs_test_tab import ObsTestTab
-from src.wuwa_calculator.app.characters.resonator_tab import ResonatorTab
 from src.wuwa_calculator.app.dialogs.settings_dialog import SettingsDialog
 from src.wuwa_calculator.app.settings_store import SettingsStore
 from src.wuwa_calculator.app.styles import apply_glow
 from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 from src.wuwa_calculator.data.characters_ids import KNOWN_CHARACTER_IDS
 from src.wuwa_calculator.utils.paths import get_asset_path
+
+if TYPE_CHECKING:
+    from src.wuwa_calculator.app.import_dialog import CustomImportPopup
+    from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget
+    from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
+    from src.wuwa_calculator.app.characters.resonator_tab import ResonatorTab
 
 ELEMENT_NAV_COLORS = {
     "Aero": ("#145A4A", "#72E6C0", "#E8FFF8", "#1E8068"),
@@ -68,6 +73,9 @@ class WuwaQtWindow(QMainWindow):
         self.preferences = QSettings("Tethys", "Tethys")
         self.settings = SettingsStore(settings=self.preferences)
         self._import_dialog: CustomImportPopup | None = None
+        self._convene_tracker_backend: LegacyPityTrackerWidget | None = None
+        self._close_confirmation_accepted = False
+        self._close_after_background_shutdown = False
         self.setWindowTitle("Tethys System")
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -133,11 +141,12 @@ class WuwaQtWindow(QMainWindow):
         tabs.setObjectName("mainTabs")
         tabs.tabBar().hide()
 
-        from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget
-        self.convene_tracker_backend = LegacyPityTrackerWidget()
-        
         def build_home() -> HomeTab:
-            return HomeTab()
+            home_tab = HomeTab()
+            home_tab.shutdown_finished.connect(
+                self._resume_close_after_background_shutdown
+            )
+            return home_tab
 
         def build_teams() -> QWidget:
             from src.wuwa_calculator.app.teams_tab import TeamsTab
@@ -145,14 +154,22 @@ class WuwaQtWindow(QMainWindow):
 
         def build_convene_tracker() -> QWidget:
             from src.wuwa_calculator.app.convene.convene_tracker_tab import ConveneTrackerTab
-            return ConveneTrackerTab(self.convene_tracker_backend)
+            return ConveneTrackerTab(self._ensure_convene_backend())
 
         def build_history() -> QWidget:
             from src.wuwa_calculator.app.history_tab import HistoryTab
             return HistoryTab()
 
         def build_multimedia() -> MultimediaTab:
-            return MultimediaTab()
+            from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
+
+            multimedia_tab = MultimediaTab()
+            multimedia_tab.dps_panel.shutdown_finished.connect(
+                self._resume_close_after_background_shutdown
+            )
+            if multimedia_tab.dps_panel.capture_settings != self._capture_settings:
+                multimedia_tab.dps_panel.set_capture_settings(self._capture_settings)
+            return multimedia_tab
 
         def build_obs_test() -> ObsTestTab:
             return ObsTestTab()
@@ -183,22 +200,17 @@ class WuwaQtWindow(QMainWindow):
         self.tabs = tabs
         for title in self._tab_titles:
             tabs.addTab(QWidget(), title)
-        multimedia_tab = build_multimedia()
-        tabs.removeTab(4)
-        tabs.insertTab(4, multimedia_tab, self._tab_titles[4])
-        self._tab_widgets[4] = multimedia_tab
         obs_test_tab = build_obs_test()
         tabs.removeTab(5)
         tabs.insertTab(5, obs_test_tab, self._tab_titles[5])
         self._tab_widgets[5] = obs_test_tab
-        obs_test_tab.settingsChanged.connect(
-            multimedia_tab.dps_panel.set_capture_settings
-        )
+        self._capture_settings = obs_test_tab.settings
+        obs_test_tab.settingsChanged.connect(self._handle_capture_settings_changed)
+        self.character_tabs: dict[str, ResonatorTab] = {}
+        self.character_open_order: list[str] = []
         tabs.currentChanged.connect(self._handle_main_tab_changed)
         self._handle_main_tab_changed(0)
 
-        self.character_tabs: dict[str, ResonatorTab] = {}
-        self.character_open_order: list[str] = []
         self.sidebar_buttons: dict[str, QPushButton] = {}
         self.character_sidebar_rows: dict[str, QWidget] = {}
 
@@ -281,7 +293,10 @@ class WuwaQtWindow(QMainWindow):
         )
 
     def closeEvent(self, event) -> None:
-        if self.preferences.value("confirm_exit", True, type=bool):
+        if (
+            self.preferences.value("confirm_exit", True, type=bool)
+            and not self._close_confirmation_accepted
+        ):
             if not TethysCloseDialog.confirm_close(
                 icon_path=TETHYS_CLOSE_ICON_PATH,
                 icon_url=TETHYS_CLOSE_ICON_URL,
@@ -290,23 +305,66 @@ class WuwaQtWindow(QMainWindow):
             ):
                 event.ignore()
                 return
+            self._close_confirmation_accepted = True
         if self._import_dialog is not None and not self._import_dialog.shutdown_ocr():
             event.ignore()
             return
         home_tab = self._tab_widgets.get(0)
         if isinstance(home_tab, HomeTab):
             if not home_tab.shutdown_workers():
+                self._close_after_background_shutdown = True
                 event.ignore()
                 return
-        if not self.convene_tracker_backend.shutdown_workers():
+        convene_backend = self._convene_tracker_backend
+        if (
+            convene_backend is not None
+            and not convene_backend.shutdown_workers()
+        ):
             event.ignore()
             return
         multimedia_tab = self._tab_widgets.get(4)
-        if isinstance(multimedia_tab, MultimediaTab):
-            if not multimedia_tab.shutdown():
+        if multimedia_tab is not None:
+            if not cast("MultimediaTab", multimedia_tab).shutdown():
+                self._close_after_background_shutdown = True
                 event.ignore()
                 return
+        self._close_after_background_shutdown = False
         event.accept()
+
+    def _resume_close_after_background_shutdown(self) -> None:
+        if not self._close_after_background_shutdown:
+            return
+        self._close_after_background_shutdown = False
+        self.close()
+
+    @property
+    def convene_tracker_backend(self) -> LegacyPityTrackerWidget:
+        return self._ensure_convene_backend()
+
+    @convene_tracker_backend.setter
+    def convene_tracker_backend(self, backend: LegacyPityTrackerWidget) -> None:
+        self._convene_tracker_backend = backend
+
+    def _ensure_convene_backend(self) -> LegacyPityTrackerWidget:
+        backend = self._convene_tracker_backend
+        if backend is None:
+            from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget
+
+            backend = LegacyPityTrackerWidget()
+            self._convene_tracker_backend = backend
+        return backend
+
+    def _handle_capture_settings_changed(self, settings: object) -> None:
+        from src.wuwa_calculator.app.capture.settings import CaptureSettings
+
+        if not isinstance(settings, CaptureSettings):
+            return
+        self._capture_settings = settings
+        multimedia_tab = self._tab_widgets.get(4)
+        if multimedia_tab is not None:
+            cast("MultimediaTab", multimedia_tab).dps_panel.set_capture_settings(
+                settings
+            )
 
     def _add_sidebar_button(
         self,
@@ -339,14 +397,16 @@ class WuwaQtWindow(QMainWindow):
             dialog.raise_()
             dialog.activateWindow()
             return
-        character_tab = self.tabs.currentWidget()
-        if not isinstance(character_tab, ResonatorTab):
+        character_tab = self._character_tab_for_widget(self.tabs.currentWidget())
+        if character_tab is None:
             QMessageBox.information(
                 self,
                 "Personagem não carregado",
                 "Carregue uma ID de personagem antes de importar a imagem.",
             )
             return
+        from src.wuwa_calculator.app.import_dialog import CustomImportPopup
+
         dialog = CustomImportPopup(self, character_tab)
         dialog.setWindowModality(Qt.WindowModality.NonModal)
         dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
@@ -383,39 +443,57 @@ class WuwaQtWindow(QMainWindow):
             old_widget.deleteLater()
         self.tabs.setCurrentIndex(index)
 
+    def _character_tab_for_widget(
+        self,
+        widget: QWidget | None,
+    ) -> ResonatorTab | None:
+        if widget is None:
+            return None
+        for character_tab in self.character_tabs.values():
+            if widget is character_tab:
+                return character_tab
+        return None
+
     def _handle_main_tab_changed(self, index: int) -> None:
         current_widget = self.tabs.widget(index)
-        if isinstance(current_widget, ResonatorTab):
+        current_character_tab = self._character_tab_for_widget(current_widget)
+        if current_character_tab is not None:
             previous_index = self._active_main_index
             if previous_index is not None and previous_index != index:
                 previous_widget = self.tabs.widget(previous_index)
                 if previous_widget is not None:
-                    if isinstance(previous_widget, (HomeTab, MultimediaTab)):
-                        previous_widget.set_active(False)
+                    self._set_active_main_tab(previous_index, previous_widget, False)
                     previous_widget.setUpdatesEnabled(False)
-            current_widget.setUpdatesEnabled(True)
-            current_widget.show()
-            current_widget.update()
+            current_character_tab.setUpdatesEnabled(True)
+            current_character_tab.show()
+            current_character_tab.update()
             self._active_main_index = index
             return
         previous_index = self._active_main_index
         if previous_index is not None and previous_index != index:
             previous_widget = self._tab_widgets.get(previous_index)
             if previous_widget is not None:
-                if isinstance(previous_widget, (HomeTab, MultimediaTab)):
-                    previous_widget.set_active(False)
+                self._set_active_main_tab(previous_index, previous_widget, False)
                 previous_widget.setUpdatesEnabled(False)
         self._ensure_main_tab(index)
         current_widget = self._tab_widgets.get(index)
         if current_widget is not None:
             current_widget.setUpdatesEnabled(True)
-            if isinstance(current_widget, (HomeTab, MultimediaTab)):
-                current_widget.set_active(True)
+            self._set_active_main_tab(index, current_widget, True)
             current_widget.show()
             current_widget.update()
         self._active_main_index = index
-        if self.tabs.tabText(index) == "Convene Tracker" and hasattr(self, "convene_tracker_backend"):
-            self.convene_tracker_backend.refresh_convene_context_from_log()
+
+    def _set_active_main_tab(
+        self,
+        index: int,
+        widget: QWidget,
+        active: bool,
+    ) -> None:
+        if index == 0 and isinstance(widget, HomeTab):
+            widget.set_active(active)
+        elif index == 4:
+            cast("MultimediaTab", widget).set_active(active)
 
     def _set_sidebar_active(self, active_label: str) -> None:
         for label, button in self.sidebar_buttons.items():
@@ -529,8 +607,9 @@ class WuwaQtWindow(QMainWindow):
             return
 
         current_widget = self.tabs.currentWidget()
-        if isinstance(current_widget, ResonatorTab):
-            current_id = current_widget.current_id
+        current_character_tab = self._character_tab_for_widget(current_widget)
+        if current_character_tab is not None:
+            current_id = current_character_tab.current_id
             self._set_sidebar_active(
                 f"{self._element_icon(CHARACTER_ELEMENTS.get(current_id))}   "
                 f"{current_id.title()}"
@@ -594,6 +673,8 @@ class WuwaQtWindow(QMainWindow):
 
         character_tab = self.character_tabs.get(character_id)
         if character_tab is None:
+            from src.wuwa_calculator.app.characters.resonator_tab import ResonatorTab
+
             character_tab = ResonatorTab(initial_id=character_id)
             self.character_tabs[character_id] = character_tab
             self.character_open_order.append(character_id)

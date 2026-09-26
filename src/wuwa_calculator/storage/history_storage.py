@@ -6,11 +6,17 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, TypeGuard
 
-from src.wuwa_calculator.utils.paths import get_legacy_data_path, get_user_data_path
+from src.wuwa_calculator.utils.paths import (
+    LEGACY_DATA_ROOT,
+    LEGACY_USER_DATA_ROOT,
+    copy_legacy_user_data_file,
+    get_user_data_path,
+)
 
 ROTATION_HISTORY_FILE = get_user_data_path("rotation_history.json")
 
@@ -44,24 +50,24 @@ def _float_value(value: object, default: float = 0.0) -> float:
 
 
 def _migrate_legacy_history(path: Path) -> None:
-    legacy_path = get_legacy_data_path("rotation_history.json")
-    if path != ROTATION_HISTORY_FILE or not legacy_path.exists():
+    if path != ROTATION_HISTORY_FILE or path.exists():
         return
-    try:
-        current = read_json_file(path, None)
-        legacy = read_json_file(legacy_path, None)
-        current_has_data = isinstance(current, dict) and any(
-            isinstance(current.get(key), list) and current.get(key)
-            for key in ("teams", "rotations", "comparisons")
-        )
-        legacy_has_data = isinstance(legacy, dict) and any(
-            isinstance(legacy.get(key), list) and legacy.get(key)
-            for key in ("teams", "rotations", "comparisons")
-        )
-        if not current_has_data and legacy_has_data:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(legacy, ensure_ascii=False, indent=2), encoding="utf-8")
-    except (OSError, json.JSONDecodeError):
+    legacy_paths = (
+        LEGACY_USER_DATA_ROOT / "rotation_history.json",
+        LEGACY_DATA_ROOT / "rotation_history.json",
+    )
+    for legacy_path in legacy_paths:
+        if not legacy_path.is_file():
+            continue
+        try:
+            copy_legacy_user_data_file(legacy_path, path)
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Could not migrate legacy rotation history to %s; "
+                "the legacy file was left untouched.",
+                path,
+                exc_info=True,
+            )
         return
 
 
@@ -96,6 +102,7 @@ def load_rotation_document(path: Path = ROTATION_HISTORY_FILE) -> dict[str, obje
 
 
 def save_rotation_document(document: dict[str, object], path: Path = ROTATION_HISTORY_FILE) -> None:
+    _migrate_legacy_history(path)
     normalized = {**empty_rotation_document(), **document}
     normalized["schema_version"] = 2
     normalized["updated_at"] = datetime.now().astimezone().isoformat(timespec="seconds")

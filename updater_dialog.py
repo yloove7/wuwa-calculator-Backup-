@@ -8,14 +8,16 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import webbrowser
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QTextEdit,
@@ -30,6 +32,14 @@ AUTO_UPDATE_APPLIED_ENV = "TETHYS_UPDATE_APPLIED"
 PENDING_RELEASE_PATH_ENV = "TETHYS_PENDING_RELEASE_PATH"
 PENDING_RELEASE_VERSION_ENV = "TETHYS_PENDING_RELEASE_VERSION"
 _AUTO_UPDATE_CHECK_RAN = False
+SIMULATE_UPDATE_FLAG = "--simulate-update"
+_SIMULATED_UPDATE_NOTES = "\n".join((
+    "- Nova interface do Convene Tracker",
+    "- Melhorias no Auto Update",
+    "- Correções de estabilidade",
+    "- Melhorias de desempenho",
+    "- Ajustes visuais do Tethys",
+))
 GITHUB_RELEASES_URL = "https://github.com/yloove7/wuwa-calculator-Backup-/releases"
 GITHUB_LATEST_RELEASE_URL = (
     "https://api.github.com/repos/yloove7/wuwa-calculator-Backup-/releases/latest"
@@ -263,113 +273,205 @@ def obter_info_commits_pendentes() -> tuple[int, str]:
         return 0, ""
 
 
-class DialogoVerificandoAtualizacao(QDialog):
-    def __init__(self) -> None:
+_UPDATER_STYLE = """
+    QDialog { background: #101318; color: #F3F4F6; }
+    QLabel#updaterEyebrow { color: #D4A359; font-size: 10px; font-weight: 800; }
+    QLabel#updaterTitle { color: #F3F4F6; font-size: 20px; font-weight: 800; }
+    QLabel#updaterMessage { color: #B7BDC5; font-size: 12px; }
+    QLabel#updaterCommitCount { color: #A0A7B0; font-size: 10px; font-weight: 700; }
+    QFrame#updaterVersionCard { background: #1A1F25; border: 1px solid #343B43; border-radius: 10px; }
+    QLabel#updaterVersionLabel { color: #A0A7B0; font-size: 10px; font-weight: 700; }
+    QLabel#updaterVersionValue { color: #F3F4F6; font-size: 14px; font-weight: 800; }
+    QTextEdit#updaterChanges { background: #15191E; color: #D7DBE0; border: 1px solid #343B43; border-radius: 8px; padding: 8px; font-family: Consolas, monospace; }
+    QPushButton#updaterRepository { color: #D4A359; background: transparent; border: 0; padding: 4px 0; font-weight: 700; text-align: left; }
+    QPushButton#updaterRepository:hover { color: #E2B76E; }
+    QProgressBar#updaterProgress { background: #262B31; border: 0; border-radius: 4px; min-height: 8px; max-height: 8px; }
+    QProgressBar#updaterProgress::chunk { background: #D4A359; border-radius: 4px; }
+    QPushButton#updaterSecondary { color: #E5E7EB; background: #252A30; border: 1px solid #454C55; border-radius: 8px; padding: 9px 16px; font-weight: 700; }
+    QPushButton#updaterSecondary:hover { background: #30363D; }
+    QPushButton#updaterPrimary { color: #15110A; background: #D4A359; border: 1px solid #E2B76E; border-radius: 8px; padding: 9px 16px; font-weight: 800; }
+    QPushButton#updaterPrimary:hover { background: #E2B76E; }
+"""
+
+
+class DialogoEstadoAtualizacao(QDialog):
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        *,
+        technical_details: str | None = None,
+        busy: bool = False,
+        button_text: str = "Continuar",
+    ) -> None:
         super().__init__()
-        self.setWindowTitle("TETHYS - Verificando atualizações")
-        self.setFixedSize(320, 110)
-        self.setWindowFlags(
-            Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-        )
-
+        self.setWindowTitle(title)
+        self.setMinimumWidth(430)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.setStyleSheet(_UPDATER_STYLE)
         layout = QVBoxLayout(self)
-        mensagem = QLabel("Verificando atualizações...\nAguarde um momento.")
-        mensagem.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(mensagem)
+        layout.setContentsMargins(28, 24, 28, 22)
+        layout.setSpacing(13)
 
-        progresso = QProgressBar()
-        progresso.setRange(0, 0)
-        progresso.setTextVisible(False)
-        progresso.setFixedHeight(18)
-        progresso.setStyleSheet(
-            """
-            QProgressBar {
-                background-color: #D6DFF7;
-                border: 1px solid #7F9DB9;
-                border-radius: 2px;
-                padding: 2px;
-            }
-            QProgressBar::chunk {
-                background-color: #39B54A;
-                margin: 1px;
-                width: 22px;
-            }
-            """
+        eyebrow = QLabel("TETHYS  /  ATUALIZAÇÃO")
+        eyebrow.setObjectName("updaterEyebrow")
+        heading = QLabel(title)
+        heading.setObjectName("updaterTitle")
+        heading.setWordWrap(True)
+        body = QLabel(message)
+        body.setObjectName("updaterMessage")
+        body.setWordWrap(True)
+        layout.addWidget(eyebrow)
+        layout.addWidget(heading)
+        layout.addWidget(body)
+
+        if busy:
+            progress = QProgressBar()
+            progress.setObjectName("updaterProgress")
+            progress.setRange(0, 0)
+            progress.setTextVisible(False)
+            layout.addWidget(progress)
+
+        if technical_details:
+            details = QTextEdit()
+            details.setObjectName("updaterChanges")
+            details.setReadOnly(True)
+            details.setPlainText(technical_details)
+            details.setMinimumHeight(90)
+            layout.addWidget(details)
+
+        if button_text:
+            buttons = QHBoxLayout()
+            buttons.addStretch(1)
+            button = QPushButton(button_text)
+            button.setObjectName("updaterPrimary")
+            button.clicked.connect(self.accept)
+            buttons.addWidget(button)
+            layout.addLayout(buttons)
+
+
+class DialogoVerificandoAtualizacao(DialogoEstadoAtualizacao):
+    def __init__(self) -> None:
+        super().__init__(
+            "Atualização do Tethys",
+            "Verificando se há uma nova versão…",
+            busy=True,
+            button_text="",
         )
-        layout.addWidget(progresso)
+        self.setFixedSize(460, 190)
 
 
 class DialogoAtualizacao(QDialog):
-    def __init__(self, qtd_commits: int, historico_changes: str) -> None:
+    def __init__(
+        self,
+        qtd_commits: int,
+        historico_changes: str,
+        *,
+        current_version: str | None = None,
+        new_version: str | None = None,
+        simulated: bool = False,
+    ) -> None:
         super().__init__()
-        self.setWindowTitle("TETHYS - Atualização Disponível")
-        self.setFixedSize(500, 380)
-        self.setWindowFlags(
-            Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.CustomizeWindowHint
-            | Qt.WindowType.WindowTitleHint
-        )
+        self.setWindowTitle("Nova versão disponível")
+        self.setFixedSize(560, 520)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.setStyleSheet(_UPDATER_STYLE)
         self.deve_atualizar = False
+        self.simulated = simulated
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 24, 28, 22)
+        layout.setSpacing(13)
+        eyebrow = QLabel("TETHYS  /  ATUALIZAÇÃO")
+        eyebrow.setObjectName("updaterEyebrow")
+        title = QLabel("Nova versão disponível")
+        title.setObjectName("updaterTitle")
+        title.setWordWrap(True)
+        layout.addWidget(eyebrow)
+        layout.addWidget(title)
 
-        lbl_titulo = QLabel("🚀 Nova Atualização Encontrada!")
-        font_titulo = QFont()
-        font_titulo.setPointSize(14)
-        font_titulo.setBold(True)
-        lbl_titulo.setFont(font_titulo)
-        lbl_titulo.setStyleSheet("color: #00ADB5;")
-        layout.addWidget(lbl_titulo)
+        versions = QHBoxLayout()
+        versions.setSpacing(10)
+        current_card = QFrame()
+        current_card.setObjectName("updaterVersionCard")
+        current_layout = QVBoxLayout(current_card)
+        current_layout.setContentsMargins(13, 10, 13, 10)
+        current_label = QLabel("VERSÃO ATUAL")
+        current_label.setObjectName("updaterVersionLabel")
+        actual_current_version = current_version or f"v{current_app_version()}"
+        current_value = QLabel(actual_current_version)
+        current_value.setObjectName("updaterVersionValue")
+        current_layout.addWidget(current_label)
+        current_layout.addWidget(current_value)
+        update_card = QFrame()
+        update_card.setObjectName("updaterVersionCard")
+        update_layout = QVBoxLayout(update_card)
+        update_layout.setContentsMargins(13, 10, 13, 10)
+        update_label = QLabel("NOVA VERSÃO" if new_version else "ATUALIZAÇÃO DISPONÍVEL")
+        update_label.setObjectName("updaterVersionLabel")
+        update_value = QLabel(new_version or f"{qtd_commits} commits pendentes")
+        update_value.setObjectName("updaterVersionValue")
+        update_layout.addWidget(update_label)
+        update_layout.addWidget(update_value)
+        versions.addWidget(current_card, 1)
+        versions.addWidget(update_card, 1)
+        layout.addLayout(versions)
 
-        lbl_info = QLabel(
-            f"O repositório possui <b>{qtd_commits} novo(s) commit(s)</b> pendente(s)."
-        )
-        layout.addWidget(lbl_info)
+        if new_version:
+            commits = QLabel(f"{qtd_commits} commits pendentes")
+            commits.setObjectName("updaterVersionLabel")
+            layout.addWidget(commits)
 
-        layout.addWidget(QLabel("O que mudou nesta versão:"))
-
+        message = QLabel("Uma nova versão do Tethys está pronta para ser instalada.")
+        message.setObjectName("updaterMessage")
+        message.setWordWrap(True)
+        layout.addWidget(message)
+        changes_label = QLabel("O que mudou")
+        changes_label.setObjectName("updaterVersionLabel")
+        layout.addWidget(changes_label)
         self.txt_changes = QTextEdit()
+        self.txt_changes.setObjectName("updaterChanges")
         self.txt_changes.setReadOnly(True)
         self.txt_changes.setPlainText(historico_changes)
-        self.txt_changes.setStyleSheet(
-            """
-            QTextEdit {
-                background-color: #1E1E1E;
-                color: #EEEEEE;
-                border: 1px solid #393E46;
-                border-radius: 5px;
-                font-family: Consolas, monospace;
-            }
-            """
-        )
+        self.txt_changes.setMinimumHeight(76)
+        self.txt_changes.setMaximumHeight(124)
         layout.addWidget(self.txt_changes)
 
-        lbl_pergunta = QLabel("Deseja aplicar as atualizações agora?")
-        font_pergunta = QFont()
-        font_pergunta.setBold(True)
-        lbl_pergunta.setFont(font_pergunta)
-        layout.addWidget(lbl_pergunta)
-
-        layout_botoes = QHBoxLayout()
-
-        btn_nao = QPushButton("Agora Não (Iniciar Tethys)")
-        btn_nao.setStyleSheet(
-            "padding: 8px; background-color: #393E46; color: white; border-radius: 4px;"
+        changes_footer = QHBoxLayout()
+        remaining_changes = max(0, qtd_commits - 5)
+        commit_summary = QLabel(
+            f"{qtd_commits} commits dispon\u00edveis"
+            + (f" \u00b7 +{remaining_changes} outras altera\u00e7\u00f5es" if remaining_changes else "")
         )
-        btn_nao.clicked.connect(self.recusar)
+        commit_summary.setObjectName("updaterCommitCount")
+        changes_footer.addWidget(commit_summary)
+        changes_footer.addStretch(1)
+        repository_button = QPushButton("\U0001f310 Ver reposit\u00f3rio")
+        repository_button.setObjectName("updaterRepository")
+        repository_button.clicked.connect(self._open_repository)
+        changes_footer.addWidget(repository_button)
+        layout.addLayout(changes_footer)
+        question = QLabel("Deseja instalar a atualização agora?")
+        question.setObjectName("updaterMessage")
+        layout.addWidget(question)
 
-        btn_sim = QPushButton("Atualizar e Reiniciar")
-        btn_sim.setStyleSheet(
-            "padding: 8px; background-color: #00ADB5; color: white; "
-            "font-weight: bold; border-radius: 4px;"
+        buttons = QHBoxLayout()
+        buttons.setSpacing(10)
+        buttons.addStretch(1)
+        later = QPushButton("Mais tarde")
+        later.setObjectName("updaterSecondary")
+        later.clicked.connect(self.recusar)
+        update_now = QPushButton("Atualizar agora")
+        update_now.setObjectName("updaterPrimary")
+        update_now.clicked.connect(
+            self._notify_simulated_update if simulated else self.aceitar
         )
-        btn_sim.clicked.connect(self.aceitar)
+        buttons.addWidget(later)
+        buttons.addWidget(update_now)
+        layout.addLayout(buttons)
 
-        layout_botoes.addWidget(btn_nao)
-        layout_botoes.addWidget(btn_sim)
-        layout.addLayout(layout_botoes)
+    def _open_repository(self) -> None:
+        webbrowser.open(GITHUB_RELEASES_URL)
 
     def aceitar(self) -> None:
         self.deve_atualizar = True
@@ -378,6 +480,13 @@ class DialogoAtualizacao(QDialog):
     def recusar(self) -> None:
         self.deve_atualizar = False
         self.reject()
+
+    def _notify_simulated_update(self) -> None:
+        QMessageBox.information(
+            self,
+            "Simulação do Auto Update",
+            "Simulação: a atualização seria iniciada aqui.",
+        )
 
 
 def _check_release_update() -> tuple[bool, str, dict[str, object] | None]:
@@ -398,9 +507,29 @@ def _check_release_update() -> tuple[bool, str, dict[str, object] | None]:
     return True, remote_tag, latest
 
 
+def _show_simulated_update() -> bool:
+    sys.argv[:] = [argument for argument in sys.argv if argument != SIMULATE_UPDATE_FLAG]
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+
+    dialog = DialogoAtualizacao(
+        7,
+        _SIMULATED_UPDATE_NOTES,
+        current_version="v1.4.2",
+        new_version="v1.5.0",
+        simulated=True,
+    )
+    dialog.exec()
+    return False
+
+
 def executar_verificacao_e_update() -> bool:
     """Prompt for pending updates and restart after a successful pull or release staging."""
     global _AUTO_UPDATE_CHECK_RAN
+    if SIMULATE_UPDATE_FLAG in sys.argv:
+        return _show_simulated_update()
+
     if _AUTO_UPDATE_CHECK_RAN:
         print("[UPDATER] Verificação de atualização já executada nesta inicialização; ignorando nova checagem.")
         return False
@@ -476,12 +605,27 @@ def executar_verificacao_e_update() -> bool:
         return False
 
     print("[UPDATER] Aplicando git pull...")
+    instalando = DialogoEstadoAtualizacao(
+        "Instalando atualiza\u00e7\u00e3o\u2026",
+        "N\u00e3o feche o Tethys enquanto a atualiza\u00e7\u00e3o est\u00e1 sendo instalada.",
+        busy=True,
+        button_text="",
+    )
+    instalando.show()
+    app_temp.processEvents()
     try:
         _run_git("pull", check=True)
+        instalando.close()
         print("[UPDATER] Atualização concluída! Reiniciando...")
         os.environ[AUTO_UPDATE_APPLIED_ENV] = "1"
         os.execv(sys.executable, [sys.executable, *sys.argv])
         return True
     except Exception as error:
+        instalando.close()
         print(f"[UPDATER] Erro ao aplicar pull: {error}")
+        DialogoEstadoAtualizacao(
+            "N\u00e3o foi poss\u00edvel concluir a atualiza\u00e7\u00e3o.",
+            "O Tethys n\u00e3o conseguiu instalar a atualiza\u00e7\u00e3o. Voc\u00ea pode continuar usando a vers\u00e3o atual.",
+            technical_details=str(error),
+        ).exec()
         return False

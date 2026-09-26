@@ -1839,6 +1839,8 @@ class WorkerCapturaNativa(QObject):
 
 
 class DpsSimulationPanel(Card):
+    shutdown_finished = Signal()
+
     def __init__(self, video_player: HistoryVideoPlayer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.video_player = video_player
@@ -2495,6 +2497,7 @@ class DpsSimulationPanel(Card):
         self.live_worker = None
         self.live_thread = None
         thread.deleteLater()
+        self.shutdown_finished.emit()
 
     def _stop_live_analysis(self) -> bool:
         worker = self.live_worker
@@ -2504,8 +2507,7 @@ class DpsSimulationPanel(Card):
         worker.cancel()
         if thread is not None and thread.isRunning():
             thread.quit()
-            if not thread.wait(3000):
-                return False
+            return False
         self.live_worker = None
         self.live_thread = None
         if thread is not None:

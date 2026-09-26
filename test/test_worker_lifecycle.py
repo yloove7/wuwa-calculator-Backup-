@@ -12,10 +12,11 @@ import pytest
 from src.wuwa_calculator.app import pity_tracker
 from src.wuwa_calculator.app.image_import import image_import_worker
 from src.wuwa_calculator.app.multimedia.dps_simulation_panel import DpsSimulationPanel
-from src.wuwa_calculator.app.home_tab import HomeTab
+from src.wuwa_calculator.app.home_tab import BannerWorker, CatalogWorker, HomeTab
 from src.wuwa_calculator.app.image_import.image_import_worker import ImageImportWorker
 from src.wuwa_calculator.app.import_dialog import CustomImportPopup
 from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
+from src.wuwa_calculator.app.window import WuwaQtWindow
 
 
 class _FakeReader:
@@ -139,7 +140,7 @@ def test_ocr_worker_cancel_terminates_active_process() -> None:
     assert not results
 
 
-def test_powershell_polling_stops_and_normal_exit_starts_import() -> None:
+def test_powershell_clipboard_capture_starts_import_while_window_remains_open() -> None:
     class Timer:
         stopped = False
 
@@ -148,23 +149,83 @@ def test_powershell_polling_stops_and_normal_exit_starts_import() -> None:
 
     class Process:
         def poll(self):
+            return None
+
+    imported: list[tuple[str, pity_tracker.ConveneCaptureContext | None]] = []
+    process = Process()
+    def start_import(
+        url: str,
+        *,
+        capture_context: pity_tracker.ConveneCaptureContext | None = None,
+    ) -> None:
+        imported.append((url, capture_context))
+
+    owner = SimpleNamespace(
+        _pwsh_process=process,
+        _pwsh_poll_timer=Timer(),
+        _pwsh_cancelled=False,
+        _clipboard_before_external="old clipboard",
+        sync_status=SimpleNamespace(setText=lambda _text: None),
+        sync_label=SimpleNamespace(setText=lambda _text: None),
+        sync_button=SimpleNamespace(setEnabled=lambda _enabled: None),
+        _start_import=start_import,
+    )
+    clipboard_url = (
+        "https://aki-gm-resources.example/record?player_id=p2&record_id=r2&"
+        "svr_id=s2&resources_id=c2&lang=en"
+    )
+    clipboard = SimpleNamespace(text=lambda: clipboard_url)
+    with patch.object(pity_tracker.QApplication, "clipboard", return_value=clipboard), patch.object(
+        pity_tracker, "get_brave_cdp_convene_url", return_value="stale-brave-url"
+    ) as brave:
+        pity_tracker.LegacyPityTrackerWidget._await_wuwatracker_import(cast(pity_tracker.LegacyPityTrackerWidget, owner))
+    assert owner._pwsh_process is None
+    assert owner._pwsh_poll_timer.stopped
+    assert imported[0][0] == clipboard_url
+    capture = imported[0][1]
+    assert capture is not None
+    assert capture.source_url == clipboard_url
+    assert capture.discovery_source == "external_clipboard"
+    assert owner._pwsh_process is None  # Handle is released; visible shell is not terminated.
+    assert process.poll() is None
+    brave.assert_not_called()
+
+
+def test_powershell_polling_rejects_unchanged_clipboard() -> None:
+    class Timer:
+        def stop(self) -> None:
+            pass
+
+    class Process:
+        def poll(self):
             return 0
 
-    imported: list[str] = []
+    stale_url = (
+        "https://aki-gm-resources.example/record?player_id=p1&record_id=r1&"
+        "svr_id=s1&resources_id=c1&lang=en"
+    )
+    imported: list[object] = []
     owner = SimpleNamespace(
         _pwsh_process=Process(),
         _pwsh_poll_timer=Timer(),
         _pwsh_cancelled=False,
+        _clipboard_before_external=stale_url,
         sync_status=SimpleNamespace(setText=lambda _text: None),
         sync_label=SimpleNamespace(setText=lambda _text: None),
         sync_button=SimpleNamespace(setEnabled=lambda _enabled: None),
-        _start_import=imported.append,
+        _start_import=lambda url, *, capture_context=None: imported.append(url),
+        _on_sync_error=lambda message: imported.append(message),
     )
-    with patch.object(pity_tracker, "get_brave_cdp_convene_url", return_value="local-url"):
-        pity_tracker.LegacyPityTrackerWidget._await_wuwatracker_import(cast(pity_tracker.LegacyPityTrackerWidget, owner))
-    assert owner._pwsh_process is None
-    assert owner._pwsh_poll_timer.stopped
-    assert imported == ["local-url"]
+    clipboard = SimpleNamespace(text=lambda: stale_url)
+
+    with patch.object(pity_tracker.QApplication, "clipboard", return_value=clipboard):
+        pity_tracker.LegacyPityTrackerWidget._await_wuwatracker_import(
+            cast(pity_tracker.LegacyPityTrackerWidget, owner)
+        )
+
+    assert imported == [
+        "The external URL finder did not provide a new valid clipboard URL."
+    ]
 
 
 def test_powershell_callback_after_cleanup_does_not_restart_import() -> None:
@@ -186,7 +247,7 @@ def test_powershell_callback_after_cleanup_does_not_restart_import() -> None:
     assert imported == []
 
 
-def test_powershell_shutdown_terminates_process_and_stops_timer() -> None:
+def test_powershell_shutdown_stops_monitoring_without_terminating_process() -> None:
     process = _FakeProcess(timeout_forever=True)
 
     class Timer:
@@ -199,14 +260,14 @@ def test_powershell_shutdown_terminates_process_and_stops_timer() -> None:
         _pwsh_process=process,
         _pwsh_poll_timer=Timer(),
         _import_thread=None,
-        _sync_worker=None,
         _pwsh_cancelled=False,
         sync_status=SimpleNamespace(setText=lambda _text: None),
         sync_label=SimpleNamespace(setText=lambda _text: None),
         sync_button=SimpleNamespace(setEnabled=lambda _enabled: None),
     )
     assert pity_tracker.LegacyPityTrackerWidget.shutdown_workers(cast(pity_tracker.LegacyPityTrackerWidget, owner))
-    assert process.terminated
+    assert not process.terminated
+    assert not process.killed
     assert owner._pwsh_process is None
     assert owner._pwsh_poll_timer.stopped
 
@@ -221,17 +282,164 @@ class _RunningThread:
     def quit(self) -> None:
         pass
 
+    def requestInterruption(self) -> None:
+        pass
+
     def wait(self, _timeout: int) -> bool:
         return self.wait_result
 
 
-def test_home_shutdown_refuses_when_thread_remains_active() -> None:
+def test_home_shutdown_requests_async_cancel_for_banner_catalog_and_news_workers() -> None:
+    class ActiveThread:
+        def isRunning(self) -> bool:
+            return True
+
+        def quit(self) -> None:
+            pass
+
+        def requestInterruption(self) -> None:
+            pass
+
+        def wait(self, _timeout: int) -> bool:
+            pytest.fail("Home shutdown must not block on worker threads")
+
+    class Worker:
+        cancelled = False
+
+        def cancel(self) -> None:
+            self.cancelled = True
+
+    banner_thread = ActiveThread()
+    catalog_thread = ActiveThread()
+    news_thread = ActiveThread()
+    banner_worker = Worker()
+    catalog_worker = Worker()
     owner = SimpleNamespace(
-        banner_thread=_RunningThread(False),
-        catalog_thread=None,
-        pity_tracker=SimpleNamespace(worker=None),
+        _shutdown_requested=False,
+        _shutdown_completion_emitted=False,
+        banner_thread=banner_thread,
+        banner_worker=banner_worker,
+        catalog_thread=catalog_thread,
+        catalog_worker=catalog_worker,
+        pity_tracker=SimpleNamespace(worker=news_thread),
+        _clear_banner_worker=lambda: None,
+        _clear_catalog_worker=lambda: None,
     )
-    assert not HomeTab.shutdown_workers(cast(HomeTab, owner), timeout_ms=1)
+    assert not HomeTab.shutdown_workers(cast(HomeTab, owner))
+    assert owner._shutdown_requested
+    assert banner_worker.cancelled
+    assert catalog_worker.cancelled
+
+
+def test_home_cleanup_and_shutdown_signal_run_after_all_threads_finish() -> None:
+    calls: list[str] = []
+
+    class FinishedThread:
+        def isRunning(self) -> bool:
+            return False
+
+        def deleteLater(self) -> None:
+            calls.append("delete")
+
+    class FinishedSignal:
+        def emit(self) -> None:
+            calls.append("shutdown-finished")
+
+    owner = SimpleNamespace(
+        _shutdown_requested=True,
+        _shutdown_completion_emitted=False,
+        banner_thread=FinishedThread(),
+        banner_worker=object(),
+        catalog_thread=FinishedThread(),
+        catalog_worker=object(),
+        pity_tracker=SimpleNamespace(worker=FinishedThread()),
+        shutdown_finished=FinishedSignal(),
+    )
+    owner._clear_banner_worker = lambda: HomeTab._clear_banner_worker(
+        cast(HomeTab, owner)
+    )
+    owner._clear_catalog_worker = lambda: HomeTab._clear_catalog_worker(
+        cast(HomeTab, owner)
+    )
+    owner._check_shutdown_complete = lambda: HomeTab._check_shutdown_complete(
+        cast(HomeTab, owner)
+    )
+
+    HomeTab._check_shutdown_complete(cast(HomeTab, owner))
+
+    assert owner._shutdown_completion_emitted
+    assert owner.banner_thread is None
+    assert owner.banner_worker is None
+    assert owner.catalog_thread is None
+    assert owner.catalog_worker is None
+    assert calls == ["delete", "delete", "shutdown-finished"]
+
+
+def test_cancelled_home_workers_skip_work_or_discard_results(monkeypatch) -> None:
+    completed: list[bool] = []
+    banner_results: list[object] = []
+    banner = BannerWorker()
+    banner.finished.connect(banner_results.append)
+    banner.completed.connect(lambda: completed.append(True))
+    banner.cancel()
+    monkeypatch.setattr(
+        "src.wuwa_calculator.app.home_tab.fetch_current_banner",
+        lambda: pytest.fail("cancelled banner worker started network work"),
+    )
+    banner.run()
+    assert banner_results == []
+    assert completed == [True]
+
+    catalog_results: list[object] = []
+    catalog = CatalogWorker()
+    catalog.finished.connect(catalog_results.append)
+    catalog.completed.connect(lambda: completed.append(True))
+
+    def finish_catalog_after_cancel() -> list[object]:
+        catalog.cancel()
+        return []
+
+    monkeypatch.setattr(
+        "src.wuwa_calculator.app.banners.wuwa_tracker_adapter.fetch_banner_catalog",
+        finish_catalog_after_cancel,
+        raising=False,
+    )
+    catalog.run()
+    assert catalog_results == []
+    assert completed == [True, True]
+
+
+def test_home_shutdown_without_active_workers_completes_without_waiting() -> None:
+    class StoppedThread:
+        def isRunning(self) -> bool:
+            return False
+
+        def deleteLater(self) -> None:
+            pass
+
+    owner = SimpleNamespace(
+        _shutdown_requested=False,
+        _shutdown_completion_emitted=False,
+        banner_thread=StoppedThread(),
+        banner_worker=object(),
+        catalog_thread=StoppedThread(),
+        catalog_worker=object(),
+        pity_tracker=SimpleNamespace(worker=StoppedThread()),
+    )
+    owner._clear_banner_worker = lambda: HomeTab._clear_banner_worker(
+        cast(HomeTab, owner)
+    )
+    owner._clear_catalog_worker = lambda: HomeTab._clear_catalog_worker(
+        cast(HomeTab, owner)
+    )
+    owner._check_shutdown_complete = lambda: HomeTab._check_shutdown_complete(
+        cast(HomeTab, owner)
+    )
+    assert HomeTab.shutdown_workers(cast(HomeTab, owner))
+    assert owner._shutdown_requested
+    assert owner._shutdown_completion_emitted
+    assert owner.banner_thread is None
+    assert owner.catalog_thread is None
 
 
 def test_convene_shutdown_refuses_when_import_thread_remains_active() -> None:
@@ -239,30 +447,18 @@ def test_convene_shutdown_refuses_when_import_thread_remains_active() -> None:
         _pwsh_poll_timer=SimpleNamespace(stop=lambda: None),
         _pwsh_process=None,
         _import_thread=_RunningThread(False),
-        _sync_worker=None,
         _pwsh_cancelled=False,
     )
     assert not pity_tracker.LegacyPityTrackerWidget.shutdown_workers(cast(pity_tracker.LegacyPityTrackerWidget, owner), 1)
 
 
 def test_home_and_convene_shutdown_complete_when_threads_stop() -> None:
-    home = SimpleNamespace(
-        banner_thread=_RunningThread(True),
-        catalog_thread=_RunningThread(True),
-        pity_tracker=SimpleNamespace(worker=_RunningThread(True)),
-        _clear_banner_worker=lambda: None,
-        _clear_catalog_worker=lambda: None,
-    )
-    assert HomeTab.shutdown_workers(cast(HomeTab, home), timeout_ms=50)
-
     convene = SimpleNamespace(
         _pwsh_poll_timer=SimpleNamespace(stop=lambda: None),
         _pwsh_process=None,
         _import_thread=_RunningThread(True),
-        _sync_worker=_RunningThread(True),
         _pwsh_cancelled=False,
         _clear_import=lambda: None,
-        _clear_sync_worker=lambda: None,
     )
     assert pity_tracker.LegacyPityTrackerWidget.shutdown_workers(cast(pity_tracker.LegacyPityTrackerWidget, convene), 50)
 
@@ -327,3 +523,123 @@ def test_multimedia_shutdown_stops_video_after_analysis_stops() -> None:
     )
     assert MultimediaTab.shutdown(cast(MultimediaTab, media))
     assert stopped == [True]
+
+
+def test_live_analysis_shutdown_is_async_and_keeps_owner_references_until_finished() -> None:
+    class Worker:
+        cancelled = False
+
+        def cancel(self) -> None:
+            self.cancelled = True
+
+    class Thread:
+        running = True
+        quit_requested = False
+
+        def isRunning(self) -> bool:
+            return self.running
+
+        def quit(self) -> None:
+            self.quit_requested = True
+
+        def wait(self, _timeout: int) -> bool:
+            pytest.fail("live shutdown must not block waiting for the worker")
+
+        def deleteLater(self) -> None:
+            pass
+
+    worker = Worker()
+    thread = Thread()
+    status: list[str] = []
+    panel = SimpleNamespace(
+        live_worker=worker,
+        live_thread=thread,
+        analysis_status=SimpleNamespace(setText=status.append),
+    )
+
+    assert not DpsSimulationPanel._stop_live_analysis(
+        cast(DpsSimulationPanel, panel)
+    )
+    assert worker.cancelled
+    assert thread.quit_requested
+    assert panel.live_worker is worker
+    assert panel.live_thread is thread
+    assert status == []
+
+    thread.running = False
+    assert DpsSimulationPanel._stop_live_analysis(cast(DpsSimulationPanel, panel))
+    assert panel.live_worker is None
+    assert panel.live_thread is None
+    assert status == ["Análise ao vivo parada"]
+
+
+def test_live_thread_finished_clears_references_then_notifies_pending_close() -> None:
+    calls: list[str] = []
+
+    class Thread:
+        def deleteLater(self) -> None:
+            calls.append("delete")
+
+    class Signal:
+        def emit(self) -> None:
+            calls.append("finished")
+
+    thread = Thread()
+    panel = SimpleNamespace(
+        live_worker=object(),
+        live_thread=thread,
+        shutdown_finished=Signal(),
+    )
+
+    DpsSimulationPanel._on_live_thread_finished(cast(DpsSimulationPanel, panel))
+
+    assert panel.live_worker is None
+    assert panel.live_thread is None
+    assert calls == ["delete", "finished"]
+
+
+def test_window_defers_confirmed_close_until_home_workers_finish(monkeypatch) -> None:
+    class Event:
+        ignored = False
+        accepted = False
+
+        def ignore(self) -> None:
+            self.ignored = True
+
+        def accept(self) -> None:
+            self.accepted = True
+
+    class ActiveHome:
+        def shutdown_workers(self) -> bool:
+            return False
+
+    monkeypatch.setattr(
+        "src.wuwa_calculator.app.window.HomeTab",
+        ActiveHome,
+    )
+    event = Event()
+    owner = SimpleNamespace(
+        preferences=SimpleNamespace(value=lambda *_args, **_kwargs: False),
+        _close_confirmation_accepted=False,
+        _close_after_background_shutdown=False,
+        _import_dialog=None,
+        _tab_widgets={0: ActiveHome()},
+    )
+
+    WuwaQtWindow.closeEvent(cast(WuwaQtWindow, owner), event)
+
+    assert event.ignored and not event.accepted
+    assert owner._close_after_background_shutdown
+
+
+def test_window_resumes_pending_close_only_after_shutdown_signal() -> None:
+    closed: list[bool] = []
+    owner = SimpleNamespace(
+        _close_after_background_shutdown=True,
+        close=lambda: closed.append(True),
+    )
+
+    WuwaQtWindow._resume_close_after_background_shutdown(cast(WuwaQtWindow, owner))
+
+    assert not owner._close_after_background_shutdown
+    assert closed == [True]

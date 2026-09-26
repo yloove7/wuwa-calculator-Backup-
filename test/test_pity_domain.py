@@ -29,6 +29,48 @@ class PityDomainTests(unittest.TestCase):
         ])
         self.assertEqual(state.four_star_total, 2)
 
+    def test_excludes_explicit_non_pull_from_pity_and_total(self):
+        state = calculate_pity_state([
+            {"timestamp": 1, "rarity": 3, "pool": "resonator"},
+            {"timestamp": 2, "is_pull": False, "record_url": "metadata-only"},
+        ])
+
+        self.assertEqual(state.total_registered, 1)
+        self.assertEqual(state.resonator, 1)
+        self.assertEqual(
+            state.recent_convene_details,
+            [format_recent_record({"rarity": 3})],
+        )
+
+    def test_non_pull_only_history_does_not_create_pity(self):
+        state = calculate_pity_state([
+            {"timestamp": 1, "is_pull": False, "record_url": "metadata-1"},
+            {"timestamp": 2, "is_pull": False, "record_url": "metadata-2"},
+        ])
+
+        self.assertEqual(state.total_registered, 0)
+        self.assertEqual(state.resonator, 0)
+        self.assertEqual(state.five_star_history, [])
+        self.assertEqual(state.recent_convene_details, [])
+
+    def test_non_pulls_do_not_contaminate_pity_across_pools(self):
+        state = calculate_pity_state([
+            {"timestamp": 1, "rarity": 3, "pool": "resonator"},
+            {"timestamp": 2, "rarity": 3, "pool": "weapon"},
+            {"timestamp": 3, "is_pull": False, "pool": "resonator", "record_url": "r"},
+            {"timestamp": 4, "is_pull": False, "pool": "weapon", "record_url": "w"},
+            {"timestamp": 5, "is_pull": False, "pool": "standard character", "record_url": "sc"},
+            {"timestamp": 6, "rarity": 3, "pool": "standard character"},
+            {"timestamp": 7, "is_pull": False, "pool": "standard weapon", "record_url": "sw"},
+            {"timestamp": 8, "rarity": 3, "pool": "standard weapon"},
+        ])
+
+        self.assertEqual(state.total_registered, 4)
+        self.assertEqual(state.resonator, 1)
+        self.assertEqual(state.weapon, 1)
+        self.assertEqual(state.standard_character, 1)
+        self.assertEqual(state.standard_weapon, 1)
+
     def test_keeps_five_star_sequence(self):
         state = calculate_pity_state([
             {"timestamp": 1, "rarity": 3, "pool": "resonator"},

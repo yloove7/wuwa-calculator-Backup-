@@ -8,12 +8,14 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QColor, QWheelEvent
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QProgressBar,
     QScrollArea,
@@ -25,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.wuwa_calculator.app.components import Card, TitleLabel
+from src.wuwa_calculator.app.convene.presentation import pity_progress_bar
 from src.wuwa_calculator.app.pity_tracker import LegacyPityTrackerWidget, TrackerStatus
 from src.wuwa_calculator.domain.pity import PityState
 from src.wuwa_calculator.utils.convene_datetime import (
@@ -114,6 +117,12 @@ class ConveneTrackerTab(QWidget):
         self.refresh_button.setObjectName("primaryAction")
         self.refresh_button.clicked.connect(self._request_refresh)
         header_layout.addWidget(self.refresh_button)
+        self.import_json_button = QPushButton("Importar JSON")
+        self.import_json_button.clicked.connect(self._import_json_history)
+        header_layout.addWidget(self.import_json_button)
+        self.export_json_button = QPushButton("Exportar JSON")
+        self.export_json_button.clicked.connect(self._export_json_history)
+        header_layout.addWidget(self.export_json_button)
         root.addWidget(header)
 
         pity_card = Card()
@@ -139,10 +148,7 @@ class ConveneTrackerTab(QWidget):
             label.setObjectName("conveneTrackerMetricLabel")
             value = QLabel("-- / 80")
             value.setObjectName("conveneTrackerMetricValue")
-            progress = QProgressBar()
-            progress.setRange(0, 80)
-            progress.setTextVisible(False)
-            progress.setFixedHeight(6)
+            progress = pity_progress_bar(6)
             panel_layout.addWidget(label)
             panel_layout.addWidget(value)
             panel_layout.addWidget(progress)
@@ -521,6 +527,53 @@ class ConveneTrackerTab(QWidget):
             if value not in (None, ""):
                 return str(value)
         return ""
+
+    def _import_json_history(self) -> None:
+        source, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Importar histórico Convene",
+            "",
+            "JSON (*.json)",
+        )
+        if not source:
+            return
+        try:
+            report = self.tracker.import_history_json(source)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Falha na importação", str(error))
+            return
+        QMessageBox.information(
+            self,
+            "Importação concluída",
+            f"Formato: {report.format}\nNovos registros: {report.imported_count}",
+        )
+
+    def _export_json_history(self) -> None:
+        destination, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Exportar histórico Convene",
+            "tethys_convene_history.json",
+            "JSON (*.json)",
+        )
+        if not destination:
+            return
+        try:
+            exported = self.tracker.export_history_json(destination)
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Falha na exportação", str(error))
+            return
+        if exported is None:
+            QMessageBox.warning(
+                self,
+                "Exportação indisponível",
+                "Identifique um player antes de exportar o histórico.",
+            )
+            return
+        QMessageBox.information(
+            self,
+            "Exportação concluída",
+            "Histórico Convene exportado.",
+        )
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if (

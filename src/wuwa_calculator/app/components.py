@@ -72,6 +72,28 @@ ELEMENT_NUMBER_COLORS = {
 _BANNER_RADIUS = 16.0
 
 
+def circular_pixmap(source: QPixmap, width: int, height: int) -> QPixmap:
+    """Return a centered, circularly clipped copy of a pixmap."""
+    scaled = source.scaled(
+        width,
+        height,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    canvas = QPixmap(width, height)
+    canvas.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(canvas)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    path = QPainterPath()
+    path.addEllipse(0, 0, width, height)
+    painter.setClipPath(path)
+    x = (width - scaled.width()) // 2
+    y = (height - scaled.height()) // 2
+    painter.drawPixmap(x, y, scaled)
+    painter.end()
+    return canvas
+
+
 def _banner_clip_path(width: int, height: int) -> QPainterPath:
     path = QPainterPath()
     path.addRoundedRect(QRectF(0, 0, width, height), _BANNER_RADIUS, _BANNER_RADIUS)
