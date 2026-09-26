@@ -30,7 +30,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from src.wuwa_calculator.app.styles import CARD, apply_element_glow, apply_glow
+from src.wuwa_calculator.app.styles import (
+    CARD,
+    apply_element_glow,
+    apply_glow,
+    clear_decorative_overlay,
+)
 from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 
 
@@ -266,6 +271,8 @@ class WuWaKuroBannerCard(QFrame):
         self.element_border = self.element_color
         self.number_color = ELEMENT_NUMBER_COLORS.get(self.element, "#FFFFFF")
         self.banner_width = 960
+        self._active = True
+        self._performance_mode = False
         
         self.setObjectName("KuroHomeSection")
         self.setFixedWidth(960)
@@ -541,11 +548,40 @@ class WuWaKuroBannerCard(QFrame):
 
     def set_active(self, active: bool) -> None:
         """Pause visual effects while the Home tab is outside the viewport."""
-        if active:
-            if not self.hologram_timer.isActive():
-                self.hologram_timer.start(50)
+        self._active = active
+        self._sync_activity_timers()
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        """Pause only the decorative hologram, preserving the countdown clock."""
+        if enabled == self._performance_mode:
+            return
+        self._performance_mode = enabled
+        if enabled:
+            self.hologram_timer.stop()
+            self.hologram_phase = 0.0
+            clear_decorative_overlay(self.hologram_timer, self.hologram_overlay)
+            self.update()
+        elif self._active:
+            self.hologram_phase = 0.0
+            self._update_hologram()
+            self.hologram_overlay.show()
+            self.hologram_overlay.raise_()
+        self._sync_activity_timers()
+
+    def _sync_activity_timers(self) -> None:
+        if self._active:
             if self.end_date > datetime.now(timezone.utc) and not self.timer.isActive():
                 self.timer.start(1000)
-            return
-        self.hologram_timer.stop()
-        self.timer.stop()
+        else:
+            self.timer.stop()
+
+        if self._active and not self._performance_mode:
+            if self.hologram_overlay.isHidden():
+                self.hologram_phase = 0.0
+                self._update_hologram()
+                self.hologram_overlay.show()
+                self.hologram_overlay.raise_()
+            if not self.hologram_timer.isActive():
+                self.hologram_timer.start(50)
+        else:
+            self.hologram_timer.stop()

@@ -5,12 +5,13 @@ from dataclasses import dataclass
 # * EDITAVEL: altere cores globais e regras QSS aqui; o wallpaper gera uma paleta complementar.
 # ! Nao use #RRGGBBAA no QColor: _with_alpha produz o formato Qt #AARRGGBB.
 
-from PySide6.QtCore import QAbstractAnimation, QUrl
+from PySide6.QtCore import QAbstractAnimation, QTimer, QUrl
 from PySide6.QtGui import QColor, QImage
 from PySide6.QtWidgets import (
     QAbstractButton,
     QGraphicsDropShadowEffect,
     QGraphicsOpacityEffect,
+    QLabel,
     QWidget,
 )
 
@@ -100,16 +101,24 @@ def apply_element_glow(widget: QWidget, element: str, blur: float = 24.0, opacit
 def disable_visual_effects(root: QWidget) -> None:
     for widget in [root, *root.findChildren(QWidget)]:
         current_effect = widget.graphicsEffect()
-        if current_effect is not None:
+        if isinstance(current_effect, QGraphicsOpacityEffect):
+            current_effect.setOpacity(1.0)
+        elif current_effect is not None:
             neutral_effect = QGraphicsOpacityEffect(widget)
             neutral_effect.setOpacity(1.0)
             widget.setGraphicsEffect(neutral_effect)
-        if isinstance(current_effect, QGraphicsOpacityEffect):
-            current_effect.setOpacity(1.0)
 
     for animation in root.findChildren(QAbstractAnimation):
         if animation.state() != QAbstractAnimation.State.Stopped:
             animation.stop()
+
+
+def clear_decorative_overlay(timer: QTimer, overlay: QLabel) -> None:
+    """Queue removal of a transient animated pixmap without touching its base."""
+    timer.stop()
+    overlay.clear()
+    overlay.hide()
+    overlay.update()
 
 
 def refresh_glows(root: QWidget, performance_mode: bool = False) -> None:

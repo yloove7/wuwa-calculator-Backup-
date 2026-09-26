@@ -28,6 +28,9 @@ class _TrackerStub(QWidget):
     def start_news_load(self, _finished_callback=None) -> None:
         pass
 
+    def set_performance_mode(self, _enabled: bool) -> None:
+        pass
+
 
 def _run_worker(worker: home_tab.BannerWorker | home_tab.CatalogWorker) -> None:
     thread = QThread()
@@ -159,11 +162,14 @@ def test_home_heartbeat_and_close_event_continue_during_worker_fetches(
 
     heartbeat = QTimer()
     heartbeat.setInterval(10)
-    heartbeat.timeout.connect(lambda: setattr(
-        home, "heartbeat_count", home.heartbeat_count + 1
-    ))
+
+    def record_heartbeat() -> None:
+        home.heartbeat_count += 1
+        if home.heartbeat_count == 1:
+            home.close()
+
+    heartbeat.timeout.connect(record_heartbeat)
     heartbeat.start()
-    QTimer.singleShot(30, home.close)
     QTimer.singleShot(3000, loop.quit)
     try:
         loop.exec()

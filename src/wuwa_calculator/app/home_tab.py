@@ -37,7 +37,7 @@ from PySide6.QtWidgets import (
 from src.wuwa_calculator.app.components import Card, TitleLabel, WuWaKuroBannerCard
 from src.wuwa_calculator.app.banners.banner_service import fetch_current_banner
 from src.wuwa_calculator.app.pity_tracker import PityTrackerWidget
-from src.wuwa_calculator.app.styles import apply_glow
+from src.wuwa_calculator.app.styles import apply_glow, clear_decorative_overlay
 from src.wuwa_calculator.storage.banner_cache import load_cached_banner, save_cached_banner
 
 
@@ -347,6 +347,8 @@ class UpcomingBannerCard(QFrame):
         self.hologram_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.hologram_overlay.setStyleSheet("background: transparent;")
         self.hologram_phase = 0.0
+        self._active = True
+        self._performance_mode = False
         self._apply_hologram_mask()
         self._update_hologram()
         self.hologram_timer = QTimer(self)
@@ -365,6 +367,34 @@ class UpcomingBannerCard(QFrame):
         self.hover_frame.raise_()
         image.installEventFilter(self)
         overlay.installEventFilter(self)
+
+    def set_active(self, active: bool) -> None:
+        """Run the hologram animation only while the Home timeline is active."""
+        self._active = active
+        self._sync_hologram_activity()
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        if enabled == self._performance_mode:
+            return
+        self._performance_mode = enabled
+        if enabled:
+            self.hologram_timer.stop()
+            self.hologram_phase = 0.0
+            clear_decorative_overlay(self.hologram_timer, self.hologram_overlay)
+            self.update()
+        self._sync_hologram_activity()
+
+    def _sync_hologram_activity(self) -> None:
+        if self._active and not self._performance_mode:
+            if self.hologram_overlay.isHidden():
+                self.hologram_phase = 0.0
+                self._update_hologram()
+                self.hologram_overlay.show()
+                self.hologram_overlay.raise_()
+            if not self.hologram_timer.isActive():
+                self.hologram_timer.start(50)
+            return
+        self.hologram_timer.stop()
 
     def _apply_hologram_mask(self) -> None:
         if self.width() <= 0 or self.height() <= 0 or not self.hologram_overlay:
@@ -469,6 +499,8 @@ class UpcomingBannerCard(QFrame):
 class UpcomingBannersSection(QFrame):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._active = False
+        self._performance_mode = False
         self.setObjectName("upcomingBannersSection")
         self.setFixedHeight(182)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -531,6 +563,8 @@ class UpcomingBannersSection(QFrame):
                     continue
                 widget = item.widget()
                 if widget is not None:
+                    if isinstance(widget, UpcomingBannerCard):
+                        widget.set_active(False)
                     widget.deleteLater()
 
         columns = (
@@ -542,6 +576,8 @@ class UpcomingBannersSection(QFrame):
             record = next((item for item in records if item.get("kind") == kind), None)
             if record is not None:
                 card = UpcomingBannerCard(record, title, compact=True)
+                card.set_active(self._active)
+                card.set_performance_mode(self._performance_mode)
                 card.setSizePolicy(
                     QSizePolicy.Policy.Expanding,
                     QSizePolicy.Policy.Expanding,
@@ -557,6 +593,16 @@ class UpcomingBannersSection(QFrame):
                 )
                 layout.addWidget(placeholder)
 
+    def set_active(self, active: bool) -> None:
+        self._active = active
+        for card in self.findChildren(UpcomingBannerCard):
+            card.set_active(active)
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        self._performance_mode = enabled
+        for card in self.findChildren(UpcomingBannerCard):
+            card.set_performance_mode(enabled)
+
 
 class HomeTab(QWidget):
     shutdown_finished = Signal()
@@ -566,6 +612,10 @@ class HomeTab(QWidget):
         self._shutdown_requested = False
         self._shutdown_completion_emitted = False
         self._startup_work_scheduled = False
+        self._main_tab_active = False
+        self._window_visible = True
+        self._performance_mode = False
+        self._fast_startup_mode = False
         root = QVBoxLayout(self)
         root.setContentsMargins(18, 18, 18, 18)
         root.setSpacing(14)
@@ -644,6 +694,7 @@ class HomeTab(QWidget):
             defer_news_load=True,
             defer_hero_images=True,
         )
+        self.pity_tracker.set_performance_mode(self._performance_mode)
         self.convene_tracker_drawer = CollapsibleTrackerDrawer(self.pity_tracker)
         hero_surface_layout.addWidget(banner_column, 1)
         left_column_layout.addWidget(hero_surface)
@@ -679,7 +730,8 @@ class HomeTab(QWidget):
         if self._startup_work_scheduled:
             return
         self._startup_work_scheduled = True
-        QTimer.singleShot(0, self._start_secondary_home_work)
+        delay_ms = 1200 if self._fast_startup_mode else 0
+        QTimer.singleShot(delay_ms, self._start_secondary_home_work)
 
     def _start_secondary_home_work(self) -> None:
         if self._shutdown_requested:
@@ -695,8 +747,30 @@ class HomeTab(QWidget):
             drawer.toggle()
 
     def set_active(self, active: bool) -> None:
+        self._main_tab_active = active
+        self._sync_animation_activity()
+
+    def set_window_visible(self, visible: bool) -> None:
+        self._window_visible = visible
+        self._sync_animation_activity()
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        self._performance_mode = enabled
+        self.pity_tracker.set_performance_mode(enabled)
+        self._sync_animation_activity()
+
+    def set_fast_startup_mode(self, enabled: bool) -> None:
+        """Defer secondary Home requests after the first visible frame."""
+        self._fast_startup_mode = enabled
+
+    def _sync_animation_activity(self) -> None:
+        active = self._main_tab_active and self._window_visible
+        self.pity_tracker.set_active(active)
         if self.banner_card is not None:
+            self.banner_card.set_performance_mode(self._performance_mode)
             self.banner_card.set_active(active)
+        self.timeline_panel.set_active(active)
+        self.timeline_panel.set_performance_mode(self._performance_mode)
 
     def shutdown_workers(self, timeout_ms: int = 5000) -> bool:
         del timeout_ms  # Kept for compatibility with existing callers.
@@ -864,6 +938,10 @@ class HomeTab(QWidget):
             end_date=ends_at,
             banner_start=starts_at,
             element=str(data.get("element", "")) or None,
+        )
+        self.banner_card.set_performance_mode(self._performance_mode)
+        self.banner_card.set_active(
+            self._main_tab_active and self._window_visible
         )
         self.banner_container.addWidget(self.banner_card)
         print("[HomeTab] Banner card criado e inserido no layout")

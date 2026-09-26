@@ -1846,6 +1846,7 @@ class DpsSimulationPanel(Card):
         self.video_player = video_player
         self.capture_settings = CaptureSettings()
         self.modo_analise = "VIDEO"
+        self._performance_mode = False
         self.duration_seconds = 163.0
         self._dps_start_time = 0.0
         self.live_thread: QThread | None = None
@@ -2208,8 +2209,15 @@ class DpsSimulationPanel(Card):
         self.peak_metric.setText(f"Maior hit: {self._peak_hit:,.0f}")
 
     def _on_video_loaded(self, video_path: str) -> None:
-        if self.modo_analise == "VIDEO":
+        if self.modo_analise == "VIDEO" and not self._performance_mode:
             self._start_live_analysis(video_path)
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        """Cooperatively stop active analysis and suppress automatic OCR."""
+        entering_performance_mode = enabled and not self._performance_mode
+        self._performance_mode = enabled
+        if entering_performance_mode and self.live_worker is not None:
+            self._stop_live_analysis()
 
     def _on_video_stopped(self) -> None:
         if self.modo_analise == "VIDEO":

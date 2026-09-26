@@ -127,10 +127,16 @@ class SettingsTab(QWidget):
         self.auto_open_last_box = QCheckBox("Abrir o último personagem ao iniciar")
         self.auto_save_box = QCheckBox("Salvar sessão automaticamente")
         self.performance_mode_box = QCheckBox("Modo leve / reduzir efeitos visuais")
+        self.fast_startup_box = QCheckBox("Inicialização Rápida")
+        self.fast_startup_box.setToolTip(
+            "Adia carregamentos secundários da Home após a primeira tela; "
+            "a opção afeta a próxima inicialização."
+        )
 
         session_layout.addWidget(self.auto_open_last_box)
         session_layout.addWidget(self.auto_save_box)
         session_layout.addWidget(self.performance_mode_box)
+        session_layout.addWidget(self.fast_startup_box)
 
         session_actions = QHBoxLayout()
         clear_cache_button = QPushButton("Limpar cache")
@@ -171,6 +177,7 @@ class SettingsTab(QWidget):
         self.auto_open_last_box.toggled.connect(self._auto_open_last_changed)
         self.auto_save_box.toggled.connect(self._auto_save_changed)
         self.performance_mode_box.toggled.connect(self._performance_mode_changed)
+        self.fast_startup_box.toggled.connect(self._fast_startup_changed)
         self.confirm_exit_box.toggled.connect(self._confirm_exit_changed)
         self._load_preferences()
 
@@ -197,6 +204,9 @@ class SettingsTab(QWidget):
         self.performance_mode_box.setChecked(
             settings.get("performance_mode", False, bool)
         )
+        self.fast_startup_box.blockSignals(True)
+        self.fast_startup_box.setChecked(settings.get("fast_startup", False, bool))
+        self.fast_startup_box.blockSignals(False)
         self.confirm_exit_box.setChecked(
             settings.get("confirm_exit", True, bool))
 
@@ -302,6 +312,13 @@ class SettingsTab(QWidget):
         if callable(apply_preferences):
             apply_preferences()
 
+    def _fast_startup_changed(self, enabled: bool) -> None:
+        self.settings.set("fast_startup", enabled)
+        window = self.host or self.window()
+        apply_preferences = getattr(window, "apply_preferences", None)
+        if callable(apply_preferences):
+            apply_preferences()
+
     def _confirm_exit_changed(self, enabled: bool) -> None:
         self.settings.set("confirm_exit", enabled)
 
@@ -335,6 +352,7 @@ class SettingsTab(QWidget):
         self.auto_open_last_box.setChecked(True)
         self.auto_save_box.setChecked(True)
         self.performance_mode_box.setChecked(False)
+        self.fast_startup_box.setChecked(False)
         self.confirm_exit_box.setChecked(True)
         self._reset_wallpaper()
         window = self.host or self.window()

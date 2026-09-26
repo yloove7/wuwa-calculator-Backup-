@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QBuffer, QEvent, QIODevice, Qt
-from PySide6.QtGui import QImage, QImageWriter, QKeyEvent
+from PySide6.QtGui import QImage, QImageWriter, QKeyEvent, QPixmap
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtMultimediaWidgets import QVideoWidget
 from PySide6.QtWidgets import QApplication, QLabel, QWidget
@@ -54,6 +54,26 @@ class GuiSmokeTests(unittest.TestCase):
         self.assertFalse(pixmap.isNull())
         self.assertEqual(pixmap.height(), 440)
         self.assertLessEqual(pixmap.width(), 960)
+        hologram_timer = card.hologram_timer
+        countdown_timer = card.timer
+        card.hologram_phase = 0.47
+        card.hologram_overlay.setPixmap(QPixmap(8, 8))
+        base_pixmap = card.img_label.pixmap()
+        card.set_performance_mode(True)
+        self.assertFalse(hologram_timer.isActive())
+        self.assertTrue(countdown_timer.isActive())
+        self.assertEqual(card.hologram_phase, 0.0)
+        self.assertTrue(card.hologram_overlay.isHidden())
+        overlay_pixmap = card.hologram_overlay.pixmap()
+        self.assertTrue(overlay_pixmap is None or overlay_pixmap.isNull())
+        self.assertEqual(card.img_label.pixmap().cacheKey(), base_pixmap.cacheKey())
+        card.set_performance_mode(False)
+        self.assertTrue(hologram_timer.isActive())
+        self.assertTrue(countdown_timer.isActive())
+        self.assertFalse(card.hologram_overlay.isHidden())
+        self.assertNotEqual(card.hologram_phase, 0.47)
+        self.assertIs(card.hologram_timer, hologram_timer)
+        self.assertIs(card.timer, countdown_timer)
         card.deleteLater()
 
     def test_video_player_builds_without_video_surface(self) -> None:
@@ -339,6 +359,41 @@ class GuiSmokeTests(unittest.TestCase):
 
         self.assertFalse(player.media_toolbar.isHidden())
         self.assertFalse(panel.skip_intro_time.isHidden())
+        panel.deleteLater()
+        player.close()
+
+    def test_performance_mode_suppresses_automatic_dps_but_keeps_explicit_analysis(
+        self,
+    ) -> None:
+        player = HistoryVideoPlayer()
+        panel = DpsSimulationPanel(player)
+        started: list[str] = []
+        stopped: list[bool] = []
+        worker = LiveDamageAnalysisWorker("recording.mp4", 0.0)
+        with patch.object(
+            panel,
+            "_start_live_analysis",
+            side_effect=lambda video_path: started.append(video_path),
+        ), patch.object(
+            panel,
+            "_stop_live_analysis",
+            side_effect=lambda: stopped.append(True) or True,
+        ):
+            panel.set_performance_mode(True)
+            panel._on_video_loaded("recording.mp4")
+            self.assertEqual(started, [])
+
+            # Selecting the video analysis source is an explicit user action.
+            player.video_path = "recording.mp4"
+            panel._switch_to_video_mode()
+            self.assertEqual(started, ["recording.mp4"])
+
+            panel.set_performance_mode(False)
+            panel.live_worker = worker
+            panel.set_performance_mode(True)
+            self.assertEqual(stopped, [True, True])
+            panel.set_performance_mode(False)
+            self.assertEqual(started, ["recording.mp4"])
         panel.deleteLater()
         player.close()
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QEvent, QSettings, Qt
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QFrame, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
@@ -20,6 +21,7 @@ from src.wuwa_calculator.app.home_tab import HomeTab
 from src.wuwa_calculator.app.obs_test_tab import ObsTestTab
 from src.wuwa_calculator.app.dialogs.settings_dialog import SettingsDialog
 from src.wuwa_calculator.app.settings_store import SettingsStore
+from src.wuwa_calculator.app.dev_mode import frequencies_should_be_blocked
 from src.wuwa_calculator.app.styles import apply_glow
 from src.wuwa_calculator.data.characters_elements import CHARACTER_ELEMENTS
 from src.wuwa_calculator.data.characters_ids import KNOWN_CHARACTER_IDS
@@ -68,10 +70,17 @@ class PlaceholderTab(QWidget):
 
 
 class WuwaQtWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        startup_marker: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__()
+        if startup_marker is not None:
+            startup_marker("STARTUP:MAIN_WINDOW_INITIALIZATION")
         self.preferences = QSettings("Tethys", "Tethys")
         self.settings = SettingsStore(settings=self.preferences)
+        self._dev_mode_enabled = False
+        self._dev_frequencies_override = False
         self._import_dialog: CustomImportPopup | None = None
         self._convene_tracker_backend: LegacyPityTrackerWidget | None = None
         self._close_confirmation_accepted = False
@@ -143,9 +152,19 @@ class WuwaQtWindow(QMainWindow):
 
         def build_home() -> HomeTab:
             home_tab = HomeTab()
+            home_tab.set_performance_mode(
+                self.settings.get("performance_mode", False, bool)
+            )
+            set_fast_startup_mode = getattr(home_tab, "set_fast_startup_mode", None)
+            if callable(set_fast_startup_mode):
+                set_fast_startup_mode(
+                    self.settings.get("fast_startup", False, bool)
+                )
             home_tab.shutdown_finished.connect(
                 self._resume_close_after_background_shutdown
             )
+            if startup_marker is not None:
+                startup_marker("STARTUP:HOME_CONSTRUCTED")
             return home_tab
 
         def build_teams() -> QWidget:
@@ -164,6 +183,13 @@ class WuwaQtWindow(QMainWindow):
             from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
 
             multimedia_tab = MultimediaTab()
+            multimedia_tab.set_performance_mode(
+                self.settings.get("performance_mode", False, bool)
+            )
+            multimedia_tab.set_development_frequency_override(
+                self._dev_mode_enabled,
+                self._dev_frequencies_override,
+            )
             multimedia_tab.dps_panel.shutdown_finished.connect(
                 self._resume_close_after_background_shutdown
             )
@@ -212,6 +238,7 @@ class WuwaQtWindow(QMainWindow):
         self._handle_main_tab_changed(0)
 
         self.sidebar_buttons: dict[str, QPushButton] = {}
+        self._sidebar_buttons_by_tab: dict[int, QPushButton] = {}
         self.character_sidebar_rows: dict[str, QWidget] = {}
 
         workspace = QHBoxLayout()
@@ -263,6 +290,8 @@ class WuwaQtWindow(QMainWindow):
         self.import_button.clicked.connect(self.open_import_dialog)
         self.apply_preferences()
         self._restore_last_session()
+        if startup_marker is not None:
+            startup_marker("STARTUP:MAIN_WINDOW_CONSTRUCTED")
 
     def _restore_last_session(self) -> None:
         if not self.preferences.value("auto_open_last_character", True, type=bool):
@@ -281,6 +310,24 @@ class WuwaQtWindow(QMainWindow):
 
     def apply_preferences(self) -> None:
         self.appearance.apply()
+        performance_mode = self.settings.get("performance_mode", False, bool)
+        fast_startup = self.settings.get("fast_startup", False, bool)
+        self._sync_frequencies_availability()
+        for tab in self._tab_widgets.values():
+            set_performance_mode = getattr(tab, "set_performance_mode", None)
+            if callable(set_performance_mode):
+                set_performance_mode(performance_mode)
+            set_fast_startup_mode = getattr(tab, "set_fast_startup_mode", None)
+            if callable(set_fast_startup_mode):
+                set_fast_startup_mode(fast_startup)
+            set_development_frequency_override = getattr(
+                tab, "set_development_frequency_override", None
+            )
+            if callable(set_development_frequency_override):
+                set_development_frequency_override(
+                    self._dev_mode_enabled,
+                    self._dev_frequencies_override,
+                )
 
     def _update_background(self, enabled: bool, wallpaper: str) -> None:
         self.appearance.update_background(enabled, wallpaper)
@@ -291,6 +338,13 @@ class WuwaQtWindow(QMainWindow):
             self.settings.get("background", True, bool),
             self.settings.get("wallpaper", "", str),
         )
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            home = self._tab_widgets.get(0)
+            if isinstance(home, HomeTab):
+                home.set_window_visible(not self.isMinimized())
 
     def closeEvent(self, event) -> None:
         if (
@@ -382,6 +436,7 @@ class WuwaQtWindow(QMainWindow):
             button.clicked.connect(
                 lambda: self._select_main_tab(tab_index, label))
             self.sidebar_buttons[label] = button
+            self._sidebar_buttons_by_tab[tab_index] = button
         layout.addWidget(button)
         return button
 
@@ -441,7 +496,35 @@ class WuwaQtWindow(QMainWindow):
         self.tabs.blockSignals(False)
         if old_widget is not None:
             old_widget.deleteLater()
+        if index == 4:
+            self._sync_frequencies_availability()
         self.tabs.setCurrentIndex(index)
+
+    def _sync_frequencies_availability(self) -> None:
+        blocked = frequencies_should_be_blocked(
+            self._dev_mode_enabled,
+            self._dev_frequencies_override,
+        )
+        self.tabs.setTabEnabled(4, not blocked)
+        button = self._sidebar_buttons_by_tab.get(4)
+        if button is not None:
+            button.setEnabled(not blocked)
+
+    def toggle_development_mode(self) -> bool:
+        """Toggle temporary DEV access without changing persisted settings."""
+        self._dev_mode_enabled = not self._dev_mode_enabled
+        self._dev_frequencies_override = self._dev_mode_enabled
+        self._sync_frequencies_availability()
+        for tab in self._tab_widgets.values():
+            set_override = getattr(
+                tab, "set_development_frequency_override", None
+            )
+            if callable(set_override):
+                set_override(
+                    self._dev_mode_enabled,
+                    self._dev_frequencies_override,
+                )
+        return self._dev_mode_enabled
 
     def _character_tab_for_widget(
         self,

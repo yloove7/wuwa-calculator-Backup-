@@ -10,7 +10,7 @@ from collections.abc import Generator
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
-from PySide6.QtCore import QSettings, Signal
+from PySide6.QtCore import QEvent, QSettings, Signal
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -34,12 +34,20 @@ class _HomeTab(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.active_states: list[bool] = []
+        self.window_states: list[bool] = []
+        self.performance_states: list[bool] = []
 
     def shutdown_workers(self) -> bool:
         return True
 
     def set_active(self, active: bool) -> None:
         self.active_states.append(active)
+
+    def set_window_visible(self, visible: bool) -> None:
+        self.window_states.append(visible)
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        self.performance_states.append(enabled)
 
 
 class _ConveneBackend:
@@ -188,6 +196,77 @@ def test_multimedia_is_created_once_with_the_normal_player_and_dps_initializatio
     assert multimedia.updatesEnabled()
 
 
+def test_ipc_dev_activation_unlocks_only_frequencies_without_recreating_media(
+    window: window_module.WuwaQtWindow,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.wuwa_calculator.app.multimedia.multimedia_tab import MultimediaTab
+
+    monkeypatch.setattr(window.appearance, "apply", lambda: None)
+    performance_mode = [True]
+    get_setting = window.settings.get
+    monkeypatch.setattr(
+        window.settings,
+        "get",
+        lambda key, default=None, value_type=None: (
+            performance_mode[0]
+            if key == "performance_mode"
+            else get_setting(key, default, value_type)
+        ),
+    )
+    window.apply_preferences()
+    assert not window._dev_mode_enabled
+    assert not window._dev_frequencies_override
+    assert not window.tabs.isTabEnabled(4)
+    assert not window._sidebar_buttons_by_tab[4].isEnabled()
+
+    # Programmatic construction proves that old saved DEV keys cannot unlock it.
+    window._ensure_main_tab(4)
+    multimedia = window._tab_widgets[4]
+    assert isinstance(multimedia, MultimediaTab)
+    player = multimedia.video_player
+    assert not multimedia._maintenance_overlay.isHidden()
+
+    assert window.toggle_development_mode() is True
+
+    assert window._dev_mode_enabled
+    assert window._dev_frequencies_override
+    assert window.settings.get("performance_mode", False, bool)
+    assert multimedia._maintenance_overlay.isHidden()
+    assert window.tabs.isTabEnabled(4)
+    assert window._sidebar_buttons_by_tab[4].isEnabled()
+    assert multimedia.dps_panel._performance_mode is True
+    assert window._tab_widgets[4] is multimedia
+    assert multimedia.video_player is player
+
+    assert window.toggle_development_mode() is False
+    assert not window._dev_mode_enabled
+    assert not window._dev_frequencies_override
+    assert not multimedia._maintenance_overlay.isHidden()
+    assert not window.tabs.isTabEnabled(4)
+    assert not window._sidebar_buttons_by_tab[4].isEnabled()
+    assert window._tab_widgets[4] is multimedia
+    assert multimedia.video_player is player
+
+    performance_mode[0] = False
+    window.apply_preferences()
+    assert multimedia.dps_panel._performance_mode is False
+    assert not multimedia._maintenance_overlay.isHidden()
+    assert not window.tabs.isTabEnabled(4)
+    assert not window._sidebar_buttons_by_tab[4].isEnabled()
+
+    assert window.toggle_development_mode() is True
+    assert multimedia._maintenance_overlay.isHidden()
+    assert window.tabs.isTabEnabled(4)
+    assert window._sidebar_buttons_by_tab[4].isEnabled()
+    assert multimedia.dps_panel._performance_mode is False
+
+    assert window.toggle_development_mode() is False
+    assert not multimedia._maintenance_overlay.isHidden()
+    assert not window.tabs.isTabEnabled(4)
+    assert not window._sidebar_buttons_by_tab[4].isEnabled()
+
+
 def test_resonator_tab_is_created_once_and_reused_after_returning_home(
     window: window_module.WuwaQtWindow,
 ) -> None:
@@ -220,6 +299,22 @@ def test_import_dialog_module_loads_when_dialog_is_first_opened(
     assert "src.wuwa_calculator.app.import_dialog" in sys.modules
     assert dialog is not None
     dialog.close()
+
+
+def test_window_minimize_state_is_forwarded_to_home(
+    window: window_module.WuwaQtWindow,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = window._tab_widgets[0]
+    assert isinstance(home, _HomeTab)
+    monkeypatch.setattr(window, "isMinimized", lambda: True)
+
+    window.changeEvent(QEvent(QEvent.Type.WindowStateChange))
+
+    assert home.window_states == [False]
+    monkeypatch.setattr(window, "isMinimized", lambda: False)
+    window.changeEvent(QEvent(QEvent.Type.WindowStateChange))
+    assert home.window_states == [False, True]
 
 
 def test_obs_settings_applied_before_multimedia_creation_are_replayed(

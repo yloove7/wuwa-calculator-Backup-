@@ -2544,12 +2544,15 @@ class PityTrackerWidget(QFrame):
             "QScrollArea { background: transparent; border: 0; }"
         )
         self.notices: list[dict[str, object]] = []
+        self._active = True
         self.manager = NoticeManager()
         self.worker: NewsFetcherWorker | None = None
         self._hero_pixmap_cache: dict[str, QPixmap] = {}
         self._hero_image_requests: set[str] = set()
         self._hero_image_attempted: set[str] = set()
         self._hero_images_started = not defer_hero_images
+        self._performance_mode = False
+        self._slide_group: QParallelAnimationGroup | None = None
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 8)
         root.setSpacing(0)
@@ -2588,6 +2591,55 @@ class PityTrackerWidget(QFrame):
         self.event_timer.start()
         if not defer_news_load:
             self._start_notice_load()
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        """Pause only the decorative hero carousel; keep event-time updates."""
+        if enabled and not self._performance_mode:
+            self._finish_interrupted_slide()
+        self._performance_mode = enabled
+        self._sync_timers()
+
+    def _finish_interrupted_slide(self) -> None:
+        group = self._slide_group
+        slide_was_running = (
+            group is not None
+            and group.state() != QAbstractAnimation.State.Stopped
+        )
+        if group is not None:
+            group.stop()
+        if (
+            slide_was_running
+            or not self.hero_next_image.isHidden()
+            or self.hero_image.pos() != QPoint(0, 0)
+        ):
+            incoming = self.hero_next_image.pixmap()
+            if incoming is not None and not incoming.isNull():
+                self.hero_image.setPixmap(incoming)
+            self.hero_image.move(0, 0)
+            self.hero_next_image.hide()
+            self.hero_next_image.clear()
+            self.hero_next_image.move(0, 0)
+            self.hero_image.update()
+            self.hero_next_image.update()
+        self._slide_group = None
+
+    def set_active(self, active: bool) -> None:
+        """Pause polling when the Home notice board is outside the viewport."""
+        self._active = active
+        self._sync_timers()
+
+    def _sync_timers(self) -> None:
+        if self._active:
+            if not self.event_timer.isActive():
+                self.event_timer.start(1000)
+        else:
+            self.event_timer.stop()
+
+        if self._active and not self._performance_mode and not self.hero.underMouse():
+            if not self.slide_timer.isActive():
+                self.slide_timer.start(5000)
+        else:
+            self.slide_timer.stop()
 
     def _build_hero(self, root: QVBoxLayout) -> None:
         hero = NoticeHeroFrame(self)
@@ -2643,10 +2695,7 @@ class PityTrackerWidget(QFrame):
     def _set_hero_hover(self, hovered: bool) -> None:
         self.btn_prev.setVisible(hovered)
         self.btn_next.setVisible(hovered)
-        if hovered:
-            self.slide_timer.stop()
-        else:
-            self.slide_timer.start()
+        self._sync_timers()
 
     def _request_hero_images(self) -> None:
         self.hero_pixmaps = [
@@ -2695,7 +2744,8 @@ class PityTrackerWidget(QFrame):
         ))
 
     def _change_slide(self, direction: int) -> None:
-        if getattr(self, "_slide_group", None) is not None and self._slide_group.state() == QAbstractAnimation.State.Running:
+        slide_group = self._slide_group
+        if slide_group is not None and slide_group.state() == QAbstractAnimation.State.Running:
             return
         next_index = (self.hero_index + direction) % len(self.hero_images)
         pixmap = self.hero_pixmaps[next_index]

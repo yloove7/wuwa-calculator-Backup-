@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, QTimer
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QEvent, Qt, QUrl, QTimer
+from PySide6.QtGui import QDesktopServices, QKeyEvent, QMouseEvent, QResizeEvent, QWheelEvent
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QGridLayout, QHBoxLayout, QLabel,
     QPushButton, QVBoxLayout, QWidget, QFrame, QSizePolicy,
@@ -16,6 +16,7 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.wuwa_calculator.app.components import Card, TitleLabel
+from src.wuwa_calculator.app.dev_mode import frequencies_should_be_blocked
 from src.wuwa_calculator.app.multimedia.dps_simulation_panel import DpsSimulationPanel
 from src.wuwa_calculator.app.multimedia.history_video_player import HistoryVideoPlayer
 
@@ -46,6 +47,92 @@ def _panel_title(text: str) -> QLabel:
 def _compact_width(widget: QWidget) -> None:
     widget.setMinimumWidth(0)
     widget.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+
+
+class _FrequencyMaintenanceOverlay(QWidget):
+    """Lightweight glass layer that blocks the Frequencies workspace."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setObjectName("frequencyMaintenanceOverlay")
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMouseTracking(True)
+        self.setStyleSheet(
+            "QWidget#frequencyMaintenanceOverlay {"
+            "background: rgba(5, 10, 20, 158);"
+            "border: 1px solid rgba(114, 220, 255, 75);"
+            "}"
+        )
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.addStretch(1)
+        panel = QFrame(self)
+        panel.setObjectName("frequencyMaintenanceMessage")
+        panel.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        panel.setStyleSheet(
+            "QFrame#frequencyMaintenanceMessage {"
+            "background: rgba(9, 18, 32, 190);"
+            "border: 1px solid rgba(96, 210, 255, 130);"
+            "border-radius: 18px;"
+            "}"
+        )
+        message_layout = QVBoxLayout(panel)
+        message_layout.setContentsMargins(48, 34, 48, 34)
+        message_layout.setSpacing(12)
+        icon = QLabel("⚠️", panel)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon.setStyleSheet("background: transparent; border: 0; font-size: 38px;")
+        heading = QLabel("EM MANUTENÇÃO", panel)
+        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        heading.setStyleSheet(
+            "background: transparent; border: 0; color: #EAF8FF;"
+            "font-size: 28px; font-weight: 800; letter-spacing: 3px;"
+        )
+        status = QLabel("TBA", panel)
+        status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        status.setStyleSheet(
+            "background: transparent; border: 0; color: #72DCFF;"
+            "font-size: 18px; font-weight: 700; letter-spacing: 5px;"
+        )
+        message_layout.addWidget(icon)
+        message_layout.addWidget(heading)
+        message_layout.addWidget(status)
+        layout.addWidget(panel, 0, Qt.AlignmentFlag.AlignHCenter)
+        layout.addStretch(1)
+        self.hide()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        parent = self.parentWidget()
+        if parent is not None:
+            self.setGeometry(parent.rect())
+
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.ShortcutOverride:
+            event.accept()
+            return True
+        return super().event(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        event.accept()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        event.accept()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        event.accept()
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        event.accept()
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        event.accept()
+
+    def keyReleaseEvent(self, event: QKeyEvent) -> None:
+        event.accept()
+
+    def focusNextPrevChild(self, _next: bool) -> bool:
+        return False
 
 
 class EventTimelinePanel(Card):
@@ -289,6 +376,38 @@ class MultimediaTab(QWidget):
         _compact_width(self.dps_panel)
         layout.addWidget(self.video_player, 3)
         layout.addWidget(self.dps_panel, 2)
+        self._performance_mode = False
+        self._dev_mode_enabled = False
+        self._dev_unlock_frequencies = False
+        self._maintenance_overlay = _FrequencyMaintenanceOverlay(self)
+
+    def set_performance_mode(self, enabled: bool) -> None:
+        self._performance_mode = enabled
+        self.dps_panel.set_performance_mode(enabled)
+        self._sync_frequency_lock()
+
+    def set_development_frequency_override(
+        self,
+        dev_mode: bool,
+        unlock_frequencies: bool,
+    ) -> None:
+        """Toggle only the light-mode access overlay; keep DPS mode untouched."""
+        self._dev_mode_enabled = dev_mode
+        self._dev_unlock_frequencies = unlock_frequencies
+        self._sync_frequency_lock()
+
+    def _sync_frequency_lock(self) -> None:
+        blocked = frequencies_should_be_blocked(
+            self._dev_mode_enabled,
+            self._dev_unlock_frequencies,
+        )
+        if blocked:
+            self._maintenance_overlay.setGeometry(self.rect())
+            self._maintenance_overlay.show()
+            self._maintenance_overlay.raise_()
+            self._maintenance_overlay.setFocus(Qt.FocusReason.OtherFocusReason)
+        else:
+            self._maintenance_overlay.hide()
 
     def closeEvent(self, event) -> None:
         if not self.dps_panel._stop_live_analysis():
@@ -306,7 +425,13 @@ class MultimediaTab(QWidget):
     def set_active(self, active: bool) -> None:
         if active:
             self.setUpdatesEnabled(True)
+            if not self._maintenance_overlay.isHidden():
+                self._maintenance_overlay.raise_()
             return
         self.dps_panel._stop_live_analysis()
         self.video_player.media_player.pause()
         self.setUpdatesEnabled(False)
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._maintenance_overlay.setGeometry(self.rect())
